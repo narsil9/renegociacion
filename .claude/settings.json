@@ -1,0 +1,42 @@
+{
+  "includeCoAuthoredBy": true,
+  "env": {
+    "INSIDE_CLAUDE_CODE": "1"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "# Warn if editing on main branch\n[ \"$(git branch --show-current)\" != \"main\" ] || { echo '{\"feedback\": \"Warning: You are editing on main branch. Consider creating a feature branch first.\"}' ; exit 0; }",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "# Auto-format JS/TS files with Prettier if available\nif [[ \"$CLAUDE_TOOL_INPUT_FILE_PATH\" =~ \\.(js|jsx|ts|tsx)$ ]]; then\n  file_path=\"${CLAUDE_TOOL_INPUT_FILE_PATH}\"\n  npx prettier --write \"$file_path\" >/dev/null 2>&1 || true\n  echo '{\"feedback\": \"Post-edit formatting complete.\", \"suppressOutput\": true}'\nfi",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "# Type-check TypeScript files on save\nif [[ \"$CLAUDE_TOOL_INPUT_FILE_PATH\" =~ \\.(ts|tsx)$ ]]; then\n  echo '{\"feedback\": \"Type-checking TypeScript files...\"}' >&2\n  npx tsc --noEmit >/dev/null 2>&1 && echo '{\"feedback\": \"Type-check passed.\", \"suppressOutput\": true}' || echo '{\"feedback\": \"Type-check failed. Run `npx tsc --noEmit` to view errors.\"}' >&2\nfi",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}
