@@ -35,9 +35,16 @@ This repository contains the hybrid automation system for filling out the renego
 7. **Propuesta** (Payment Proposal)
 8. **Finalizar** (Final Review & Submission)
 
+## Session Initialization (Mandatory)
+
+At the beginning of every session, you MUST immediately read:
+- [task.md](file://./task.md) to review completed and pending tasks.
+- [README.md](file://./README.md) to align on the architecture.
+- [.claude/skills/renegociacion-automation/SKILL.md](file://./.claude/skills/renegociacion-automation/SKILL.md) to align on the automation rules.
+
 ## Skill Activation
 
-Before modifying or executing automation scripts, check if relevant skills apply:
+Before implementing ANY task, check if relevant skills apply:
 - Modifying automation scripts → `renegociacion-automation` skill
 
 ## Common Commands
