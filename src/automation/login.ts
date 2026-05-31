@@ -1,17 +1,27 @@
 import { Page } from 'playwright';
 import { screenshotOnFailure } from '../utils/browser';
 
-function log(msg: string): void {
-  const ts = new Date().toISOString().replace('T', ' ').substring(0, 23);
-  console.log(`[${ts}] ${msg}`);
+interface SimpleLogger {
+  log(msg: string): void;
+  error(msg: string, err?: any): void;
 }
 
-export async function loginAndNavigateToStep1(page: Page): Promise<void> {
-  const rut = process.env.CLAVE_UNICA_RUT;
-  const password = process.env.CLAVE_UNICA_PASSWORD;
-
+export async function loginAndNavigateToStep1(
+  page: Page,
+  rut: string,
+  password: string,
+  logger?: SimpleLogger
+): Promise<void> {
+  const log = (msg: string) => {
+    if (logger) {
+      logger.log(msg);
+    } else {
+      const ts = new Date().toISOString().replace('T', ' ').substring(0, 23);
+      console.log(`[${ts}] ${msg}`);
+    }
+  };
   if (!rut || !password) {
-    throw new Error('Faltan CLAVE_UNICA_RUT o CLAVE_UNICA_PASSWORD en .env');
+    throw new Error('RUT o contraseña vacíos');
   }
 
   try {

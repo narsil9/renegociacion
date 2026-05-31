@@ -32,28 +32,56 @@ async function selectBootstrap(page: Page, selectId: string, value: string): Pro
   await page.waitForTimeout(200);
 }
 
-function validateEnv(): void {
-  const required = [
-    'PERSONA_NACIONALIDAD',
-    'PERSONA_FECHA_NACIMIENTO',
-    'PERSONA_ESTADO_CIVIL',
-    'PERSONA_PROFESION_OFICIO',
-    'PERSONA_OCUPACION',
-    'PERSONA_DIRECCION',
-    'PERSONA_REGION',
-    'PERSONA_COMUNA',
-    'PERSONA_EMAIL',
-    'PERSONA_TELEFONO_PREFIJO',
-    'PERSONA_TELEFONO',
+export interface ClientData {
+  nacionalidad: string;
+  fecha_nacimiento: string;
+  estado_civil: string;
+  regimen_patrimonial?: string | null;
+  profesion_oficio: string;
+  ocupacion: string;
+  direccion: string;
+  region: string;
+  comuna: string;
+  email: string;
+  telefono_prefijo: string;
+  telefono: string;
+}
+
+function validateClientData(client: ClientData): void {
+  const required: (keyof ClientData)[] = [
+    'nacionalidad',
+    'fecha_nacimiento',
+    'estado_civil',
+    'profesion_oficio',
+    'ocupacion',
+    'direccion',
+    'region',
+    'comuna',
+    'email',
+    'telefono_prefijo',
+    'telefono',
   ];
-  const missing = required.filter((k) => !process.env[k]);
+  const missing = required.filter((k) => !client[k]);
   if (missing.length > 0) {
-    throw new Error(`Faltan variables en .env: ${missing.join(', ')}`);
+    throw new Error(`Faltan campos requeridos en los datos del cliente: ${missing.join(', ')}`);
   }
 }
 
-export async function fillStep1(page: Page): Promise<void> {
-  validateEnv();
+interface SimpleLogger {
+  log(msg: string): void;
+  error(msg: string, err?: any): void;
+}
+
+export async function fillStep1(page: Page, client: ClientData, logger?: SimpleLogger): Promise<void> {
+  const log = (msg: string) => {
+    if (logger) {
+      logger.log(msg);
+    } else {
+      const ts = new Date().toISOString().replace('T', ' ').substring(0, 23);
+      console.log(`[${ts}] ${msg}`);
+    }
+  };
+  validateClientData(client);
 
   try {
     await page.waitForSelector('#renegociacionForm', { timeout: 30000 });
@@ -61,13 +89,36 @@ export async function fillStep1(page: Page): Promise<void> {
       throw new Error(`URL inesperada para Paso 1: ${page.url()}`);
     }
 
+    // Dar tiempo a que los scripts de inicialización de la página (jQuery document.ready)
+    // se ejecuten y configuren los estados de deshabilitado y botones de edición.
+    log('→ Esperando estabilización de scripts en la página...');
+    await page.waitForTimeout(3000);
+
+    // Esperar a que el campo nacionalidad esté cargado en la página
+    await page.waitForSelector('#personaNacionalidad', { timeout: 15000 });
+
     // Si el formulario tiene datos guardados, los campos aparecen deshabilitados
     // en modo vista. Hay que clickear "Modificar Información" para desbloquearlo.
-    const campoDeshabilitado = await page.locator('#personaNacionalidad[disabled], #personaNacionalidad:disabled').isVisible({ timeout: 2000 }).catch(() => false);
-    if (campoDeshabilitado) {
-      log('→ Formulario en modo vista. Clickeando Modificar Información...');
+    // Usamos page.evaluate para evaluar el estado real del DOM, ya que Bootstrap Select
+    // oculta los inputs nativos con display:none, lo que hace que Playwright .isVisible() retorne false.
+    const isViewMode = await page.evaluate(() => {
+      const el = document.getElementById('personaNacionalidad') as HTMLInputElement;
+      const btnModificar = document.getElementById('btnModificar');
+      const fieldDisabled = el ? el.disabled || el.hasAttribute('disabled') : false;
+      const btnVisible = btnModificar ? !btnModificar.classList.contains('hidden') && btnModificar.style.display !== 'none' : false;
+      return fieldDisabled || btnVisible;
+    });
+
+    if (isViewMode) {
+      log('→ Formulario en modo vista (detectado vía DOM). Clickeando Modificar Información...');
       await page.locator('#btnModificar').click();
-      await page.waitForSelector('#personaNacionalidad:not([disabled])', { timeout: 15000 });
+      
+      // Esperar a que se elimine el atributo disabled de la página
+      await page.waitForFunction(() => {
+        const el = document.getElementById('personaNacionalidad') as HTMLInputElement;
+        return el ? !el.disabled && !el.hasAttribute('disabled') : false;
+      }, { timeout: 15000 });
+
       log('→ Campos desbloqueados.');
     }
 
@@ -77,27 +128,27 @@ export async function fillStep1(page: Page): Promise<void> {
     // a partir del RUT (Registro Civil vía ClaveÚnica). No se tocan.
 
     // --- Campos de texto ---
-    await clearAndFill(page, '#personaNacionalidad', process.env.PERSONA_NACIONALIDAD!);
-    await clearAndFill(page, '#personaFechaNacimiento', process.env.PERSONA_FECHA_NACIMIENTO!);
+    await clearAndFill(page, '#personaNacionalidad', client.nacionalidad);
+    await clearAndFill(page, '#personaFechaNacimiento', client.fecha_nacimiento);
 
     // --- Dropdowns Bootstrap Select ---
-    const estadoCivil = process.env.PERSONA_ESTADO_CIVIL!;
+    const estadoCivil = client.estado_civil;
     await selectBootstrap(page, 'personaEstadoCivil', estadoCivil);
 
     // Régimen Patrimonial solo aparece si Estado Civil = Casado(a) (valor "2")
-    if (estadoCivil === '2' && process.env.PERSONA_REGIMEN_PATRIMONIAL) {
+    if (estadoCivil === '2' && client.regimen_patrimonial) {
       await page.waitForSelector('#rowRegimenPatrimonial:not(.hidden)', { timeout: 5000 });
-      await selectBootstrap(page, 'personaRegimenPatrimonial', process.env.PERSONA_REGIMEN_PATRIMONIAL);
+      await selectBootstrap(page, 'personaRegimenPatrimonial', client.regimen_patrimonial);
     }
 
-    await selectBootstrap(page, 'personaProfesionOficio', process.env.PERSONA_PROFESION_OFICIO!);
-    await selectBootstrap(page, 'personaOcupacion', process.env.PERSONA_OCUPACION!);
+    await selectBootstrap(page, 'personaProfesionOficio', client.profesion_oficio);
+    await selectBootstrap(page, 'personaOcupacion', client.ocupacion);
 
     // --- Dirección ---
-    await clearAndFill(page, '#personaDireccion', process.env.PERSONA_DIRECCION!);
+    await clearAndFill(page, '#personaDireccion', client.direccion);
 
     // Región primero, luego esperar que el dropdown de comunas se pueble vía AJAX
-    await selectBootstrap(page, 'personaRegion', process.env.PERSONA_REGION!);
+    await selectBootstrap(page, 'personaRegion', client.region);
     await page.waitForFunction(
       () => {
         const el = document.getElementById('personaComuna') as HTMLSelectElement;
@@ -105,12 +156,12 @@ export async function fillStep1(page: Page): Promise<void> {
       },
       { timeout: 10000 }
     );
-    await selectBootstrap(page, 'personaComuna', process.env.PERSONA_COMUNA!);
+    await selectBootstrap(page, 'personaComuna', client.comuna);
 
     // --- Contacto ---
-    await clearAndFill(page, '#personaCorreoElectronico', process.env.PERSONA_EMAIL!);
-    await selectBootstrap(page, 'personaTelefonoPrefijo', process.env.PERSONA_TELEFONO_PREFIJO!);
-    await clearAndFill(page, '#personaTelefono', process.env.PERSONA_TELEFONO!);
+    await clearAndFill(page, '#personaCorreoElectronico', client.email);
+    await selectBootstrap(page, 'personaTelefonoPrefijo', client.telefono_prefijo);
+    await clearAndFill(page, '#personaTelefono', client.telefono);
 
     log('✓ Todos los campos completados.');
 
@@ -126,16 +177,16 @@ export async function fillStep1(page: Page): Promise<void> {
     // --- PRODUCCIÓN: guardar y continuar al Paso 2 ---
     log('→ Guardando y continuando al Paso 2...');
 
-    // El portal muestra un modal de confirmación (onclick="confirmar()") al guardar.
-    // Hay que aceptarlo automáticamente.
-    page.once('dialog', (dialog) => {
-      log(`→ Alerta del browser: "${dialog.message()}" → aceptando.`);
-      dialog.accept();
-    });
-
     const urlAntes = page.url();
     await page.locator('button[onclick*="guardarYContinuar"]').click();
 
+    // Esperar a que el modal HTML de confirmación aparezca y hacer click en "Guardar" (onclick="confirmar()")
+    log('→ Esperando modal de confirmación HTML...');
+    const btnConfirmar = page.locator('button[onclick="confirmar()"]');
+    await btnConfirmar.waitFor({ state: 'visible', timeout: 15000 });
+    await btnConfirmar.click();
+
+    log('→ Esperando redirección al Paso 2...');
     await page.waitForFunction(
       (before: string) => window.location.href !== before,
       urlAntes,

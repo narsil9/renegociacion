@@ -29,7 +29,7 @@ export async function launchBrowser(): Promise<{ browser: Browser; context: Brow
   return { browser, context, page };
 }
 
-export async function screenshotOnFailure(page: Page, stepName: string): Promise<void> {
+export async function screenshotOnFailure(page: Page, stepName: string): Promise<{ screenshotPath: string; htmlPath: string } | null> {
   const outputDir = path.join(process.cwd(), 'outputs');
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
@@ -44,7 +44,9 @@ export async function screenshotOnFailure(page: Page, stepName: string): Promise
     fs.writeFileSync(htmlPath, await page.content());
     console.error(`📸 Screenshot: ${screenshotPath}`);
     console.error(`📄 HTML dump: ${htmlPath}`);
-  } catch {
-    console.error('Could not save failure artifacts.');
+    return { screenshotPath, htmlPath };
+  } catch (err) {
+    console.error('Could not save failure artifacts:', err);
+    return null;
   }
 }

@@ -7,17 +7,22 @@
     "build": "tsc",
     "dev": "ts-node src/index.ts",
     "automate": "ts-node src/index.ts",
+    "worker": "ts-node src/worker.ts",
+    "dashboard": "npm run dev --prefix dashboard",
+    "build:dashboard": "npm run build --prefix dashboard",
     "test": "echo \"No tests yet\" && exit 0"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
     "dotenv": "^16.4.5",
+    "pg": "^8.21.0",
     "playwright": "^1.44.0",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
+    "@types/pg": "^8.20.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }
