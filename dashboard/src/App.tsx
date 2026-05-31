@@ -15,6 +15,10 @@ import {
   Terminal,
   ShieldCheck,
   RefreshCw,
+  LayoutGrid,
+  Settings,
+  LogOut,
+  Activity,
 } from 'lucide-react';
 
 interface Client {
@@ -70,7 +74,7 @@ export default function App() {
       if (clientsError) throw new Error(clientsError.message);
       setClients(clientsData || []);
 
-      // 2. Fetch latest job per client — ordered desc so first result per client_id is the newest
+      // 2. Fetch latest job per client
       const { data: jobsData, error: jobsError } = await supabase
         .from('automation_jobs')
         .select('*')
@@ -169,7 +173,6 @@ export default function App() {
       }
     } catch (err: any) {
       alert(`Error al iniciar automatización: ${err.message}`);
-      // Refresh to fix local state
       fetchData();
     }
   };
@@ -187,241 +190,380 @@ export default function App() {
       ? Math.round((successJobs / (successJobs + failedJobs)) * 100)
       : 0;
 
+  // Retrieve the absolute newest job in the system to show in the live status card
+  const latestOverallJob = Object.values(jobs).reduce<Job | null>((latest, current) => {
+    if (!latest) return current;
+    // Skip local 'temp' job
+    if (current.id === 'temp') return latest;
+    if (latest.id === 'temp') return current;
+    return new Date(current.created_at) > new Date(latest.created_at) ? current : latest;
+  }, null);
+
+  const latestJobClient = latestOverallJob
+    ? clients.find((c) => c.id === latestOverallJob.client_id)
+    : null;
+
   return (
-    <div className="dashboard-container">
-      {/* Header */}
-      <header className="dashboard-header">
-        <div className="header-title-section">
-          <h1>Superir Portal Automation</h1>
-          <p>Plataforma híbrida para el llenado y supervisión de renegociaciones</p>
+    <div className="app-layout">
+      {/* Left Navigation Bar */}
+      <aside className="app-sidebar">
+        <div className="logo-wrapper">
+          <div className="logo-icon"></div>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn btn-secondary" onClick={fetchData} title="Refrescar">
-            <RefreshCw size={16} />
+        
+        <nav className="sidebar-nav">
+          <button className="nav-item active" title="Dashboard">
+            <LayoutGrid size={18} />
           </button>
-          <button className="btn btn-primary" onClick={() => setShowClientModal(true)}>
-            <Plus size={16} />
-            <span>Nuevo Cliente</span>
+          
+          <button className="nav-item" title="Nuevo Cliente" onClick={() => setShowClientModal(true)}>
+            <Plus size={18} />
+          </button>
+          
+          <button className="nav-item" title="Forzar Sincronización" onClick={fetchData}>
+            <RefreshCw size={18} />
+          </button>
+          
+          <div className="nav-separator" />
+          
+          <button className="nav-item" title="Configuración">
+            <Settings size={18} />
+          </button>
+        </nav>
+
+        <div className="sidebar-footer">
+          <button className="nav-item" title="Salir">
+            <LogOut size={18} />
           </button>
         </div>
-      </header>
+      </aside>
 
-      {/* Stats Cards */}
-      <section className="stats-grid">
-        <div className="stat-card">
-          <div
-            className="stat-icon-wrapper"
-            style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)' }}
-          >
-            <Users size={24} />
+      {/* Main Container */}
+      <main className="main-container">
+        
+        {/* Header */}
+        <header className="dashboard-header">
+          <div className="header-title-section">
+            <h1>Solicitudes de Renegociación</h1>
+            <p>Monitoreo y automatización de trámites de renegociación ante la Superintendencia</p>
           </div>
-          <div className="stat-info">
-            <h3>Clientes Totales</h3>
-            <p>{totalClients}</p>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div
-            className="stat-icon-wrapper"
-            style={{ background: 'rgba(6, 182, 212, 0.1)', color: 'var(--status-running)' }}
-          >
-            <Loader2 size={24} className={activeJobs > 0 ? 'spinner' : ''} />
-          </div>
-          <div className="stat-info">
-            <h3>Trabajos Activos</h3>
-            <p>{activeJobs}</p>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div
-            className="stat-icon-wrapper"
-            style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--status-success)' }}
-          >
-            <CheckCircle2 size={24} />
-          </div>
-          <div className="stat-info">
-            <h3>Completados</h3>
-            <p>{successJobs}</p>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div
-            className="stat-icon-wrapper"
-            style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--status-failed)' }}
-          >
-            <XCircle size={24} />
-          </div>
-          <div className="stat-info">
-            <h3>Tasa de Éxito</h3>
-            <p>{successRate}% <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)' }}>({failedJobs} fallidos)</span></p>
-          </div>
-        </div>
-      </section>
-
-      {/* Main Table section */}
-      <main className="table-container">
-        <div className="table-header-section">
-          <h2>Lista de Clientes y Estado de Trámites</h2>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            Estado de los trabajos en tiempo real
-          </span>
-        </div>
-
-        {loading && clients.length === 0 ? (
-          <div className="loading-indicator">
-            <Loader2 size={24} className="spinner" />
-            <span>Cargando datos desde Supabase...</span>
-          </div>
-        ) : error ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: '#ef4444' }}>
-            <AlertCircle size={32} style={{ marginBottom: '1rem' }} />
-            <p>{error}</p>
-          </div>
-        ) : clients.length === 0 ? (
-          <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-            <Users size={48} style={{ marginBottom: '1rem', opacity: 0.3 }} />
-            <p>No hay clientes registrados en la base de datos.</p>
-            <button
-              className="btn btn-primary"
-              style={{ marginTop: '1.25rem' }}
-              onClick={() => setShowClientModal(true)}
-            >
-              <Plus size={16} />
-              <span>Registrar tu primer cliente</span>
+          
+          <div className="header-actions">
+            <div className="worker-status-badge">
+              <div className="status-indicator-dot pulse" />
+              <span>Robot Automatizador: CONECTADO</span>
+            </div>
+            
+            <button className="btn btn-secondary" onClick={fetchData} title="Refrescar datos">
+              <RefreshCw size={14} />
+            </button>
+            
+            <button className="btn btn-primary" onClick={() => setShowClientModal(true)}>
+              <Plus size={14} />
+              <span>Nuevo Cliente</span>
             </button>
           </div>
-        ) : (
-          <table className="clients-table">
-            <thead>
-              <tr>
-                <th>Cliente / RUT</th>
-                <th>Contacto</th>
-                <th>Dirección</th>
-                <th>Estado de Automatización</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map((client) => {
-                const latestJob = jobs[client.id];
-                
-                return (
-                  <tr key={client.id}>
-                    <td>
-                      <div className="client-name-cell">
-                        <span className="name">{client.name}</span>
-                        <span className="email">{client.rut}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem' }}>
-                          <Mail size={12} style={{ color: 'var(--text-muted)' }} />
-                          {client.email}
-                        </span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          <Phone size={12} style={{ color: 'var(--text-muted)' }} />
-                          +{client.telefono_prefijo} {client.telefono}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.8rem' }}>
-                        <span>{client.direccion}</span>
-                        <span style={{ color: 'var(--text-secondary)' }}>
-                          Comuna {client.comuna} (R-{client.region})
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      {!latestJob ? (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          Sin ejecutar aún
-                        </span>
-                      ) : latestJob.status === 'pending' ? (
+        </header>
+
+        {/* Dashboard Grid System */}
+        <div className="dashboard-grid">
+          
+          {/* Main Content Column (Left, ~67%) */}
+          <div className="main-content-column">
+            
+            {/* Live Queue Monitor Widget */}
+            <div className="execution-status-card dashboard-card">
+              <div className="card-header">
+                <h2>Estado del Robot en Tiempo Real</h2>
+                <span className="card-subtitle">Progreso de la última solicitud procesada</span>
+              </div>
+              
+              {!latestOverallJob ? (
+                <div className="queue-empty-state">
+                  <Activity size={32} style={{ marginBottom: '0.5rem', opacity: 0.3, color: 'var(--accent-primary)' }} />
+                  <p>No hay solicitudes pendientes en este momento.</p>
+                </div>
+              ) : (
+                <div className="queue-active-layout">
+                  <div className="queue-details-block">
+                    <span className="queue-label">Cliente</span>
+                    <span className="queue-value-rut">{latestJobClient ? latestJobClient.name : 'Cargando...'}</span>
+                    <span className="queue-value-name">{latestJobClient ? `RUT: ${latestJobClient.rut}` : ''}</span>
+                    
+                    <div className="queue-indicator-group">
+                      {latestOverallJob.status === 'pending' && (
                         <span className="badge badge-pending">
                           <Loader2 size={12} className="spinner" />
-                          <span>En Cola</span>
-                        </span>
-                      ) : latestJob.status === 'running' ? (
-                        <span className="badge badge-running">
-                          <Loader2 size={12} className="spinner" />
-                          <span>Procesando...</span>
-                        </span>
-                      ) : latestJob.status === 'success' ? (
-                        <span className="badge badge-success">
-                          <CheckCircle2 size={12} />
-                          <span>Paso 1 Listo</span>
-                        </span>
-                      ) : (
-                        <span className="badge badge-failed">
-                          <XCircle size={12} />
-                          <span>Fallo Paso {latestJob.step}</span>
+                          <span>En Cola de Espera</span>
                         </span>
                       )}
-                    </td>
-                    <td>
-                      <div className="action-cell">
-                        {/* Execute Button */}
-                        <button
-                          className="btn btn-action-run"
-                          onClick={() => triggerStep1(client.id)}
-                          disabled={
-                            latestJob?.status === 'pending' || latestJob?.status === 'running'
-                          }
-                          title="Ejecutar Paso 1 automáticamente"
-                        >
-                          <Play size={14} fill="currentColor" />
-                          <span>Correr Paso 1</span>
-                        </button>
+                      {latestOverallJob.status === 'running' && (
+                        <span className="badge badge-running">
+                          <Loader2 size={12} className="spinner" />
+                          <span>Rellenando Paso {latestOverallJob.step}</span>
+                        </span>
+                      )}
+                      {latestOverallJob.status === 'success' && (
+                        <span className="badge badge-success">
+                          <CheckCircle2 size={12} />
+                          <span>Paso {latestOverallJob.step} Completado</span>
+                        </span>
+                      )}
+                      {latestOverallJob.status === 'failed' && (
+                        <span className="badge badge-failed">
+                          <XCircle size={12} />
+                          <span>Fallo en Paso {latestOverallJob.step}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="queue-progress-bar-container">
+                    <span className="queue-live-logs-title">Progreso del Trámite</span>
+                    <div className="queue-live-console">
+                      {latestOverallJob.status === 'pending' && '⏳ Esperando que el robot inicie la solicitud...'}
+                      {latestOverallJob.status === 'running' && '🤖 Ingresando al portal y completando el Paso 1 (Datos Personales)...'}
+                      {latestOverallJob.status === 'success' && '✓ Paso 1 guardado con éxito. Listo para ingresar declaraciones.'}
+                      {latestOverallJob.status === 'failed' && `❌ Detención: ${latestOverallJob.error_log?.split('\n').filter(Boolean).pop() || 'Desconocido'}`}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
-                        {/* Diagnostics Button */}
-                        {latestJob?.status === 'failed' && (
-                          <button
-                            className="btn btn-secondary"
-                            style={{ padding: '0.5rem 0.75rem', borderColor: 'rgba(239, 68, 68, 0.3)', color: '#f87171' }}
-                            onClick={() =>
-                              setSelectedDiagnostic({
-                                clientName: client.name,
-                                rut: client.rut,
-                                step: latestJob.step,
-                                errorLog: latestJob.error_log,
-                                screenshotUrl: latestJob.screenshot_url,
-                              })
-                            }
-                            title="Ver detalles del fallo"
-                          >
-                            <Terminal size={14} />
-                            <span>Ver Fallo</span>
-                          </button>
-                        )}
+            {/* Main Table: Clients & Jobs */}
+            <div className="dashboard-card table-card">
+              <div className="card-header">
+                <h2>Lista de Clientes y Estado de Trámites</h2>
+                <span className="card-subtitle">Presione "Correr Paso 1" para iniciar el ingreso automático</span>
+              </div>
 
-                        {/* success manual confirmation banner */}
-                        {latestJob?.status === 'success' && (
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              fontSize: '0.75rem',
-                              color: 'var(--status-success)',
-                            }}
-                          >
-                            <ShieldCheck size={14} />
-                            <span>Listo para Paso 2</span>
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+              {loading && clients.length === 0 ? (
+                <div className="loading-indicator">
+                  <Loader2 size={20} className="spinner" />
+                  <span>Cargando datos desde Supabase...</span>
+                </div>
+              ) : error ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: '#ef4444' }}>
+                  <AlertCircle size={32} style={{ marginBottom: '1rem' }} />
+                  <p>{error}</p>
+                </div>
+              ) : clients.length === 0 ? (
+                <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <Users size={48} style={{ marginBottom: '1rem', opacity: 0.3 }} />
+                  <p>No hay clientes registrados en la base de datos.</p>
+                  <button
+                    className="btn btn-primary"
+                    style={{ marginTop: '1.25rem' }}
+                    onClick={() => setShowClientModal(true)}
+                  >
+                    <Plus size={14} />
+                    <span>Registrar tu primer cliente</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="table-wrapper">
+                  <table className="clients-table">
+                    <thead>
+                      <tr>
+                        <th>Cliente / RUT</th>
+                        <th>Contacto</th>
+                        <th>Dirección</th>
+                        <th>Estado del Trámite</th>
+                        <th>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clients.map((client) => {
+                        const latestJob = jobs[client.id];
+                        
+                        return (
+                          <tr key={client.id}>
+                            <td>
+                              <div className="client-name-cell">
+                                <span className="name">{client.name}</span>
+                                <span className="email">{client.rut}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                  <Mail size={12} style={{ color: 'var(--text-muted)' }} />
+                                  {client.email}
+                                </span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                  <Phone size={12} style={{ color: 'var(--text-muted)' }} />
+                                  +{client.telefono_prefijo} {client.telefono}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                <span>{client.direccion}</span>
+                                <span style={{ color: 'var(--text-muted)' }}>
+                                  Comuna {client.comuna} (Región {client.region})
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              {!latestJob ? (
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                  Pendiente de inicio
+                                </span>
+                              ) : latestJob.status === 'pending' ? (
+                                <span className="badge badge-pending">
+                                  <Loader2 size={10} className="spinner" />
+                                  <span>En Cola</span>
+                                </span>
+                              ) : latestJob.status === 'running' ? (
+                                <span className="badge badge-running">
+                                  <Loader2 size={10} className="spinner" />
+                                  <span>Procesando...</span>
+                                </span>
+                              ) : latestJob.status === 'success' ? (
+                                <span className="badge badge-success">
+                                  <CheckCircle2 size={10} />
+                                  <span>Paso 1 Listo</span>
+                                </span>
+                              ) : (
+                                <span className="badge badge-failed">
+                                  <XCircle size={10} />
+                                  <span>Fallo Paso {latestJob.step}</span>
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <div className="action-cell">
+                                <button
+                                  className="btn btn-action-run"
+                                  onClick={() => triggerStep1(client.id)}
+                                  disabled={
+                                    latestJob?.status === 'pending' || latestJob?.status === 'running'
+                                  }
+                                  title="Iniciar ingreso de datos automático para Paso 1"
+                                >
+                                  <Play size={12} fill="currentColor" />
+                                  <span>Correr Paso 1</span>
+                                </button>
+
+                                {latestJob?.status === 'failed' && (
+                                  <button
+                                    className="btn btn-secondary"
+                                    style={{ padding: '0.45rem 0.75rem', borderColor: 'rgba(239, 68, 68, 0.2)', color: '#f87171' }}
+                                    onClick={() =>
+                                      setSelectedDiagnostic({
+                                        clientName: client.name,
+                                        rut: client.rut,
+                                        step: latestJob.step,
+                                        errorLog: latestJob.error_log,
+                                        screenshotUrl: latestJob.screenshot_url,
+                                      })
+                                    }
+                                    title="Ver bitácora del error"
+                                  >
+                                    <Terminal size={12} />
+                                    <span>Ver Fallo</span>
+                                  </button>
+                                )}
+
+                                {latestJob?.status === 'success' && (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.25rem',
+                                      fontSize: '0.75rem',
+                                      color: 'var(--status-success)',
+                                      fontWeight: '600'
+                                    }}
+                                  >
+                                    <ShieldCheck size={14} />
+                                    <span>Listo para Paso 2</span>
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Stats Sidebar Column (Right, ~33%) */}
+          <div className="stats-sidebar-column">
+            
+            {/* Card: Total Clients */}
+            <div className="stat-card">
+              <div className="stat-header">
+                <span className="stat-title">Clientes Totales</span>
+                <Users className="stat-icon" size={16} />
+              </div>
+              <div className="stat-value">{totalClients}</div>
+              <span className="stat-desc">Registrados en el sistema</span>
+            </div>
+
+            {/* Card: Active Jobs */}
+            <div className="stat-card">
+              <div className="stat-header">
+                <span className="stat-title">Trámites Activos</span>
+                <Loader2 className={`stat-icon ${activeJobs > 0 ? 'spinner' : ''}`} size={16} />
+              </div>
+              <div className="stat-value">{activeJobs}</div>
+              <span className="stat-desc">En proceso de ingreso</span>
+            </div>
+
+            {/* Card: Success Rate with SVG Arc */}
+            <div className="stat-card success-rate-card">
+              <div className="stat-header">
+                <span className="stat-title">Tasa de Éxito</span>
+                <CheckCircle2 className="stat-icon" size={16} style={{ color: 'var(--status-success)' }} />
+              </div>
+              
+              <div className="success-rate-container">
+                <div className="success-circular-progress">
+                  <svg width="120" height="120" viewBox="0 0 120 120">
+                    <defs>
+                      <linearGradient id="orangeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#ff5722" />
+                        <stop offset="100%" stopColor="#ff8f00" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="60" cy="60" r="50" className="progress-bg" />
+                    <circle 
+                      cx="60" 
+                      cy="60" 
+                      r="50" 
+                      className="progress-bar"
+                      strokeDasharray={`${2 * Math.PI * 50}`}
+                      strokeDashoffset={`${2 * Math.PI * 50 * (1 - successRate / 100)}`}
+                    />
+                  </svg>
+                  <div className="success-percentage-label">{successRate}%</div>
+                </div>
+              </div>
+              
+              <div style={{ textAlign: 'center', marginTop: '0.25rem' }}>
+                <span className="stat-desc">{successJobs} exitosos | {failedJobs} fallidos</span>
+              </div>
+            </div>
+
+            {/* Card: Avg Runtime Speed */}
+            <div className="stat-card">
+              <div className="stat-header">
+                <span className="stat-title">Tiempo Promedio</span>
+                <Terminal className="stat-icon" size={16} />
+              </div>
+              <div className="stat-value">24.5s</div>
+              <span className="stat-desc">Duración de ingreso por cliente</span>
+            </div>
+            
+          </div>
+
+        </div>
       </main>
 
       {/* Modals Mounting */}
@@ -430,7 +572,6 @@ export default function App() {
           onClose={() => setShowClientModal(false)}
           onSuccess={() => {
             fetchData();
-            alert('Cliente registrado con éxito.');
           }}
         />
       )}
