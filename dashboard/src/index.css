@@ -613,14 +613,15 @@ h1, h2, h3, h4 {
 
 .queue-active-layout {
   display: grid;
-  grid-template-columns: 1.2fr 2fr;
-  gap: 1.5rem;
+  grid-template-columns: 1.8fr 2fr;
+  gap: 2rem;
 }
 
 .queue-details-block {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  min-width: 0;
 }
 
 .queue-label {
@@ -633,10 +634,11 @@ h1, h2, h3, h4 {
 
 .queue-value-rut {
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: #fff;
   margin-top: 0.1rem;
+  line-height: 1.25;
 }
 
 .queue-value-name {
@@ -653,6 +655,7 @@ h1, h2, h3, h4 {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  min-width: 0;
 }
 
 .queue-live-logs-title {
@@ -904,3 +907,78 @@ h1, h2, h3, h4 {
   color: var(--text-secondary);
   gap: 0.75rem;
 }
+
+/* ============================================================
+   MODE TABS SWITCHER
+   ============================================================ */
+.mode-tabs-container {
+  display: flex;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.25rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  width: fit-content;
+  margin-bottom: 2rem;
+  animation: fadeIn var(--transition-normal);
+}
+
+.mode-tab-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.6rem 1.5rem;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mode-tab-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mode-tab-btn.active {
+  color: var(--text-primary);
+  background: var(--accent-gradient);
+  box-shadow: 0 4px 12px rgba(255, 87, 34, 0.15);
+}
+
+.mode-tab-btn.active .tab-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: var(--text-primary);
+}
+
+.tab-badge {
+  font-size: 0.7rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  font-weight: 700;
+  transition: var(--transition-fast);
+}
+
+.missing-badge {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.complete-badge {
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+

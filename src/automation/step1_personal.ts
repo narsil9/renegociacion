@@ -129,7 +129,19 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
 
     // --- Campos de texto ---
     await clearAndFill(page, '#personaNacionalidad', client.nacionalidad);
-    await clearAndFill(page, '#personaFechaNacimiento', client.fecha_nacimiento);
+
+    // Check if birthdate is editable before filling it
+    const isFechaNacimientoEditable = await page.evaluate(() => {
+      const el = document.getElementById('personaFechaNacimiento') as HTMLInputElement;
+      return el ? !el.disabled && !el.readOnly : false;
+    });
+
+    if (isFechaNacimientoEditable && client.fecha_nacimiento && client.fecha_nacimiento !== '01/01/1990') {
+      log('→ Completando Fecha de Nacimiento (campo es editable)...');
+      await clearAndFill(page, '#personaFechaNacimiento', client.fecha_nacimiento);
+    } else {
+      log('→ Campo Fecha de Nacimiento omitido (pre-llenado automáticamente por el portal o sin valor válido).');
+    }
 
     // --- Dropdowns Bootstrap Select ---
     const estadoCivil = client.estado_civil;

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
-import { ClientModal } from './components/ClientModal';
 import { JobDiagnosticModal } from './components/JobDiagnosticModal';
 import {
   Users,
@@ -9,7 +8,6 @@ import {
   XCircle,
   AlertCircle,
   Loader2,
-  Plus,
   Phone,
   Mail,
   Terminal,
@@ -19,6 +17,7 @@ import {
   Settings,
   LogOut,
   Activity,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface Client {
@@ -31,6 +30,7 @@ interface Client {
   direccion: string;
   comuna: string;
   region: string;
+  missing_fields?: string[];
 }
 
 interface Job {
@@ -38,6 +38,7 @@ interface Job {
   client_id: string;
   step: number;
   status: 'pending' | 'running' | 'success' | 'failed';
+  dry_run?: boolean;
   error_log: string | null;
   screenshot_url: string | null;
   created_at: string;
@@ -50,8 +51,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Modals
-  const [showClientModal, setShowClientModal] = useState(false);
+  // Dry run settings per client in production isolated mode (default to true)
+  const [dryRunJobs, setDryRunJobs] = useState<Record<string, boolean>>({});
+
+  // Diagnostic Modal
   const [selectedDiagnostic, setSelectedDiagnostic] = useState<{
     clientName: string;
     rut: string;
@@ -60,14 +63,17 @@ export default function App() {
     screenshotUrl: string | null;
   } | null>(null);
 
-  // Fetch initial data
+  // Fetch data from isolated production test tables
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
+      const clientsTable = 'pato_prueba_clients';
+      const jobsTable = 'pato_prueba_automation_jobs';
+
       // 1. Fetch Clients
       const { data: clientsData, error: clientsError } = await supabase
-        .from('clients')
+        .from(clientsTable)
         .select('*')
         .order('name', { ascending: true });
 
@@ -76,7 +82,7 @@ export default function App() {
 
       // 2. Fetch latest job per client
       const { data: jobsData, error: jobsError } = await supabase
-        .from('automation_jobs')
+        .from(jobsTable)
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -103,15 +109,17 @@ export default function App() {
   useEffect(() => {
     fetchData();
 
-    // 3. Subscribe to Real-time updates for automation_jobs
+    const jobsTable = 'pato_prueba_automation_jobs';
+
+    // 3. Subscribe to Real-time updates for production isolated jobs table
     const channel = supabase
-      .channel('automation_jobs_changes')
+      .channel(`${jobsTable}_changes`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'automation_jobs',
+          table: jobsTable,
         },
         (payload) => {
           if (payload.eventType === 'DELETE') {
@@ -143,6 +151,9 @@ export default function App() {
 
   // Trigger automation run
   const triggerStep1 = async (clientId: string) => {
+    const jobsTable = 'pato_prueba_automation_jobs';
+    const isDryRun = dryRunJobs[clientId] !== false;
+
     try {
       // Create a temporary loading job locally
       setJobs((prev) => ({
@@ -152,6 +163,7 @@ export default function App() {
           client_id: clientId,
           step: 1,
           status: 'pending',
+          dry_run: isDryRun,
           error_log: null,
           screenshot_url: null,
           created_at: new Date().toISOString(),
@@ -159,14 +171,18 @@ export default function App() {
         },
       }));
 
+      // Insert job parameters
+      const insertPayload = {
+        client_id: clientId,
+        step: 1,
+        status: 'pending',
+        dry_run: isDryRun,
+      };
+
       // Insert job in Supabase
       const { error: insertError } = await supabase
-        .from('automation_jobs')
-        .insert({
-          client_id: clientId,
-          step: 1,
-          status: 'pending',
-        });
+        .from(jobsTable)
+        .insert(insertPayload);
 
       if (insertError) {
         throw new Error(insertError.message);
@@ -216,11 +232,7 @@ export default function App() {
             <LayoutGrid size={18} />
           </button>
           
-          <button className="nav-item" title="Nuevo Cliente" onClick={() => setShowClientModal(true)}>
-            <Plus size={18} />
-          </button>
-          
-          <button className="nav-item" title="Forzar Sincronización" onClick={fetchData}>
+          <button className="nav-item" title="Sincronizar y Refrescar" onClick={fetchData}>
             <RefreshCw size={18} />
           </button>
           
@@ -244,23 +256,19 @@ export default function App() {
         {/* Header */}
         <header className="dashboard-header">
           <div className="header-title-section">
-            <h1>Solicitudes de Renegociación</h1>
-            <p>Monitoreo y automatización de trámites de renegociación ante la Superintendencia</p>
+            <h1>Automatización de Renegociación</h1>
+            <p>Monitoreo y ejecución aislada de pruebas con clientes reales de producción</p>
           </div>
           
           <div className="header-actions">
             <div className="worker-status-badge">
               <div className="status-indicator-dot pulse" />
-              <span>Robot Automatizador: CONECTADO</span>
+              <span>Pruebas en Producción Aislada</span>
             </div>
             
-            <button className="btn btn-secondary" onClick={fetchData} title="Refrescar datos">
+            <button className="btn btn-primary" onClick={fetchData} title="Refrescar datos">
               <RefreshCw size={14} />
-            </button>
-            
-            <button className="btn btn-primary" onClick={() => setShowClientModal(true)}>
-              <Plus size={14} />
-              <span>Nuevo Cliente</span>
+              <span>Refrescar Datos</span>
             </button>
           </div>
         </header>
@@ -288,7 +296,14 @@ export default function App() {
                   <div className="queue-details-block">
                     <span className="queue-label">Cliente</span>
                     <span className="queue-value-rut">{latestJobClient ? latestJobClient.name : 'Cargando...'}</span>
-                    <span className="queue-value-name">{latestJobClient ? `RUT: ${latestJobClient.rut}` : ''}</span>
+                    <span className="queue-value-name">
+                      {latestJobClient ? `RUT: ${latestJobClient.rut}` : ''}
+                      {latestOverallJob.dry_run !== undefined && (
+                        <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', color: latestOverallJob.dry_run ? 'var(--status-running)' : 'var(--status-failed)', fontWeight: 'bold' }}>
+                          [{latestOverallJob.dry_run ? 'DRY RUN' : 'LIVELY SUBMIT'}]
+                        </span>
+                      )}
+                    </span>
                     
                     <div className="queue-indicator-group">
                       {latestOverallJob.status === 'pending' && (
@@ -334,8 +349,8 @@ export default function App() {
             {/* Main Table: Clients & Jobs */}
             <div className="dashboard-card table-card">
               <div className="card-header">
-                <h2>Lista de Clientes y Estado de Trámites</h2>
-                <span className="card-subtitle">Presione "Correr Paso 1" para iniciar el ingreso automático</span>
+                <h2>Lista de Clientes Sincronizados</h2>
+                <span className="card-subtitle">Monitoreo del robot sobre la base de pruebas aisladas con clientes de producción</span>
               </div>
 
               {loading && clients.length === 0 ? (
@@ -351,15 +366,8 @@ export default function App() {
               ) : clients.length === 0 ? (
                 <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                   <Users size={48} style={{ marginBottom: '1rem', opacity: 0.3 }} />
-                  <p>No hay clientes registrados en la base de datos.</p>
-                  <button
-                    className="btn btn-primary"
-                    style={{ marginTop: '1.25rem' }}
-                    onClick={() => setShowClientModal(true)}
-                  >
-                    <Plus size={14} />
-                    <span>Registrar tu primer cliente</span>
-                  </button>
+                  <p>No se han sincronizado clientes de prueba desde la base de datos de producción.</p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Ejecute `npx ts-node src/utils/sync_prod_data.ts` en la terminal para sincronizar datos reales.</p>
                 </div>
               ) : (
                 <div className="table-wrapper">
@@ -376,32 +384,46 @@ export default function App() {
                     <tbody>
                       {clients.map((client) => {
                         const latestJob = jobs[client.id];
+                        const isDryRun = dryRunJobs[client.id] !== false;
                         
+                        // Calculate completeness in production mode (ignore birthdate)
+                        const criticalMissing = client.missing_fields?.filter(f => f !== 'fecha_nacimiento') || [];
+                        const isComplete = criticalMissing.length === 0;
+
                         return (
                           <tr key={client.id}>
                             <td>
                               <div className="client-name-cell">
                                 <span className="name">{client.name}</span>
                                 <span className="email">{client.rut}</span>
+                                <div style={{ marginTop: '0.25rem' }}>
+                                  {isComplete ? (
+                                    <span className="complete-badge">✓ Datos Completos</span>
+                                  ) : (
+                                    <span className="missing-badge" title={`Faltan: ${criticalMissing.join(', ')}`}>
+                                      ⚠️ Incompleto ({criticalMissing.length} campos)
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </td>
                             <td>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                                   <Mail size={12} style={{ color: 'var(--text-muted)' }} />
-                                  {client.email}
+                                  {client.email || 'Sin Correo'}
                                 </span>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                   <Phone size={12} style={{ color: 'var(--text-muted)' }} />
-                                  +{client.telefono_prefijo} {client.telefono}
+                                  {client.telefono_prefijo ? `+${client.telefono_prefijo} ` : ''}{client.telefono || 'Sin Teléfono'}
                                 </span>
                               </div>
                             </td>
                             <td>
                               <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                <span>{client.direccion}</span>
+                                <span>{client.direccion || 'Sin dirección registrada'}</span>
                                 <span style={{ color: 'var(--text-muted)' }}>
-                                  Comuna {client.comuna} (Región {client.region})
+                                  Comuna {client.comuna || 'N/A'} (Región {client.region || 'N/A'})
                                 </span>
                               </div>
                             </td>
@@ -413,7 +435,7 @@ export default function App() {
                               ) : latestJob.status === 'pending' ? (
                                 <span className="badge badge-pending">
                                   <Loader2 size={10} className="spinner" />
-                                  <span>En Cola</span>
+                                  <span>En Cola {latestJob.dry_run ? '(Dry)' : '(Live)'}</span>
                                 </span>
                               ) : latestJob.status === 'running' ? (
                                 <span className="badge badge-running">
@@ -423,7 +445,7 @@ export default function App() {
                               ) : latestJob.status === 'success' ? (
                                 <span className="badge badge-success">
                                   <CheckCircle2 size={10} />
-                                  <span>Paso 1 Listo</span>
+                                  <span>Paso 1 Listo {latestJob.dry_run ? '(Dry)' : ''}</span>
                                 </span>
                               ) : (
                                 <span className="badge badge-failed">
@@ -434,13 +456,29 @@ export default function App() {
                             </td>
                             <td>
                               <div className="action-cell">
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-secondary)' }} title="Si se desmarca, el robot intentará guardar los datos en el portal. Si está marcado, sólo los completará pero no los guardará.">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={isDryRun} 
+                                    onChange={(e) => setDryRunJobs(prev => ({ ...prev, [client.id]: e.target.checked }))} 
+                                    disabled={latestJob?.status === 'pending' || latestJob?.status === 'running'}
+                                  />
+                                  <span>Dry Run</span>
+                                </label>
+
                                 <button
                                   className="btn btn-action-run"
                                   onClick={() => triggerStep1(client.id)}
                                   disabled={
-                                    latestJob?.status === 'pending' || latestJob?.status === 'running'
+                                    latestJob?.status === 'pending' || 
+                                    latestJob?.status === 'running' ||
+                                    (!isDryRun && !isComplete) // lock live run if data is not complete
                                   }
-                                  title="Iniciar ingreso de datos automático para Paso 1"
+                                  title={!isDryRun && !isComplete ? "Los envíos en vivo requieren tener datos completos" : "Iniciar ingreso de datos automático para Paso 1"}
+                                  style={{
+                                    opacity: (!isDryRun && !isComplete) ? 0.4 : 1,
+                                    cursor: (!isDryRun && !isComplete) ? 'not-allowed' : 'pointer'
+                                  }}
                                 >
                                   <Play size={12} fill="currentColor" />
                                   <span>Correr Paso 1</span>
@@ -503,7 +541,7 @@ export default function App() {
                 <Users className="stat-icon" size={16} />
               </div>
               <div className="stat-value">{totalClients}</div>
-              <span className="stat-desc">Registrados en el sistema</span>
+              <span className="stat-desc">En la cola de pruebas de producción</span>
             </div>
 
             {/* Card: Active Jobs */}
@@ -551,30 +589,24 @@ export default function App() {
               </div>
             </div>
 
-            {/* Card: Avg Runtime Speed */}
+            {/* Card: Queue Info */}
             <div className="stat-card">
               <div className="stat-header">
-                <span className="stat-title">Tiempo Promedio</span>
-                <Terminal className="stat-icon" size={16} />
+                <span className="stat-title">Modo de Operación</span>
+                <ShieldAlert className="stat-icon" size={16} style={{ color: 'var(--accent-primary)' }} />
               </div>
-              <div className="stat-value">24.5s</div>
-              <span className="stat-desc">Duración de ingreso por cliente</span>
+              <div className="stat-value" style={{ fontSize: '1.25rem', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>
+                Aislado Real
+              </div>
+              <span className="stat-desc">
+                Usa datos de clientes reales sin guardar contraseñas en la base de datos de prueba
+              </span>
             </div>
             
           </div>
 
         </div>
       </main>
-
-      {/* Modals Mounting */}
-      {showClientModal && (
-        <ClientModal
-          onClose={() => setShowClientModal(false)}
-          onSuccess={() => {
-            fetchData();
-          }}
-        />
-      )}
 
       {selectedDiagnostic && (
         <JobDiagnosticModal

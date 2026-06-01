@@ -14,6 +14,12 @@ export async function launchBrowser(): Promise<{ browser: Browser; context: Brow
   const browser = await chromiumExtra.launch({
     headless,
     slowMo: 80,
+    args: [
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--no-focus-on-open',        // no roba el foco al abrir
+      '--window-position=9999,0',  // abre fuera de pantalla si es headless
+    ],
   }) as unknown as Browser;
 
   const context = await browser.newContext({

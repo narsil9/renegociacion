@@ -4,4 +4,6 @@ dist/
 outputs/*.png
 outputs/*.html
 outputs/*.pdf
+outputs/*.log
+outputs/*.txt
 src/automation/html_samples/
