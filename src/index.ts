@@ -86,7 +86,12 @@ async function main() {
   const { browser, page } = await launchBrowser();
 
   try {
-    await loginAndNavigateToStep1(page, clientData.clave_unica_rut, clientData.clave_unica_password);
+    await loginAndNavigateToStep1(page, clientData.clave_unica_rut, clientData.clave_unica_password, undefined, {
+      region: clientData.region,
+      comuna: clientData.comuna,
+      email: clientData.email,
+      telefono: clientData.telefono,
+    });
     
     const clientFormFields: ClientData = {
       nacionalidad: clientData.nacionalidad,

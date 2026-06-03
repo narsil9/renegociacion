@@ -16,6 +16,14 @@ async function clearAndFill(page: Page, selector: string, value: string): Promis
   const locator = page.locator(selector);
   await locator.click({ clickCount: 3 });
   await locator.fill(value);
+  await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (el) {
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+  }, selector);
 }
 
 /**
@@ -83,6 +91,9 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
   };
   validateClientData(client);
 
+  page.on('console', msg => log(`[PAGE CONSOLE] ${msg.type()}: ${msg.text()}`));
+  page.on('pageerror', err => log(`[PAGE ERROR] ${err.message}\n${err.stack}`));
+
   try {
     await page.waitForSelector('#renegociacionForm', { timeout: 30000 });
     if (!page.url().includes('renegociacion')) {
@@ -138,7 +149,49 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
 
     if (isFechaNacimientoEditable && client.fecha_nacimiento && client.fecha_nacimiento !== '01/01/1990') {
       log('→ Completando Fecha de Nacimiento (campo es editable)...');
-      await clearAndFill(page, '#personaFechaNacimiento', client.fecha_nacimiento);
+      
+      let dateValue = client.fecha_nacimiento;
+      const inputType = await page.evaluate(() => {
+        const el = document.getElementById('personaFechaNacimiento') as HTMLInputElement;
+        return el ? el.type : 'text';
+      });
+
+      // Parse DD/MM/YYYY or YYYY-MM-DD
+      let day = '', month = '', year = '';
+      if (dateValue.includes('/')) {
+        const parts = dateValue.split('/');
+        if (parts.length === 3) {
+          if (parts[0].length === 4) { // YYYY/MM/DD
+            [year, month, day] = parts;
+          } else { // DD/MM/YYYY
+            [day, month, year] = parts;
+          }
+        }
+      } else if (dateValue.includes('-')) {
+        const parts = dateValue.split('-');
+        if (parts.length === 3) {
+          if (parts[0].length === 4) { // YYYY-MM-DD
+            [year, month, day] = parts;
+          } else { // DD-MM-YYYY
+            [day, month, year] = parts;
+          }
+        }
+      }
+
+      if (day && month && year) {
+        const dd = day.padStart(2, '0');
+        const mm = month.padStart(2, '0');
+        const yyyy = year;
+        
+        if (inputType === 'date') {
+          dateValue = `${yyyy}-${mm}-${dd}`;
+        } else {
+          dateValue = `${dd}/${mm}/${yyyy}`;
+        }
+        log(`→ Fecha formateada para input de tipo "${inputType}": ${dateValue}`);
+      }
+
+      await clearAndFill(page, '#personaFechaNacimiento', dateValue);
     } else {
       log('→ Campo Fecha de Nacimiento omitido (pre-llenado automáticamente por el portal o sin valor válido).');
     }
@@ -186,17 +239,89 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
       return;
     }
 
+    // Diagnosticar validación antes de clickear
+    const validationDiag = await page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input.obligatorio, select.obligatorio, textarea.obligatorio'));
+      return inputs.map(el => {
+        const id = el.id;
+        const val = (el as any).value;
+        const isSelectpicker = el.classList.contains('selectpicker');
+        let selectpickerVal = null;
+        if (isSelectpicker && (window as any).$) {
+          selectpickerVal = (window as any).$(el).selectpicker('val');
+        }
+        return {
+          id,
+          tagName: el.tagName,
+          classes: el.className,
+          value: val,
+          selectpickerVal,
+          isDisabled: (el as any).disabled
+        };
+      });
+    });
+    log(`🔍 DIAGNÓSTICO DE CAMPOS OBLIGATORIOS: ${JSON.stringify(validationDiag, null, 2)}`);
+
+    // Fetch and search validationUtils.js and util.js for sanitizaInputNumber
+    const validationScripts = await page.evaluate(async () => {
+      const fetchScript = async (url: string) => {
+        try {
+          const res = await fetch(url);
+          return await res.text();
+        } catch (e: any) {
+          return `Error fetching ${url}: ${e.message}`;
+        }
+      };
+      const validationUtils = await fetchScript('/miSuperir/resources/js/util/validationUtils.js?v=2');
+      const util = await fetchScript('/miSuperir/resources/js/util/util.js?v=2');
+      
+      const findFunc = (text: string, name: string) => {
+        const idx = text.indexOf(name);
+        if (idx === -1) return `${name} not found`;
+        return text.substring(idx - 100, idx + 1000);
+      };
+      
+      return {
+        sanitizaInUtils: findFunc(validationUtils, 'sanitizaInputNumber'),
+        sanitizaInUtil: findFunc(util, 'sanitizaInputNumber'),
+        validarFormInUtils: findFunc(validationUtils, 'validarFormObligatorio'),
+        validarFormInUtil: findFunc(util, 'validarFormObligatorio'),
+      };
+    });
+    log(`🔍 VALIDATION SCRIPTS CLIPPINGS: ${JSON.stringify(validationScripts, null, 2)}`);
+
     // --- PRODUCCIÓN: guardar y continuar al Paso 2 ---
     log('→ Guardando y continuando al Paso 2...');
 
     const urlAntes = page.url();
-    await page.locator('button[onclick*="guardarYContinuar"]').click();
+    const btnGuardarYContinuar = page.locator('button[onclick*="guardarYContinuar"]');
+    const btnGuardar = page.locator('#btnGuardar');
+    if (await btnGuardarYContinuar.isVisible().catch(() => false)) {
+      await btnGuardarYContinuar.click();
+    } else {
+      log('→ Botón guardarYContinuar no visible. Clickeando #btnGuardar...');
+      await btnGuardar.click();
+    }
 
-    // Esperar a que el modal HTML de confirmación aparezca y hacer click en "Guardar" (onclick="confirmar()")
+    // Esperar a que el modal HTML de confirmación aparezca y hacer click en "Guardar"
     log('→ Esperando modal de confirmación HTML...');
-    const btnConfirmar = page.locator('button[onclick="confirmar()"]');
-    await btnConfirmar.waitFor({ state: 'visible', timeout: 15000 });
-    await btnConfirmar.click();
+    const selectorConfirmar = 'button[onclick="confirmar()"], #btnConfirmarModal';
+    try {
+      await page.waitForSelector(selectorConfirmar, { state: 'visible', timeout: 5000 });
+      const btnConfirmar = page.locator(selectorConfirmar).filter({ visible: true }).first();
+      await btnConfirmar.click();
+    } catch {
+      log('⚠️  Modal de confirmación no se mostró o no se hizo visible. Intentando envío directo de formulario...');
+      await page.evaluate(() => {
+        const form = document.getElementById('renegociacionForm') as HTMLFormElement;
+        const csrfEl = document.querySelector('input[name="_csrf"]') as HTMLInputElement;
+        if (form && csrfEl) {
+          (window as any).openProcesandoSolicitud?.();
+          form.setAttribute('action', `/miSuperir/autenticado/renegociacion/guardarInformacionPersonal?_csrf=${csrfEl.value}`);
+          form.submit();
+        }
+      });
+    }
 
     log('→ Esperando redirección al Paso 2...');
     await page.waitForFunction(

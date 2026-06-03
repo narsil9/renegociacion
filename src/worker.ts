@@ -9,14 +9,17 @@ import { RunnerLogger } from './utils/logger';
 import { getProdReadOnlyClient } from './utils/prodReadOnly';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fillStep2 } from './automation/step2_declaraciones';
+import { getOptimizedPdfPath } from './utils/pdf_optimizer';
+import { analyzeTaxCategory } from './utils/pdf_analyzer';
 
 const POLL_INTERVAL_MS = 5000;
 let keepRunning = true;
 
 // Determine queue mode and corresponding tables
 const queueMode = process.env.QUEUE_MODE || 'production';
-const CLIENTS_TABLE = queueMode === 'production' ? 'pato_prueba_clients' : 'clients';
-const JOBS_TABLE = queueMode === 'production' ? 'pato_prueba_automation_jobs' : 'automation_jobs';
+const CLIENTS_TABLE = 'clients';
+const JOBS_TABLE = 'automation_jobs';
 
 /**
  * Uploads a local file to Supabase storage 'screenshots' bucket
@@ -111,9 +114,9 @@ async function processJob(job: any): Promise<void> {
   
   logger.log(`🤖 Iniciando procesamiento de Job ${job.id} para cliente ${client.name} (RUT ${client.rut})`);
 
-  // Only support step 1 for now
-  if (job.step !== 1) {
-    const errorMsg = `Paso ${job.step} no está soportado. Actualmente solo se automatiza Paso 1.`;
+  // Support both step 1 and step 2
+  if (job.step !== 1 && job.step !== 2) {
+    const errorMsg = `Paso ${job.step} no está soportado. Actualmente solo se automatizan Paso 1 y Paso 2.`;
     logger.error(errorMsg);
     await supabase
       .from(JOBS_TABLE)
@@ -126,14 +129,102 @@ async function processJob(job: any): Promise<void> {
     return;
   }
 
+  // Temporary file paths for Step 2 PDFs on the Mac mini
+  let tributariaLocalPath = '';
+  let retenedoresLocalPath = '';
+  let tributariaOptimizedPath = '';
+  let retenedoresOptimizedPath = '';
+
+  if (job.step === 2) {
+    logger.log('⏳ Iniciando preparación de PDFs para el Paso 2...');
+    if (!client.carpeta_tributaria_path || !client.carpeta_retenedores_path) {
+      const errMsg = 'Error: Falta registrar la ruta de Carpeta Tributaria o de Agentes Retenedores en la tabla clients.';
+      logger.error(errMsg);
+      await supabase
+        .from(JOBS_TABLE)
+        .update({
+          status: 'failed',
+          error_log: errMsg,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.id);
+      return;
+    }
+
+    const tempDir = path.join(process.cwd(), 'outputs');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    tributariaLocalPath = path.join(tempDir, `tributaria_raw_${job.id}.pdf`);
+    retenedoresLocalPath = path.join(tempDir, `retenedores_raw_${job.id}.pdf`);
+    tributariaOptimizedPath = path.join(tempDir, `tributaria_opt_${job.id}.pdf`);
+    retenedoresOptimizedPath = path.join(tempDir, `retenedores_opt_${job.id}.pdf`);
+
+    try {
+      // 1. Download Carpeta Tributaria
+      logger.log(`⏳ Descargando Carpeta Tributaria de Supabase Storage: ${client.carpeta_tributaria_path}...`);
+      const { data: tribBlob, error: tribError } = await supabase.storage
+        .from('documentos')
+        .download(client.carpeta_tributaria_path);
+
+      if (tribError || !tribBlob) {
+        throw new Error(`Error al descargar Carpeta Tributaria: ${tribError?.message || 'Blob vacío'}`);
+      }
+      fs.writeFileSync(tributariaLocalPath, Buffer.from(await tribBlob.arrayBuffer()));
+      logger.log('✓ Carpeta Tributaria descargada.');
+
+      // 2. Download Agentes Retenedores
+      logger.log(`⏳ Descargando Agentes Retenedores de Supabase Storage: ${client.carpeta_retenedores_path}...`);
+      const { data: retBlob, error: retError } = await supabase.storage
+        .from('documentos')
+        .download(client.carpeta_retenedores_path);
+
+      if (retError || !retBlob) {
+        throw new Error(`Error al descargar Agentes Retenedores: ${retError?.message || 'Blob vacío'}`);
+      }
+      fs.writeFileSync(retenedoresLocalPath, Buffer.from(await retBlob.arrayBuffer()));
+      logger.log('✓ Agentes Retenedores descargado.');
+
+      // 3. Size check and conditional compression using Ghostscript
+      logger.log('⚖️  Analizando tamaños de archivos y aplicando compresión si superan 10 MB...');
+      tributariaOptimizedPath = await getOptimizedPdfPath(tributariaLocalPath, tributariaOptimizedPath, logger);
+      retenedoresOptimizedPath = await getOptimizedPdfPath(retenedoresLocalPath, retenedoresOptimizedPath, logger);
+
+    } catch (downloadErr: any) {
+      const errMsg = `Fallo en preparación de PDFs: ${downloadErr.message || downloadErr}`;
+      logger.error(errMsg);
+      
+      // Cleanup raw downloaded files if they exist
+      if (fs.existsSync(tributariaLocalPath)) fs.unlinkSync(tributariaLocalPath);
+      if (fs.existsSync(retenedoresLocalPath)) fs.unlinkSync(retenedoresLocalPath);
+
+      await supabase
+        .from(JOBS_TABLE)
+        .update({
+          status: 'failed',
+          error_log: errMsg,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.id);
+      return;
+    }
+  }
+
   // Safety interlock: set DRY_RUN env dynamically for this job
   const originalDryRun = process.env.DRY_RUN;
-  process.env.DRY_RUN = job.dry_run ? 'true' : 'false';
+  process.env.DRY_RUN = job.dry_run === false ? 'false' : 'true';
   logger.log(`⚙️  Configurando DRY_RUN para esta ejecución: ${process.env.DRY_RUN}`);
 
   // Fetch ClaveÚnica password JIT from production if in production queue mode
   let claveUnicaPassword = '';
-  if (queueMode === 'production') {
+  if (client.rut === '21917363-6' || client.airtable_id === 'recPatoPrueba') {
+    logger.log(`🧪 [TEST] Usando ClaveÚnica de prueba local para Patricio...`);
+    claveUnicaPassword = process.env.CLAVE_UNICA_PASSWORD || 'Peridea-12';
+  } else if (client.clave_unica_password) {
+    logger.log(`🧪 [SANDBOX] Usando ClaveÚnica guardada en la tabla clients local...`);
+    claveUnicaPassword = client.clave_unica_password;
+  } else if (queueMode === 'production') {
     logger.log(`🔒 [JIT] Buscando credencial ClaveÚnica en producción para airtable_id: ${client.airtable_id}...`);
     try {
       const prodClient = getProdReadOnlyClient();
@@ -228,41 +319,77 @@ async function processJob(job: any): Promise<void> {
     browserInstance = browser;
 
     logger.log('🔒 Intentando iniciar sesión con ClaveÚnica...');
-    await loginAndNavigateToStep1(page, client.clave_unica_rut, claveUnicaPassword, logger);
-
-    logger.log('📝 Llenando el Paso 1 (Información Personal)...');
-    
-    const clientData: ClientData = {
-      nacionalidad: client.nacionalidad,
-      fecha_nacimiento: client.fecha_nacimiento || '01/01/1990', // fallback or placeholder if missing
-      estado_civil: client.estado_civil,
-      regimen_patrimonial: client.regimen_patrimonial,
-      profesion_oficio: client.profesion_oficio,
-      ocupacion: client.ocupacion,
-      direccion: client.direccion,
+    await loginAndNavigateToStep1(page, client.clave_unica_rut, claveUnicaPassword, logger, {
       region: client.region,
       comuna: client.comuna,
       email: client.email,
-      telefono_prefijo: client.telefono_prefijo,
       telefono: client.telefono,
-    };
+    });
 
-    await fillStep1(page, clientData, logger);
+    if (job.step === 1) {
+      logger.log('📝 Llenando el Paso 1 (Información Personal)...');
+      
+      const clientData: ClientData = {
+        nacionalidad: client.nacionalidad,
+        fecha_nacimiento: client.fecha_nacimiento || '01/01/1990', // fallback or placeholder if missing
+        estado_civil: client.estado_civil,
+        regimen_patrimonial: client.regimen_patrimonial,
+        profesion_oficio: client.profesion_oficio,
+        ocupacion: client.ocupacion,
+        direccion: client.direccion,
+        region: client.region,
+        comuna: client.comuna,
+        email: client.email,
+        telefono_prefijo: client.telefono_prefijo,
+        telefono: client.telefono,
+      };
+
+      await fillStep1(page, clientData, logger);
+    } else if (job.step === 2) {
+      logger.log('📝 Navegando e ingresando información de Paso 2...');
+      
+      // Analyze category using pdf_analyzer
+      logger.log('🕵️‍♂️ Analizando la Carpeta Tributaria para determinar la categoría tributaria...');
+      const categoria = await analyzeTaxCategory(tributariaLocalPath, logger);
+      
+      // Navigate directly to Step 2 URL using relative to current portal domain
+      const currentUrl = page.url();
+      const baseUrl = new URL(currentUrl).origin;
+      const step2Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verDeclaraciones`;
+      logger.log(`→ Redireccionando a la URL del Paso 2: ${step2Url}`);
+      await page.goto(step2Url, { waitUntil: 'domcontentloaded' });
+
+      // Run Playwright Fill
+      await fillStep2(page, tributariaOptimizedPath, retenedoresOptimizedPath, categoria, logger);
+    }
 
     logger.log('📸 Guardando captura de éxito...');
-    // Locate the generated file (it may have a timestamp)
     const successDir = path.join(process.cwd(), 'outputs');
-    let localSuccessPath = path.join(successDir, 'step1_success.png');
+    let localSuccessPath = '';
     
-    // Find the latest generated verify_step1_*.png or success screenshot
-    if (!fs.existsSync(localSuccessPath)) {
-      const files = fs.readdirSync(successDir);
-      const verifyFiles = files
-        .filter(f => f.startsWith('verify_step1_') && f.endsWith('.png'))
-        .map(f => ({ name: f, time: fs.statSync(path.join(successDir, f)).mtime.getTime() }))
-        .sort((a, b) => b.time - a.time);
-      if (verifyFiles.length > 0) {
-        localSuccessPath = path.join(successDir, verifyFiles[0].name);
+    if (job.step === 1) {
+      localSuccessPath = path.join(successDir, 'step1_success.png');
+      if (!fs.existsSync(localSuccessPath)) {
+        const files = fs.readdirSync(successDir);
+        const verifyFiles = files
+          .filter(f => f.startsWith('verify_step1_') && f.endsWith('.png'))
+          .map(f => ({ name: f, time: fs.statSync(path.join(successDir, f)).mtime.getTime() }))
+          .sort((a, b) => b.time - a.time);
+        if (verifyFiles.length > 0) {
+          localSuccessPath = path.join(successDir, verifyFiles[0].name);
+        }
+      }
+    } else {
+      localSuccessPath = path.join(successDir, 'step2_success.png');
+      if (!fs.existsSync(localSuccessPath)) {
+        const files = fs.readdirSync(successDir);
+        const verifyFiles = files
+          .filter(f => f.startsWith('verify_step2_') && f.endsWith('.png'))
+          .map(f => ({ name: f, time: fs.statSync(path.join(successDir, f)).mtime.getTime() }))
+          .sort((a, b) => b.time - a.time);
+        if (verifyFiles.length > 0) {
+          localSuccessPath = path.join(successDir, verifyFiles[0].name);
+        }
       }
     }
 
@@ -296,7 +423,7 @@ async function processJob(job: any): Promise<void> {
         
         if (activePage) {
           logger.log('📸 Tomando captura del fallo...');
-          const failurePaths = await screenshotOnFailure(activePage, `step1_fail_${job.id}`);
+          const failurePaths = await screenshotOnFailure(activePage, `step${job.step}_fail_${job.id}`);
           if (failurePaths && failurePaths.screenshotPath) {
             const destName = `failure_${job.id}_${Date.now()}.png`;
             logger.log(`→ Subiendo captura del fallo a Supabase Storage...`);
@@ -324,6 +451,24 @@ async function processJob(job: any): Promise<void> {
     if (browserInstance) {
       logger.log('🔌 Cerrando navegador...');
       await browserInstance.close().catch(() => {});
+    }
+
+    // Clean up temporary files from the Mac mini disk
+    if (job.step === 2) {
+      logger.log('🧹 Limpiando archivos PDF temporales en disco...');
+      try {
+        if (fs.existsSync(tributariaLocalPath)) fs.unlinkSync(tributariaLocalPath);
+        if (fs.existsSync(retenedoresLocalPath)) fs.unlinkSync(retenedoresLocalPath);
+        if (fs.existsSync(tributariaOptimizedPath) && tributariaOptimizedPath !== tributariaLocalPath) {
+          fs.unlinkSync(tributariaOptimizedPath);
+        }
+        if (fs.existsSync(retenedoresOptimizedPath) && retenedoresOptimizedPath !== retenedoresLocalPath) {
+          fs.unlinkSync(retenedoresOptimizedPath);
+        }
+        logger.log('✓ Limpieza de PDFs completada.');
+      } catch (cleanupErr: any) {
+        logger.error(`Error en limpieza de temporales: ${cleanupErr.message || cleanupErr}`);
+      }
     }
     
     // Reset DRY_RUN

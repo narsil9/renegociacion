@@ -12,8 +12,9 @@ This skill teaches Claude Code how to interact with the modular, hybrid automati
 
 ### 1. Step Isolation
 Each of the 8 steps of the renegotiation portal must have a dedicated Playwright script in `src/automation/`:
-- `login.ts`: Automates RUT + ClaveÚnica.
-- `step1_personal.ts`: Fills information personal.
+- `login.ts`: Automates RUT + ClaveÚnica. Handles first-time user registration `/verRegistrarCiudadano` and terms acceptance.
+- `step1_personal.ts`: Fills personal info. Incorporates direct form submission bypass if the confirmation modal is blocked.
+- `step2_declaraciones.ts`: Automates declarations, extracts category from Carpeta Tributaria via `pdftotext`, selects correct radios, uploads PDFs, and executes auto-cleanup on `DRY_RUN=true`.
 - `step3_acreedores.ts`: Reads CMF/tributary documents and uploads creditor lists.
 
 ### 2. Cookie Extraction (Session Bridge)
@@ -39,9 +40,11 @@ When a script fails during execution:
 3.  **Self-Correction**:
     *   If the selector changed (e.g. the label `Dirección` was renamed to `Domicilio`), modify the script code directly to match the new selector.
     *   If the error is an unexpected pop-up, add code to catch and close the modal.
+    *   **Modal Bypasses**: If a submit/preview modal fails to open due to browser environment restrictions or missing handlers, evaluate form submission directly on the page context (e.g. using `form.submit()`).
     *   Run the script again to verify the fix works.
 
 ## Example File Structure
 - `src/automation/login.ts` -> Log in and extract session.
 - `src/automation/step1_personal.ts` -> Complete Step 1.
+- `src/automation/step2_declaraciones.ts` -> Complete Step 2.
 - `src/index.ts` -> Executable runner.

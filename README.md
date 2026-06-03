@@ -25,11 +25,11 @@ El sistema consta de tres componentes principales:
 
 ## Flujo Híbrido de Trabajo (Alternado)
 
-Para lograr un sistema a prueba de balas y rápido, el abogado y el bot alternan turnos:
+Para lograr un sistema a prueba de balas y rápido, el abogado y el bot ejecutan turnos:
 
-1. **Relleno Automático (Paso 1 - Información Personal)**: El abogado pulsa un botón en el Dashboard. El Mac Mini inicia sesión con ClaveÚnica, rellena el Paso 1, guarda el progreso y extrae las cookies.
-2. **Revisión y Edición Manual (Paso 2 - Declaraciones)**: El abogado pulsa *"Abrir portal"* en el Dashboard. Gracias a la extensión que carga las cookies del bot, el portal se abre ya logueado en su navegador. Edita si es necesario y rellena el Paso 2 de forma manual.
-3. **Relleno de Deudas (Paso 3 - Acreedores)**: El abogado cierra la pestaña y pulsa *"Automatizar Paso 3"*. El bot lee las deudas estructuradas en la base de datos (extraídas de la CMF) y las digita automáticamente.
+1. **Relleno Automático (Paso 1 - Información Personal)**: El bot inicia sesión con ClaveÚnica, rellena el Paso 1 y lo guarda en el portal (usando un bypass directo de formulario en caso de fallos del modal de Bootstrap).
+2. **Relleno Automático (Paso 2 - Declaraciones)**: El bot descarga la Carpeta Tributaria y Agentes Retenedores de Supabase, analiza mediante `pdftotext` la categoría tributaria del contribuyente (Primera o Segunda), marca las opciones adecuadas, realiza la subida de los PDFs y en modo `Dry Run` los elimina al finalizar para mantener el borrador limpio.
+3. **Relleno de Deudas (Paso 3 - Acreedores)**: El bot lee las deudas estructuradas en la base de datos (extraídas de la CMF) y las digita automáticamente.
 
 ---
 
@@ -49,7 +49,8 @@ renegociacion/
 └── src/
     ├── automation/                # Scripts modulares de Playwright
     │   ├── login.ts               # Login en ClaveÚnica y guardado de cookies
-    │   ├── step1_personal.ts      # Relleno del Paso 1
+    │   ├── step1_personal.ts      # Relleno del Paso 1 (con bypass de modal)
+    │   ├── step2_declaraciones.ts # Relleno del Paso 2 (con subida y análisis de PDF)
     │   └── step3_acreedores.ts    # Relleno del Paso 3
     └── utils/
         ├── browser.ts             # Inicialización y config de Playwright

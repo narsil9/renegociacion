@@ -10,7 +10,13 @@ export async function loginAndNavigateToStep1(
   page: Page,
   rut: string,
   password: string,
-  logger?: SimpleLogger
+  logger?: SimpleLogger,
+  clientDetails?: {
+    region: string;
+    comuna: string;
+    email: string;
+    telefono: string;
+  }
 ): Promise<void> {
   const log = (msg: string) => {
     if (logger) {
@@ -118,6 +124,89 @@ export async function loginAndNavigateToStep1(
     await page.waitForURL(/autenticado/, { timeout: 60000 });
     log(`→ Login exitoso. URL: ${page.url()}`);
 
+    // Si somos redirigidos a la pantalla de registrar ciudadano (primer ingreso con este RUT)
+    if (page.url().includes('verRegistrarCiudadano')) {
+      log('⚠️  [REGISTRO] El RUT ingresado no está registrado en el portal. Realizando registro por única vez...');
+      if (!clientDetails) {
+        throw new Error('Faltan los detalles del cliente (clientDetails) para el registro en el portal.');
+      }
+
+      let phoneValue = clientDetails.telefono;
+      if (phoneValue.startsWith('+56')) {
+        phoneValue = phoneValue.substring(3);
+      } else if (phoneValue.startsWith('56') && phoneValue.length > 9) {
+        phoneValue = phoneValue.substring(2);
+      }
+      log(`→ [REGISTRO] Rellenando teléfono: ${phoneValue}`);
+      await page.locator('#telefono').click();
+      await page.locator('#telefono').fill(phoneValue);
+      await page.locator('#telefono').dispatchEvent('keyup');
+      await page.locator('#telefono').dispatchEvent('change');
+
+      log(`→ [REGISTRO] Seleccionando región: ${clientDetails.region}`);
+      await selectBootstrap(page, 'region', clientDetails.region);
+
+      log('→ [REGISTRO] Esperando carga de comunas...');
+      await page.waitForFunction(
+        () => {
+          const el = document.getElementById('comuna') as HTMLSelectElement;
+          return el !== null && el.options.length > 1;
+        },
+        { timeout: 15000 }
+      );
+
+      log(`→ [REGISTRO] Seleccionando comuna: ${clientDetails.comuna}`);
+      await selectBootstrap(page, 'comuna', clientDetails.comuna);
+
+      log(`→ [REGISTRO] Rellenando correo: ${clientDetails.email}`);
+      await page.locator('#email').fill(clientDetails.email);
+      await page.locator('#email').dispatchEvent('keyup');
+      await page.locator('#email').dispatchEvent('blur');
+
+      await page.locator('#emailConfirm').fill(clientDetails.email);
+      await page.locator('#emailConfirm').dispatchEvent('keyup');
+      await page.locator('#emailConfirm').dispatchEvent('blur');
+
+      // Desenfocar campos para validar
+      await page.locator('body').click({ position: { x: 0, y: 0 } });
+      await page.waitForTimeout(500);
+
+      // Gatillar función de validación nativa de la página
+      await page.evaluate(() => {
+        // @ts-ignore
+        if (typeof validarFormulario === 'function') {
+          // @ts-ignore
+          validarFormulario();
+        }
+      });
+
+      const isGuardarEnabled = await page.evaluate(() => {
+        const btn = document.getElementById('btnGuardar') as HTMLButtonElement;
+        return btn ? !btn.disabled : false;
+      });
+
+      if (!isGuardarEnabled) {
+        log('⚠️ [REGISTRO] El botón Guardar sigue deshabilitado. Forzando su habilitación...');
+        await page.evaluate(() => {
+          const btn = document.getElementById('btnGuardar') as HTMLButtonElement;
+          if (btn) btn.removeAttribute('disabled');
+        });
+      }
+
+      log('→ [REGISTRO] Clickeando Guardar...');
+      const urlAntes = page.url();
+      await page.locator('#btnGuardar').click();
+
+      log('→ [REGISTRO] Esperando navegación post-registro...');
+      await page.waitForFunction(
+        (before: string) => window.location.href !== before,
+        urlAntes,
+        { timeout: 60000 }
+      );
+
+      log(`✓ [REGISTRO] Registro de ciudadano completado. URL actual: ${page.url()}`);
+    }
+
     log('→ Navegando a Renegociación...');
     await page.locator('a[onclick*="renegociacion"]').first().click();
     await page.waitForURL(/renegociacion/, { timeout: 30000 });
@@ -127,7 +216,53 @@ export async function loginAndNavigateToStep1(
     await page.getByText('Solicitud Renegociación').first().click();
 
     await page.waitForSelector('#renegociacionForm', { timeout: 30000 });
-    log('✓ Formulario Paso 1 cargado correctamente.');
+    await page.waitForLoadState('load');
+    await page.waitForTimeout(1500); // Esperar estabilización de scripts onload
+
+    // Check if we are on the introductory "Solicitud de Renegociación" page (for first-time drafts)
+    const isIntroPage = await page.locator('#mensajeLeido').isVisible({ timeout: 5000 }).catch(() => false);
+    if (isIntroPage) {
+      log('⚠️  [INICIO] Detectada página introductoria de Solicitud de Renegociación. Aceptando términos...');
+      
+      await page.evaluate(() => {
+        const chkLeido = document.getElementById('mensajeLeido') as HTMLInputElement;
+        const chkConvenio = document.getElementById('autorizoConvenioDatos') as HTMLInputElement;
+        const btnEnviar = document.getElementById('btnEnviar') as HTMLButtonElement;
+        
+        if (chkLeido) {
+          chkLeido.checked = true;
+          chkLeido.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (chkConvenio) {
+          chkConvenio.removeAttribute('disabled');
+          chkConvenio.checked = true;
+          chkConvenio.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (btnEnviar) {
+          btnEnviar.classList.remove('hidden');
+          btnEnviar.removeAttribute('disabled');
+        }
+      });
+      
+      await page.waitForTimeout(500);
+      
+      log('→ [INICIO] Enviando formulario introductorio...');
+      const urlAntes = page.url();
+      await page.locator('#btnEnviar').click();
+      
+      log('→ [INICIO] Esperando redirección al Paso 1 real...');
+      await page.waitForFunction(
+        (before: string) => window.location.href !== before,
+        urlAntes,
+        { timeout: 60000 }
+      );
+      
+      // Esperar al formulario Step 1 real
+      await page.waitForSelector('#personaNacionalidad', { timeout: 30000 });
+      log('✓ [INICIO] Paso 1 real cargado correctamente.');
+    } else {
+      log('✓ Formulario Paso 1 cargado correctamente.');
+    }
 
   } catch (error) {
     console.error(`[${new Date().toISOString()}] ✗ Error en login/navegación.`);
@@ -135,3 +270,13 @@ export async function loginAndNavigateToStep1(
     throw error;
   }
 }
+
+async function selectBootstrap(page: Page, selectId: string, value: string): Promise<void> {
+  await page.locator(`#${selectId}`).selectOption(value);
+  await page.evaluate((id) => {
+    const el = document.getElementById(id) as HTMLSelectElement;
+    if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, selectId);
+  await page.waitForTimeout(200);
+}
+

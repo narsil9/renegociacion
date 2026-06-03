@@ -68,8 +68,8 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const clientsTable = 'pato_prueba_clients';
-      const jobsTable = 'pato_prueba_automation_jobs';
+      const clientsTable = 'clients';
+      const jobsTable = 'automation_jobs';
 
       // 1. Fetch Clients
       const { data: clientsData, error: clientsError } = await supabase
@@ -78,7 +78,15 @@ export default function App() {
         .order('name', { ascending: true });
 
       if (clientsError) throw new Error(clientsError.message);
-      setClients(clientsData || []);
+      
+      const sortedClients = (clientsData || []).slice();
+      sortedClients.sort((a, b) => {
+        if (a.rut === '21917363-6') return -1;
+        if (b.rut === '21917363-6') return 1;
+        return a.name.localeCompare(b.name);
+      });
+      
+      setClients(sortedClients);
 
       // 2. Fetch latest job per client
       const { data: jobsData, error: jobsError } = await supabase
@@ -109,7 +117,7 @@ export default function App() {
   useEffect(() => {
     fetchData();
 
-    const jobsTable = 'pato_prueba_automation_jobs';
+    const jobsTable = 'automation_jobs';
 
     // 3. Subscribe to Real-time updates for production isolated jobs table
     const channel = supabase
@@ -151,7 +159,7 @@ export default function App() {
 
   // Trigger automation run
   const triggerStep1 = async (clientId: string) => {
-    const jobsTable = 'pato_prueba_automation_jobs';
+    const jobsTable = 'automation_jobs';
     const isDryRun = dryRunJobs[clientId] !== false;
 
     try {
@@ -189,6 +197,50 @@ export default function App() {
       }
     } catch (err: any) {
       alert(`Error al iniciar automatización: ${err.message}`);
+      fetchData();
+    }
+  };
+
+  // Trigger step 2 automation run
+  const triggerStep2 = async (clientId: string) => {
+    const jobsTable = 'automation_jobs';
+    const isDryRun = dryRunJobs[clientId] !== false;
+
+    try {
+      // Create a temporary loading job locally
+      setJobs((prev) => ({
+        ...prev,
+        [clientId]: {
+          id: 'temp',
+          client_id: clientId,
+          step: 2,
+          status: 'pending',
+          dry_run: isDryRun,
+          error_log: null,
+          screenshot_url: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      }));
+
+      // Insert job parameters
+      const insertPayload = {
+        client_id: clientId,
+        step: 2,
+        status: 'pending',
+        dry_run: isDryRun,
+      };
+
+      // Insert job in Supabase
+      const { error: insertError } = await supabase
+        .from(jobsTable)
+        .insert(insertPayload);
+
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
+    } catch (err: any) {
+      alert(`Error al iniciar automatización del Paso 2: ${err.message}`);
       fetchData();
     }
   };
@@ -445,7 +497,7 @@ export default function App() {
                               ) : latestJob.status === 'success' ? (
                                 <span className="badge badge-success">
                                   <CheckCircle2 size={10} />
-                                  <span>Paso 1 Listo {latestJob.dry_run ? '(Dry)' : ''}</span>
+                                  <span>Paso {latestJob.step} Listo {latestJob.dry_run ? '(Dry)' : ''}</span>
                                 </span>
                               ) : (
                                 <span className="badge badge-failed">
@@ -482,6 +534,23 @@ export default function App() {
                                 >
                                   <Play size={12} fill="currentColor" />
                                   <span>Correr Paso 1</span>
+                                </button>
+
+                                <button
+                                  className="btn btn-action-run"
+                                  onClick={() => triggerStep2(client.id)}
+                                  disabled={
+                                    latestJob?.status === 'pending' || 
+                                    latestJob?.status === 'running'
+                                  }
+                                  title="Iniciar ingreso de datos automático para Paso 2"
+                                  style={{
+                                    backgroundColor: '#0284c7',
+                                    cursor: (latestJob?.status === 'pending' || latestJob?.status === 'running') ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  <Play size={12} fill="currentColor" />
+                                  <span>Correr Paso 2</span>
                                 </button>
 
                                 {latestJob?.status === 'failed' && (
