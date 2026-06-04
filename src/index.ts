@@ -18,7 +18,7 @@ const mode = modeArg?.split('=')[1];
 
 async function main() {
   if (mode === 'worker') {
-    runDaemon();
+    await runDaemon();
     return;
   }
 

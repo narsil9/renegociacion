@@ -11,6 +11,38 @@ interface SimpleLogger {
 }
 
 /**
+ * Busca el ejecutable de Ghostscript (gs) en rutas conocidas de forma robusta.
+ */
+function findGhostscript(): string | null {
+  const knownPaths = [
+    '/opt/homebrew/bin/gs',  // Mac ARM
+    '/usr/local/bin/gs',      // Mac Intel
+    '/usr/bin/gs',            // Linux
+  ];
+  for (const p of knownPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+/**
+ * Obtiene la ruta del ejecutable de Ghostscript usando rutas conocidas o which.
+ */
+async function getGhostscriptPath(): Promise<string> {
+  const localGs = findGhostscript();
+  if (localGs) return localGs;
+
+  try {
+    const { stdout } = await execAsync('which gs');
+    if (stdout.trim()) return stdout.trim();
+  } catch {
+    // ignore
+  }
+
+  throw new Error('Ejecutable gs (Ghostscript) no encontrado. Asegúrate de instalarlo con: brew install ghostscript');
+}
+
+/**
  * Comprime un archivo PDF si excede el límite de peso especificado de 10 MB.
  * Retorna la ruta del archivo final a utilizar.
  */
@@ -33,11 +65,12 @@ export async function getOptimizedPdfPath(
 
   logger.log(`⚠️  El archivo excede los 10 MB (${(stats.size / (1024 * 1024)).toFixed(2)} MB). Iniciando compresión con Ghostscript...`);
   try {
-    // 1. Verificar si Ghostscript está disponible
-    await execAsync('which gs');
+    // 1. Obtener ruta ejecutable gs
+    const gsPath = await getGhostscriptPath();
+    logger.log(`🔍 Usando ejecutable de Ghostscript en: ${gsPath}`);
 
     // 2. Ejecutar la compresión con perfil /ebook (150 DPI)
-    const command = `gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook -dNOPAUSE -dQUIET -dBATCH -sOutputFile="${outputPath}" "${localPath}"`;
+    const command = `"${gsPath}" -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook -dNOPAUSE -dQUIET -dBATCH -sOutputFile="${outputPath}" "${localPath}"`;
     await execAsync(command);
 
     if (fs.existsSync(outputPath)) {

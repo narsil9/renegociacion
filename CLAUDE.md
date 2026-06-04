@@ -50,7 +50,7 @@ This repository contains the hybrid automation system for filling out the renego
   form.setAttribute('action', `/miSuperir/autenticado/renegociacion/guardarInformacionPersonal?_csrf=${csrfEl.value}`);
   form.submit();
   ```
-- **Step 2 Declarations Mapping**: Determine the tax category from the Carpeta Tributaria PDF text. If `segunda`, check `#calidadPersonaDeudora1`. If `primera`, check `#calidadPersonaDeudora2` and `#inicioActividades1`. In all cases, check `#tipoDeclaracionNotificacionNo`.
+- **Step 2 Declarations Mapping**: Determine the tax category from the Carpeta Tributaria PDF text. If `segunda`, check `#calidadPersonaDeudora1`. If `primera`, check `#calidadPersonaDeudora2` and `#inicioActividades1`. If `ninguna`, do not check any quality of debtor radios (the document might be damaged/invalid). In all cases, check `#tipoDeclaracionNotificacionNo`.
 
 ### Playwright Stability
 - Always wait for script stabilization (`page.waitForTimeout(3000)`) after navigating to a step to allow frontend event handlers to register before clicking delete or upload buttons.

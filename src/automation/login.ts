@@ -6,6 +6,17 @@ interface SimpleLogger {
   error(msg: string, err?: any): void;
 }
 
+export class CredentialError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'rut_incorrecto' | 'clave_unica_incorrecta'
+  ) {
+    super(message);
+    this.name = 'CredentialError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 export async function loginAndNavigateToStep1(
   page: Page,
   rut: string,
@@ -121,7 +132,40 @@ export async function loginAndNavigateToStep1(
 
     log('→ Enviando login...');
     await page.locator('#login-submit').click();
-    await page.waitForURL(/autenticado/, { timeout: 60000 });
+
+    // Wait for either:
+    // A) Navigation to authenticated area (URL contains "autenticado")
+    // B) ClaveÚnica error banner: "Datos de acceso no" (which displays "Datos de acceso no válidos")
+    // C) ClaveÚnica input validation: "Ingresa correctamente tu RUN" (displays "Ingresa correctamente tu RUN de 7 u 8 números...")
+    try {
+      await Promise.race([
+        page.waitForURL(/autenticado/, { timeout: 45000 }),
+        page.waitForSelector('text="Datos de acceso no válidos"', { state: 'visible', timeout: 45000 }),
+        page.waitForSelector('text="Ingresa correctamente tu RUN de 7 u 8 números más dígito verificador"', { state: 'visible', timeout: 45000 }),
+      ]);
+    } catch (raceErr) {
+      // Ignore race timeout and let url check decide
+    }
+
+    if (!page.url().includes('autenticado')) {
+      const isInvalidRun = await page.locator('text="Ingresa correctamente tu RUN de 7 u 8 números más dígito verificador"').isVisible().catch(() => false);
+      const isInvalidAccess = await page.locator('text="Datos de acceso no válidos"').isVisible().catch(() => false);
+
+      if (isInvalidRun) {
+        const msg = 'El RUN (RUT) ingresado es incorrecto o inválido ("Ingresa correctamente tu RUN de 7 u 8 números más dígito verificador").';
+        log(`❌ ${msg}`);
+        throw new CredentialError(msg, 'rut_incorrecto');
+      } else if (isInvalidAccess) {
+        const msg = 'La ClaveÚnica o contraseña ingresada es incorrecta ("Datos de acceso no válidos").';
+        log(`❌ ${msg}`);
+        throw new CredentialError(msg, 'clave_unica_incorrecta');
+      } else {
+        const msg = `Error de autenticación no reconocido (posible portal caído o timeout). URL actual: ${page.url()}`;
+        log(`❌ ${msg}`);
+        throw new Error(msg);
+      }
+    }
+
     log(`→ Login exitoso. URL: ${page.url()}`);
 
     // Si somos redirigidos a la pantalla de registrar ciudadano (primer ingreso con este RUT)
@@ -265,7 +309,8 @@ export async function loginAndNavigateToStep1(
     }
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] ✗ Error en login/navegación.`);
+    if (logger) logger.error('✗ Error en login/navegación.', error);
+    else console.error(`[${new Date().toISOString()}] ✗ Error en login/navegación.`, error);
     await screenshotOnFailure(page, 'login');
     throw error;
   }

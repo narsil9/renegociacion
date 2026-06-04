@@ -41,13 +41,14 @@ async function insertTestJob() {
   const clientId = clients[0].id;
   console.log(`✓ Cliente encontrado. ID: ${clientId}`);
 
-  console.log('→ Insertando nuevo job pendiente en la cola "automation_jobs"...');
+  console.log('→ Insertando nuevo job pendiente en la cola "automation_jobs" (con dry_run: false)...');
   const { data: jobs, error: jobError } = await supabase
     .from('automation_jobs')
     .insert({
       client_id: clientId,
       step: 1,
       status: 'pending',
+      dry_run: false,
     })
     .select();
 

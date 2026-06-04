@@ -1,8 +1,8 @@
 {
-  "includeCoAuthoredBy": true,
   "env": {
     "INSIDE_CLAUDE_CODE": "1"
   },
+  "includeCoAuthoredBy": true,
   "hooks": {
     "PreToolUse": [
       {
@@ -37,6 +37,11 @@
           }
         ]
       }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pm2 list *)"
     ]
   }
 }

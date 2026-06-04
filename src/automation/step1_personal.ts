@@ -3,11 +3,6 @@ import { screenshotOnFailure } from '../utils/browser';
 import * as fs from 'fs';
 import * as path from 'path';
 
-function log(msg: string): void {
-  const ts = new Date().toISOString().replace('T', ' ').substring(0, 23);
-  console.log(`[${ts}] ${msg}`);
-}
-
 /**
  * Clears a text input completely and types the new value.
  * Triple-click selects all existing content before fill() replaces it.
@@ -232,63 +227,69 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
 
     const dryRun = process.env.DRY_RUN !== 'false';
     if (dryRun) {
-      const screenshotPath = `outputs/verify_step1_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+      const outputDir = path.join(process.cwd(), 'outputs');
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+      const screenshotPath = path.join(outputDir, `verify_step1_${new Date().toISOString().replace(/[:.]/g, '-')}.png`);
       await page.screenshot({ path: screenshotPath, fullPage: true });
       log(`📸 Screenshot de verificación: ${screenshotPath}`);
       log('⚠️  DRY_RUN=true: formulario NO guardado. Cambiá a DRY_RUN=false en .env para producción.');
       return;
     }
 
-    // Diagnosticar validación antes de clickear
-    const validationDiag = await page.evaluate(() => {
-      const inputs = Array.from(document.querySelectorAll('input.obligatorio, select.obligatorio, textarea.obligatorio'));
-      return inputs.map(el => {
-        const id = el.id;
-        const val = (el as any).value;
-        const isSelectpicker = el.classList.contains('selectpicker');
-        let selectpickerVal = null;
-        if (isSelectpicker && (window as any).$) {
-          selectpickerVal = (window as any).$(el).selectpicker('val');
-        }
+    if (process.env.DEBUG === 'true') {
+      // Diagnosticar validación antes de clickear
+      const validationDiag = await page.evaluate(() => {
+        const inputs = Array.from(document.querySelectorAll('input.obligatorio, select.obligatorio, textarea.obligatorio'));
+        return inputs.map(el => {
+          const id = el.id;
+          const val = (el as any).value;
+          const isSelectpicker = el.classList.contains('selectpicker');
+          let selectpickerVal = null;
+          if (isSelectpicker && (window as any).$) {
+            selectpickerVal = (window as any).$(el).selectpicker('val');
+          }
+          return {
+            id,
+            tagName: el.tagName,
+            classes: el.className,
+            value: val,
+            selectpickerVal,
+            isDisabled: (el as any).disabled
+          };
+        });
+      });
+      log(`🔍 DIAGNÓSTICO DE CAMPOS OBLIGATORIOS: ${JSON.stringify(validationDiag, null, 2)}`);
+
+      // Fetch and search validationUtils.js and util.js for sanitizaInputNumber
+      const validationScripts = await page.evaluate(async () => {
+        const fetchScript = async (url: string) => {
+          try {
+            const res = await fetch(url);
+            return await res.text();
+          } catch (e: any) {
+            return `Error fetching ${url}: ${e.message}`;
+          }
+        };
+        const validationUtils = await fetchScript('/miSuperir/resources/js/util/validationUtils.js?v=2');
+        const util = await fetchScript('/miSuperir/resources/js/util/util.js?v=2');
+        
+        const findFunc = (text: string, name: string) => {
+          const idx = text.indexOf(name);
+          if (idx === -1) return `${name} not found`;
+          return text.substring(idx - 100, idx + 1000);
+        };
+        
         return {
-          id,
-          tagName: el.tagName,
-          classes: el.className,
-          value: val,
-          selectpickerVal,
-          isDisabled: (el as any).disabled
+          sanitizaInUtils: findFunc(validationUtils, 'sanitizaInputNumber'),
+          sanitizaInUtil: findFunc(util, 'sanitizaInputNumber'),
+          validarFormInUtils: findFunc(validationUtils, 'validarFormObligatorio'),
+          validarFormInUtil: findFunc(util, 'validarFormObligatorio'),
         };
       });
-    });
-    log(`🔍 DIAGNÓSTICO DE CAMPOS OBLIGATORIOS: ${JSON.stringify(validationDiag, null, 2)}`);
-
-    // Fetch and search validationUtils.js and util.js for sanitizaInputNumber
-    const validationScripts = await page.evaluate(async () => {
-      const fetchScript = async (url: string) => {
-        try {
-          const res = await fetch(url);
-          return await res.text();
-        } catch (e: any) {
-          return `Error fetching ${url}: ${e.message}`;
-        }
-      };
-      const validationUtils = await fetchScript('/miSuperir/resources/js/util/validationUtils.js?v=2');
-      const util = await fetchScript('/miSuperir/resources/js/util/util.js?v=2');
-      
-      const findFunc = (text: string, name: string) => {
-        const idx = text.indexOf(name);
-        if (idx === -1) return `${name} not found`;
-        return text.substring(idx - 100, idx + 1000);
-      };
-      
-      return {
-        sanitizaInUtils: findFunc(validationUtils, 'sanitizaInputNumber'),
-        sanitizaInUtil: findFunc(util, 'sanitizaInputNumber'),
-        validarFormInUtils: findFunc(validationUtils, 'validarFormObligatorio'),
-        validarFormInUtil: findFunc(util, 'validarFormObligatorio'),
-      };
-    });
-    log(`🔍 VALIDATION SCRIPTS CLIPPINGS: ${JSON.stringify(validationScripts, null, 2)}`);
+      log(`🔍 VALIDATION SCRIPTS CLIPPINGS: ${JSON.stringify(validationScripts, null, 2)}`);
+    }
 
     // --- PRODUCCIÓN: guardar y continuar al Paso 2 ---
     log('→ Guardando y continuando al Paso 2...');

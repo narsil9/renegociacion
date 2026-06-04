@@ -31,6 +31,7 @@ interface Client {
   comuna: string;
   region: string;
   missing_fields?: string[];
+  credential_error?: string | null;
 }
 
 interface Job {
@@ -446,9 +447,35 @@ export default function App() {
                           <tr key={client.id}>
                             <td>
                               <div className="client-name-cell">
-                                <span className="name">{client.name}</span>
+                                <span className="name">
+                                  {client.name}
+                                  {client.credential_error && (() => {
+                                    const isRutErr = client.credential_error.includes('rut_incorrecto');
+                                    const errorMsg = client.credential_error.includes(':')
+                                      ? client.credential_error.split(':').slice(1).join(':').trim()
+                                      : (isRutErr ? 'Error: RUT incorrecto o inválido' : 'Error: ClaveÚnica o contraseña incorrecta');
+                                    return (
+                                      <span className="error-icon-badge" title={errorMsg} style={{ marginLeft: '0.5rem', color: '#ff3333', verticalAlign: 'middle' }}>
+                                        <AlertCircle size={14} style={{ display: 'inline', stroke: '#ff3333' }} />
+                                      </span>
+                                    );
+                                  })()}
+                                </span>
                                 <span className="email">{client.rut}</span>
-                                <div style={{ marginTop: '0.25rem' }}>
+                                <div style={{ marginTop: '0.25rem', display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                                  {client.credential_error && (
+                                    <span className="credential-error-badge" style={{
+                                      background: 'rgba(255, 51, 51, 0.12)',
+                                      color: '#ff4444',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 'bold',
+                                      display: 'inline-block'
+                                    }}>
+                                      ⚠️ {client.credential_error.includes('rut_incorrecto') ? 'RUT Incorrecto' : 'ClaveÚnica Incorrecta'}
+                                    </span>
+                                  )}
                                   {isComplete ? (
                                     <span className="complete-badge">✓ Datos Completos</span>
                                   ) : (

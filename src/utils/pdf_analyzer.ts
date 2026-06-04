@@ -1,7 +1,10 @@
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import * as fs from 'fs';
 
-export type TaxCategory = 'primera' | 'segunda';
+const execFileAsync = promisify(execFile);
+
+export type TaxCategory = 'primera' | 'segunda' | 'ninguna';
 
 interface SimpleLogger {
   log(msg: string): void;
@@ -10,18 +13,17 @@ interface SimpleLogger {
 /**
  * Extracts all text from a PDF file using pdftotext.
  */
-export function extractTextFromPdf(pdfPath: string): string {
+export async function extractTextFromPdf(pdfPath: string): Promise<string> {
   if (!fs.existsSync(pdfPath)) {
     throw new Error(`Archivo PDF no encontrado para extracción de texto: ${pdfPath}`);
   }
 
   const pdftotextPath = '/opt/homebrew/bin/pdftotext';
   try {
-    const text = execSync(`"${pdftotextPath}" "${pdfPath}" -`, { 
+    const { stdout } = await execFileAsync(pdftotextPath, [pdfPath, '-'], { 
       encoding: 'utf8', 
-      stdio: ['pipe', 'pipe', 'ignore'] 
     });
-    return text;
+    return stdout;
   } catch (err: any) {
     throw new Error(`Error al ejecutar pdftotext en ${pdfPath}: ${err.message || err}`);
   }
@@ -40,7 +42,7 @@ export async function analyzeTaxCategory(
   };
 
   log(`📊 Analizando Carpeta Tributaria en: ${pdfPath}...`);
-  const text = extractTextFromPdf(pdfPath);
+  const text = await extractTextFromPdf(pdfPath);
 
   // 1. Search for the specific label "Categoría Tributaria:" under "Datos del Contribuyente"
   const labelRegex = /Categor[íi]a\s+Tributaria\s*:/i;
@@ -102,11 +104,15 @@ export async function analyzeTaxCategory(
   const hasFirstTotal = /Primera\s+Categor[íi]a|1ra\s+Categor[íi]a/i.test(text);
   const hasSecondTotal = /Segunda\s+Categor[íi]a|2da\s+Categor[íi]a/i.test(text);
 
-  if (hasFirstTotal && !hasSecondTotal) {
+  if (hasFirstTotal) {
     log('✓ Categoría tributaria detectada (total): Primera Categoría.');
     return 'primera';
   }
+  if (hasSecondTotal) {
+    log('✓ Categoría tributaria detectada (total): Segunda Categoría.');
+    return 'segunda';
+  }
   
-  log('✓ Categoría tributaria predeterminada: Segunda Categoría.');
-  return 'segunda';
+  log('⚠️ Advertencia: No se pudo identificar de forma unívoca la categoría tributaria (Primera o Segunda) en el archivo de Carpeta Tributaria. Retornando "ninguna".');
+  return 'ninguna';
 }

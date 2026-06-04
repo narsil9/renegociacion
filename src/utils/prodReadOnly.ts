@@ -22,6 +22,9 @@ export function getProdReadOnlyClient(): SupabaseClient {
 
   return new Proxy(real, {
     get(target, prop, receiver) {
+      if (prop === 'storage') {
+        throw new Error('🚫 Prod Storage blocked. Production is READ-ONLY for database and file storage.');
+      }
       if (prop === 'from') {
         return (table: string) => new Proxy(target.from(table), {
           get(b, p) {

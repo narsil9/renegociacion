@@ -12,7 +12,7 @@ export async function fillStep2(
   page: Page,
   tributariaLocalPath: string,
   retenedoresLocalPath: string,
-  categoria: 'primera' | 'segunda',
+  categoria: 'primera' | 'segunda' | 'ninguna',
   logger?: SimpleLogger
 ): Promise<void> {
   const log = (msg: string) => {
@@ -50,9 +50,11 @@ export async function fillStep2(
       
       log('→ Seleccionando no emisión de documentos tributarios en los últimos 24 meses...');
       await page.locator('#inicioActividades1').check({ force: true });
-    } else {
+    } else if (categoria === 'segunda') {
       log('→ Seleccionando calidad de persona deudora (SIN actividades 1ra categoría)...');
       await page.locator('#calidadPersonaDeudora1').check({ force: true });
+    } else {
+      log('⚠️ Categoría tributaria "ninguna": No se seleccionará ninguna opción de calidad de persona deudora (el documento de Carpeta Tributaria podría no contener esta información).');
     }
 
     // 2. Upload Carpeta Tributaria
@@ -85,7 +87,11 @@ export async function fillStep2(
 
     const dryRun = process.env.DRY_RUN !== 'false';
     if (dryRun) {
-      const screenshotPath = `outputs/verify_step2_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+      const outputDir = path.join(process.cwd(), 'outputs');
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+      const screenshotPath = path.join(outputDir, `verify_step2_${new Date().toISOString().replace(/[:.]/g, '-')}.png`);
       await page.screenshot({ path: screenshotPath, fullPage: true });
       log(`📸 Screenshot de verificación Paso 2: ${screenshotPath}`);
       
@@ -97,8 +103,10 @@ export async function fillStep2(
         if (categoria === 'primera') {
           await page.locator('#calidadPersonaDeudora2').check({ force: true });
           await page.locator('#inicioActividades1').check({ force: true });
-        } else {
+        } else if (categoria === 'segunda') {
           await page.locator('#calidadPersonaDeudora1').check({ force: true });
+        } else {
+          log('⚠️ Categoría tributaria "ninguna": No se re-seleccionará ninguna opción de calidad de persona deudora.');
         }
         await page.locator('#tipoDeclaracionNotificacionNo').check({ force: true });
         await page.waitForTimeout(1000);
@@ -112,9 +120,8 @@ export async function fillStep2(
 
       if (isTributariaUploaded) {
         log('🗑️  Eliminando Carpeta Tributaria...');
-        const navigationPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded' });
         await page.locator('button[data-documento="carpetaTributaria"]').click();
-        await navigationPromise;
+        await page.locator('#descargaCarpetaTributaria').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
         log('✓ Página recargada tras eliminar Carpeta Tributaria.');
         
         await page.waitForSelector('#declaracionRenegociacionForm', { timeout: 30000 });
@@ -129,13 +136,12 @@ export async function fillStep2(
 
       if (isRetenedoresUploaded) {
         log('🗑️  Eliminando Agentes Retenedores...');
-        const navigationPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded' });
         await page.locator('button[data-documento="informacionIngresos"]').click();
-        await navigationPromise;
+        await page.locator('#descargaInformacionIngresos').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
         log('✓ Página recargada tras eliminar Agentes Retenedores.');
       }
       
-      const cleanScreenshotPath = `outputs/verify_step2_clean_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+      const cleanScreenshotPath = path.join(outputDir, `verify_step2_clean_${new Date().toISOString().replace(/[:.]/g, '-')}.png`);
       await page.screenshot({ path: cleanScreenshotPath, fullPage: true });
       log(`📸 Captura de borrador limpio: ${cleanScreenshotPath}`);
       
