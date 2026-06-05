@@ -13,6 +13,13 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 
+export interface AcreditacionDoc {
+  institucion_cmf: string;
+  tipo_documento: 22 | 23 | 24;
+  storage_path: string;
+  local_path?: string;
+}
+
 interface SimpleLogger {
   log(msg: string): void;
   error(msg: string, err?: unknown): void;
@@ -36,7 +43,8 @@ export async function fillStep3(
   cmfLocalPath: string,
   supabase: SupabaseClient,
   logger?: SimpleLogger,
-  boletinComercialPath?: string
+  boletinComercialPath?: string,
+  acreditacionDocs?: AcreditacionDoc[]
 ): Promise<Step3Report> {
   const log = (msg: string) => {
     if (logger) {
@@ -100,7 +108,42 @@ export async function fillStep3(
     const catalog = await fetchAcreedoresCatalog(supabase);
     log(`✓ Catálogo cargado: ${catalog.length} acreedores canónicos.`);
 
-    // --- 4. Add each creditor --------------------------------------------
+    // --- 3b. Download acreditacion docs from Storage ----------------------
+    const docs = acreditacionDocs ?? [];
+    if (docs.length > 0) {
+      const tmpDir = path.join(process.cwd(), 'outputs', 'acreditaciones_tmp');
+      await downloadAcreditacionDocs(supabase, docs, tmpDir, log);
+    }
+
+    // --- 3c. Classify creditors + validate 80 UF requirement ----------------
+    const UF_80_CLP = 3_253_000; // 80 UF ≈ $3,253,000 CLP
+    const obligaciones260 = creditors.filter((c) => c.overdue90Days > 0);
+    const otrosAcreedores = creditors.filter((c) => c.overdue90Days === 0);
+    const total90Days = obligaciones260.reduce((sum, c) => sum + c.overdue90Days, 0);
+
+    log('→ Clasificación de acreedores:');
+    log(`   📋 Obligaciones 260 (morosidad >90d): ${obligaciones260.length}`);
+    obligaciones260.forEach((c) =>
+      log(`      • ${c.institucion}: 90d=$${c.overdue90Days.toLocaleString('es-CL')}, total=$${c.totalCredito.toLocaleString('es-CL')}`)
+    );
+    log(`   📋 Otros Acreedores (sin morosidad >90d): ${otrosAcreedores.length}`);
+    otrosAcreedores.forEach((c) =>
+      log(`      • ${c.institucion}: total=$${c.totalCredito.toLocaleString('es-CL')}`)
+    );
+    log(`→ Total deuda 90+ días: $${total90Days.toLocaleString('es-CL')} (mín. $${UF_80_CLP.toLocaleString('es-CL')} / 80 UF)`);
+    if (total90Days < UF_80_CLP) {
+      log(`⚠️  ADVERTENCIA: La deuda con morosidad >90d ($${total90Days.toLocaleString('es-CL')}) NO alcanza el mínimo de 80 UF. Verificar antes de presentar.`);
+    } else {
+      log('✓ Requisito 80 UF cumplido.');
+    }
+
+    // --- 4a. Add each creditor (Phase 1) ------------------------------------
+    // Creditors with overdue90Days > 0 → Obligaciones 260 (#btnAgregarEmpresa)
+    // Creditors with overdue90Days === 0 → Otros Acreedores (#btnAgregarEmpresa2)
+    // The portal only enables "Subir Documento" buttons once ALL creditors are
+    // present in the table. We add all first, then attach documents separately.
+    const addedDocs: { entry: AcreedorCatalogEntry; creditor: CmfCreditor }[] = [];
+
     for (const creditor of creditors) {
       const match = matchAcreedor(creditor.institucion, catalog);
 
@@ -132,12 +175,26 @@ export async function fillStep3(
           monto: creditor.totalCredito,
         });
         log(`✓ Acreedor agregado: ${entry.nombre} ($${creditor.totalCredito.toLocaleString('es-CL')}).`);
+        addedDocs.push({ entry, creditor });
       } catch (err) {
         const reason = `Error al agregar en el portal: ${(err as Error).message}`;
         logError(`✗ Falló agregar "${creditor.institucion}" (${entry.nombre}).`, err);
         report.skipped.push({ institucion: creditor.institucion, reason });
-        // Best-effort: close any open modal so the loop can continue.
         await dismissOpenModal(page).catch(() => {});
+      }
+    }
+
+    // --- 4b. Attach acreditacion documents (Phase 2) ------------------------
+    // Run only after ALL creditors are in the table (portal enables the button then).
+    if (docs.length > 0 && addedDocs.length > 0) {
+      log('→ Adjuntando certificados de acreditación...');
+      for (const { entry, creditor } of addedDocs) {
+        const doc = findAcreditacionDoc(creditor.institucion, docs);
+        if (doc?.local_path) {
+          await attachDocumentoAcreedor(page, doc, creditor.totalCredito, creditor.overdue90Days, log).catch((err) =>
+            log(`⚠️ No se pudo adjuntar documento para "${entry.nombre}": ${(err as Error).message}`)
+          );
+        }
       }
     }
 
@@ -201,8 +258,10 @@ async function addEmpresaAcreedor(
   const rut = normalizeRut(entry.rut);
   if (!rut) throw new Error('El acreedor del catálogo no tiene RUT.');
 
-  log(`→ Abriendo modal Empresa para "${entry.nombre}" (RUT ${rut})...`);
-  await page.locator('#btnAgregarEmpresa').click();
+  const isOtros = creditor.overdue90Days === 0;
+  const btnSelector = isOtros ? '#btnAgregarEmpresa2' : '#btnAgregarEmpresa';
+  log(`→ Abriendo modal Empresa para "${entry.nombre}" (RUT ${rut}) [Otros: ${isOtros}]...`);
+  await page.locator(btnSelector).click();
   await page.locator('#modalEmpresa').waitFor({ state: 'visible', timeout: 15000 });
 
   // RUT + Buscar (portal autocompletes the name)
@@ -225,6 +284,10 @@ async function addEmpresaAcreedor(
 
   if (!autofilled) {
     log('   ⚠️ El portal no autocompletó el nombre; usando el del catálogo.');
+    await page.evaluate(() => {
+      const el = document.getElementById('empresaNombre');
+      if (el) el.removeAttribute('readonly');
+    });
     await nombreInput.fill(truncate(entry.nombre, MAX.nombre));
   }
 
@@ -248,13 +311,20 @@ async function addEmpresaAcreedor(
   // Debt amount = "Total del crédito" from the CMF.
   await locByName(page, 'empresaAcreedor.deudaMonto').fill(truncate(String(creditor.totalCredito), MAX.monto));
 
-  // Vencimiento — obligatorio en el modal real. Usamos hoy-90d como mínimo razonable
-  // para deudas Obligaciones 260 (requieren 90+ días de mora).
-  await page.locator('#empresaAcreedorFchCuotaImpaga').fill(dateDaysAgo(90));
+  // Vencimiento — obligatorio. Intentamos 3 métodos en cascada.
+  const dateStr = dateDaysAgo(90);
+  await fillDateField(page, '#empresaAcreedorFchCuotaImpaga', dateStr, log);
+
+  // Dismiss any overlay dialog blocking clicks (e.g. #dlgImportante after rep modal closes)
+  await dismissBlockingDialogs(page, log);
 
   // Save
   await page.locator('#btnGuardarEmpresa').click();
-  await page.locator('#modalEmpresa').waitFor({ state: 'hidden', timeout: 15000 });
+  await page.locator('#modalEmpresa').waitFor({ state: 'hidden', timeout: 20000 });
+
+  // Wait for the full page reload/navigation to complete and scripts to stabilize
+  await page.waitForLoadState('load');
+  await page.waitForTimeout(2000);
 }
 
 /**
@@ -270,12 +340,7 @@ async function selectRegionAndComuna(
     throw new Error(`Comuna sin mapeo a región: "${entry.comuna}".`);
   }
 
-  await page.selectOption('#empresaRegion', regionValue);
-  // Nudge bootstrap-select + dependent comuna loader.
-  await page.evaluate(() => {
-    const sel = document.querySelector('#empresaRegion') as HTMLSelectElement | null;
-    sel?.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+  await selectBootstrap(page, 'empresaRegion', regionValue);
 
   // Wait for comuna options to populate.
   await page.waitForFunction(
@@ -298,11 +363,7 @@ async function selectRegionAndComuna(
     throw new Error(`Comuna "${entry.comuna}" no está en el listado de la región.`);
   }
 
-  await page.selectOption('#empresaComuna', comunaValue);
-  await page.evaluate(() => {
-    const sel = document.querySelector('#empresaComuna') as HTMLSelectElement | null;
-    sel?.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+  await selectBootstrap(page, 'empresaComuna', comunaValue);
   log(`   ✓ Región (${regionValue}) y comuna ("${entry.comuna}") seleccionadas.`);
 }
 
@@ -339,6 +400,8 @@ async function addRepresentante(
 
   await page.locator('#guardarRep').click();
   await page.locator('#modalRepresentante').waitFor({ state: 'hidden', timeout: 10000 });
+  // Portal may show #dlgImportante after saving a representative — dismiss it immediately
+  await dismissBlockingDialogs(page, log);
   log(`   ✓ Representante legal agregado (${repRut}).`);
 }
 
@@ -393,8 +456,10 @@ async function addPersonaAcreedor(
   const rut = normalizeRut(entry.rut);
   if (!rut) throw new Error('El acreedor del catálogo no tiene RUT.');
 
-  log(`→ Abriendo modal Persona Natural para "${entry.nombre}" (RUT ${rut})...`);
-  await page.locator('#btnAgregarPersona').click();
+  const isOtros = creditor.overdue90Days === 0;
+  const btnSelector = isOtros ? '#btnAgregarPersona2' : '#btnAgregarPersona';
+  log(`→ Abriendo modal Persona Natural para "${entry.nombre}" (RUT ${rut}) [Otros: ${isOtros}]...`);
+  await page.locator(btnSelector).click();
   await page.locator('#modalPersona').waitFor({ state: 'visible', timeout: 15000 });
 
   await page.locator('#personaRutDv').fill(rut);
@@ -406,6 +471,14 @@ async function addPersonaAcreedor(
   );
   if (!nombresFilled) {
     const { nombres, paterno, materno } = splitName(entry.nombre);
+    await page.evaluate(() => {
+      const n = document.getElementById('persona.nombres');
+      const p = document.getElementById('persona.aPaterno');
+      const m = document.getElementById('persona.aMaterno');
+      if (n) n.removeAttribute('readonly');
+      if (p) p.removeAttribute('readonly');
+      if (m) m.removeAttribute('readonly');
+    });
     await page.locator('[id="persona.nombres"]').fill(truncate(nombres, 50));
     await page.locator('[id="persona.aPaterno"]').fill(truncate(paterno, 30));
     if (materno) await page.locator('[id="persona.aMaterno"]').fill(truncate(materno, 30));
@@ -424,10 +497,14 @@ async function addPersonaAcreedor(
 
   await locByName(page, 'personaAcreedor.deudaMonto').fill(truncate(String(creditor.totalCredito), MAX.monto));
   // Vencimiento — obligatorio en el modal real.
-  await page.locator('#personaFechaCuotaImpaga').fill(dateDaysAgo(90));
+  await clearAndFill(page, '#personaFechaCuotaImpaga', dateDaysAgo(90));
 
   await page.locator('#btnGuardarPersona').click();
-  await page.locator('#modalPersona').waitFor({ state: 'hidden', timeout: 15000 });
+  await page.locator('#modalPersona').waitFor({ state: 'hidden', timeout: 20000 });
+
+  // Wait for the full page reload/navigation to complete and scripts to stabilize
+  await page.waitForLoadState('load');
+  await page.waitForTimeout(2000);
 }
 
 /**
@@ -443,11 +520,7 @@ async function selectPersonaRegionAndComuna(
     throw new Error(`Comuna sin mapeo a región: "${entry.comuna}".`);
   }
 
-  await page.selectOption('#personaRegion', regionValue);
-  await page.evaluate(() => {
-    const sel = document.querySelector('#personaRegion') as HTMLSelectElement | null;
-    sel?.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+  await selectBootstrap(page, 'personaRegion', regionValue);
 
   await page.waitForFunction(
     () => (document.querySelector('#personaAcreedorcomuna') as HTMLSelectElement | null)?.options.length! > 1,
@@ -469,20 +542,216 @@ async function selectPersonaRegionAndComuna(
     throw new Error(`Comuna "${entry.comuna}" no está en el listado de la región (persona).`);
   }
 
-  await page.selectOption('#personaAcreedorcomuna', comunaValue);
-  await page.evaluate(() => {
-    const sel = document.querySelector('#personaAcreedorcomuna') as HTMLSelectElement | null;
-    sel?.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+  await selectBootstrap(page, 'personaAcreedorcomuna', comunaValue);
   log(`   ✓ Región (${regionValue}) y comuna ("${entry.comuna}") seleccionadas (persona).`);
+}
+
+// ─── Acreditación helpers ────────────────────────────────────────────────────
+
+function normInst(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function findAcreditacionDoc(
+  institucion: string,
+  docs: AcreditacionDoc[]
+): AcreditacionDoc | undefined {
+  if (!docs.length) return undefined;
+  const target = normInst(institucion);
+  return docs.find((d) => {
+    const n = normInst(d.institucion_cmf);
+    return n === target || target.includes(n) || n.includes(target);
+  });
+}
+
+async function downloadAcreditacionDocs(
+  supabase: SupabaseClient,
+  docs: AcreditacionDoc[],
+  tmpDir: string,
+  log: (m: string) => void
+): Promise<void> {
+  if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+  for (const doc of docs) {
+    const ext = path.extname(doc.storage_path) || '.pdf';
+    const slug = path.basename(doc.storage_path, ext);
+    const localPath = path.join(tmpDir, `${slug}${ext}`);
+
+    if (fs.existsSync(localPath)) {
+      doc.local_path = localPath;
+      log(`→ Certificado en caché local: ${path.basename(localPath)}`);
+      continue;
+    }
+
+    log(`→ Descargando certificado "${doc.institucion_cmf}"...`);
+    const { data, error } = await supabase.storage.from('documentos').download(doc.storage_path);
+    if (error || !data) {
+      log(`⚠️ No se pudo descargar "${doc.storage_path}": ${error?.message ?? 'blob vacío'}`);
+      continue;
+    }
+    fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer()));
+    doc.local_path = localPath;
+    log(`✓ Descargado: ${path.basename(localPath)}`);
+  }
+}
+
+/**
+ * Opens #modalAdjunto for the most recently added creditor row,
+ * sets the file (PDF or JPEG) and tipo, then saves.
+ */
+async function attachDocumentoAcreedor(
+  page: Page,
+  doc: AcreditacionDoc,
+  monto: number,
+  overdue90Days: number,
+  log: (m: string) => void
+): Promise<void> {
+  if (!doc.local_path || !fs.existsSync(doc.local_path)) {
+    throw new Error(`Archivo local no disponible: ${doc.local_path ?? '(sin ruta)'}`);
+  }
+
+  const isOtros = overdue90Days === 0;
+  const tableSelector = isOtros ? '#tablaOtrosAcreedores' : '#tablaAcreedores';
+
+  log(`→ Adjuntando documento de "${doc.institucion_cmf}" (Monto: $${monto.toLocaleString('es-CL')}, Otros: ${isOtros})...`);
+
+  // Wait for the table to have at least one row after the AJAX reload
+  await page.locator(`${tableSelector} tbody tr`).first().waitFor({ state: 'visible', timeout: 20000 });
+
+  const rows = page.locator(`${tableSelector} tbody tr`);
+  const rowCount = await rows.count();
+  let docBtn = null;
+
+  const targetName = normalizeText(doc.institucion_cmf);
+  log(`   🔍 Searching in ${tableSelector} for row matching "${doc.institucion_cmf}" (normalized: "${targetName}") and amount $${monto.toLocaleString('es-CL')}...`);
+
+  // First pass: look for a row with matching amount that does NOT have a document attached yet
+  for (let i = rowCount - 1; i >= 0; i--) {
+    const row = rows.nth(i);
+    const cols = row.locator('td');
+    const colCount = await cols.count();
+    if (colCount < 7) continue;
+
+    const montoText = await cols.nth(2).textContent().catch(() => '');
+    const cleanMonto = parseInt(montoText?.replace(/[^0-9]/g, '') ?? '0', 10);
+
+    if (cleanMonto === monto) {
+      const acreditaText = await cols.nth(6).textContent().catch(() => '');
+      const isSi = acreditaText?.trim().toLowerCase() === 'si' || acreditaText?.trim().toLowerCase() === 'sí';
+
+      const btn = cols.nth(5).locator('button, a').first();
+      if (await btn.count() > 0) {
+        docBtn = btn;
+        if (!isSi) {
+          log(`   ✓ Found exact row by amount at index ${i} in ${tableSelector} with no document.`);
+          break;
+        }
+      }
+    }
+  }
+
+  // Second pass fallback: generic match using text or col position in the same table
+  if (!docBtn) {
+    log(`   ⚠️ No exact row found by amount. Using fallback search in ${tableSelector}...`);
+    for (let i = rowCount - 1; i >= 0; i--) {
+      const byText = rows.nth(i).getByText(/subir documento/i).first();
+      if ((await byText.count()) > 0) {
+        docBtn = byText;
+        break;
+      }
+      for (const colIdx of [4, 5]) {
+        const candidate = rows.nth(i).locator('td').nth(colIdx).locator('button, a').first();
+        if ((await candidate.count()) > 0) {
+          docBtn = candidate;
+          break;
+        }
+      }
+      if (docBtn) break;
+    }
+  }
+
+  if (!docBtn) throw new Error(`No se encontró el botón "Subir Documento" en ${tableSelector}.`);
+
+  await docBtn.click();
+  await page.locator('#modalAdjunto').waitFor({ state: 'visible', timeout: 10000 });
+
+  // Select tipo documento (bootstrap-select needs a change event)
+  await selectBootstrap(page, 'tipoArchivoAdjunto', String(doc.tipo_documento));
+
+  // Set file — Playwright bypasses the accept filter; works for PDF, JPEG, JPG
+  await page.locator('#archivoAdjunto').setInputFiles(doc.local_path);
+  await page.evaluate(() => {
+    const inp = document.querySelector('#archivoAdjunto') as HTMLInputElement | null;
+    inp?.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  // Wait for the guardar button to become enabled
+  await page.waitForFunction(
+    () => !(document.querySelector('#guardarAdjunto') as HTMLButtonElement | null)?.disabled,
+    undefined,
+    { timeout: 10000 }
+  );
+
+  await page.locator('#guardarAdjunto').click();
+  await page.locator('#modalAdjunto').waitFor({ state: 'hidden', timeout: 15000 });
+
+  // Wait for the full page reload/navigation to complete and scripts to stabilize
+  await page.waitForLoadState('load');
+  await page.waitForTimeout(2000);
+
+  log(`✓ Documento adjuntado para "${doc.institucion_cmf}".`);
+}
+
+/**
+ * Dismisses dialogs that overlay #modalEmpresa and block pointer events.
+ * The portal shows #dlgImportante (an informational modal) after saving a
+ * representante legal. We must close it before clicking #btnGuardarEmpresa.
+ */
+async function dismissBlockingDialogs(page: Page, log: (m: string) => void): Promise<void> {
+  const blockers = ['#dlgImportante'];
+  for (const id of blockers) {
+    const dlg = page.locator(`${id}.show`);
+    if ((await dlg.count()) === 0) continue;
+
+    const content = await dlg.locator('.modal-body').first().textContent().catch(() => '');
+    log(`   ℹ️ Cerrando diálogo bloqueador ${id}: "${content?.trim().substring(0, 120)}"`);
+
+    const btn = dlg.locator('button[data-dismiss="modal"], .btn-close, button.close, .modal-footer button').first();
+    if ((await btn.count()) > 0) {
+      await btn.click();
+      await dlg.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    } else {
+      await page.evaluate((dlgId) => {
+        const el = document.getElementById(dlgId) as HTMLElement | null;
+        if (!el) return;
+        el.classList.remove('show');
+        (el as HTMLElement).style.display = 'none';
+        el.removeAttribute('aria-modal');
+        document.querySelectorAll('.modal-backdrop').forEach((b) => b.remove());
+        document.body.classList.remove('modal-open');
+      }, id.replace('#', ''));
+      log(`   ℹ️ ${id} cerrado vía JS.`);
+    }
+  }
 }
 
 async function dismissOpenModal(page: Page): Promise<void> {
   const closeBtn = page.locator('.modal.show button[data-dismiss="modal"]').first();
-  if (await closeBtn.count()) {
+  if ((await closeBtn.count()) > 0) {
     await closeBtn.click();
     await page.waitForTimeout(500);
+    return;
   }
+  // Force-close via jQuery (handles static-backdrop modals like #modalEmpresa)
+  await page.evaluate(() => {
+    const $ = (window as any).$;
+    if ($) $('.modal.show').each((_: unknown, el: HTMLElement) => { $(el).modal('hide'); });
+  }).catch(() => {});
+  await page.waitForTimeout(800);
 }
 
 /** Locator by exact `id` attribute (safe for IDs containing dots). */
@@ -506,3 +775,117 @@ function splitName(full: string): { nombres: string; paterno: string; materno: s
   const paterno = parts.pop()!;
   return { nombres: parts.join(' '), paterno, materno };
 }
+
+async function clearAndFill(page: Page, selector: string, value: string): Promise<void> {
+  const locator = page.locator(selector);
+  await locator.click({ clickCount: 3 });
+  await locator.fill(value);
+  await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (el) {
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+  }, selector);
+}
+
+/**
+ * Sets a date text-input that may be controlled by a jQuery datepicker.
+ * Tries (1) jQuery datepicker API, (2) Playwright fill(), (3) pressSequentially.
+ */
+async function fillDateField(
+  page: Page,
+  selector: string,
+  value: string,
+  log: (m: string) => void
+): Promise<void> {
+  // Method 0: Simple jQuery val()
+  const setSimpleVal = await page.evaluate(({ sel, date }) => {
+    const $ = (window as any).$;
+    if (!$) return false;
+    const $el = $(sel);
+    if (!$el.length) return false;
+    $el.val(date);
+    $el.trigger('change');
+    return true;
+  }, { sel: selector, date: value });
+
+  if (setSimpleVal) {
+    const v = await page.locator(selector).inputValue().catch(() => '');
+    if (v === value) {
+      log(`   ✓ Vencimiento seteado via jQuery val(): "${v}"`);
+      return;
+    }
+  }
+
+  // Method 1: jQuery datepicker setDate
+  const setViaJQuery = await page.evaluate(({ sel, date }) => {
+    const $ = (window as any).$;
+    if (!$) return false;
+    const $el = $(sel);
+    if (!$el.length) return false;
+    try {
+      if (typeof $el.datepicker === 'function') {
+        $el.datepicker('setDate', date);
+        $el.datepicker('update');
+        $el.trigger('changeDate').trigger('change');
+        return true;
+      }
+    } catch (_) { /* not a datepicker */ }
+    return false;
+  }, { sel: selector, date: value });
+
+  if (setViaJQuery) {
+    const v = await page.locator(selector).inputValue().catch(() => '');
+    if (v) { log(`   ✓ Vencimiento seteado via jQuery datepicker: "${v}"`); return; }
+  }
+
+  // Method 2: Playwright fill() with triple-click
+  await page.locator(selector).click({ clickCount: 3 });
+  await page.locator(selector).fill(value);
+  await page.evaluate((sel) => {
+    const el = document.querySelector(sel) as HTMLInputElement | null;
+    if (el) {
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+  }, selector);
+
+  const v2 = await page.locator(selector).inputValue().catch(() => '');
+  if (v2) { log(`   ✓ Vencimiento seteado via fill(): "${v2}"`); return; }
+
+  // Method 3: pressSequentially (simulates real keypresses)
+  log(`   ⚠️ fill() no funcionó. Intentando pressSequentially...`);
+  await page.locator(selector).click({ clickCount: 3 });
+  await page.keyboard.press('Delete');
+  await page.locator(selector).pressSequentially(value, { delay: 80 });
+  await page.locator(selector).dispatchEvent('change');
+
+  const v3 = await page.locator(selector).inputValue().catch(() => '');
+  log(`   🔍 Vencimiento tras pressSequentially: "${v3}"`);
+}
+
+async function selectBootstrap(page: Page, selectId: string, value: string): Promise<void> {
+  await page.locator(`#${selectId}`).selectOption(value);
+  await page.evaluate(({ id, val }) => {
+    // @ts-ignore
+    const $ = window.$;
+    if ($ && $(`#${id}`).hasClass('selectpicker')) {
+      // @ts-ignore
+      $(`#${id}`).selectpicker('val', val);
+      // @ts-ignore
+      $(`#${id}`).selectpicker('refresh');
+      // @ts-ignore
+      $(`#${id}`).trigger('change');
+    } else {
+      const el = document.getElementById(id);
+      if (el) {
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+  }, { id: selectId, val: value });
+  await page.waitForTimeout(300);
+}
+

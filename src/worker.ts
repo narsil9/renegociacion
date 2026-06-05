@@ -11,6 +11,7 @@ import * as path from 'path';
 import { fillStep2 } from './automation/step2_declaraciones';
 import { fillStep3 } from './automation/step3_acreedores';
 import { fillStep4 } from './automation/step4_apoderado';
+import { fillAllSteps } from './automation/all_steps';
 import { getOptimizedPdfPath } from './utils/pdf_optimizer';
 import { analyzeTaxCategory } from './utils/pdf_analyzer';
 import { analyzeCmfPdf } from './utils/cmf_analyzer';
@@ -118,9 +119,9 @@ async function processJob(job: any): Promise<void> {
   
   logger.log(`🤖 Iniciando procesamiento de Job ${job.id} para cliente ${client.name} (RUT ${client.rut})`);
 
-  // Support steps 1, 2, 3, and 4
-  if (job.step !== 1 && job.step !== 2 && job.step !== 3 && job.step !== 4) {
-    const errorMsg = `Paso ${job.step} no está soportado. Actualmente solo se automatizan Pasos 1, 2, 3 y 4.`;
+  // Support steps 0, 1, 2, 3, and 4
+  if (job.step !== 0 && job.step !== 1 && job.step !== 2 && job.step !== 3 && job.step !== 4) {
+    const errorMsg = `Paso ${job.step} no está soportado. Actualmente solo se automatizan Pasos 0, 1, 2, 3 y 4.`;
     logger.error(errorMsg);
     await supabase
       .from(JOBS_TABLE)
@@ -153,7 +154,7 @@ async function processJob(job: any): Promise<void> {
     let browserInstance: any = null;
 
     try {
-      if (job.step === 3) {
+      if (job.step === 3 || job.step === 0) {
         logger.log('⏳ Iniciando validación legal de Informe de Deudas CMF para el Paso 3...');
         if (!client.informe_cmf_path) {
           throw new Error('Error: No se encontró la ruta del informe CMF en el perfil del cliente para el Paso 3.');
@@ -201,7 +202,7 @@ async function processJob(job: any): Promise<void> {
         logger.log('✓ El cliente cumple con los requisitos del Informe CMF (atraso >= 90 días y monto >= 80 UF). Continuando con automatización...');
       }
 
-      if (job.step === 2) {
+      if (job.step === 2 || job.step === 0) {
         logger.log('⏳ Iniciando preparación de PDFs para el Paso 2...');
         if (!client.carpeta_tributaria_path || !client.carpeta_retenedores_path) {
           throw new Error('Error: Falta registrar la ruta de Carpeta Tributaria o de Agentes Retenedores en la tabla clients.');
@@ -320,7 +321,7 @@ async function processJob(job: any): Promise<void> {
         logger.log(`→ Redireccionando a la URL del Paso 3: ${step3Url}`);
         await page.goto(step3Url, { waitUntil: 'domcontentloaded' });
 
-        await fillStep3(page, cmfLocalPath, supabase, logger);
+        await fillStep3(page, cmfLocalPath, supabase, logger, undefined, client.acreditacion_documentos_json ?? []);
       } else if (job.step === 4) {
         logger.log('📝 Navegando e ingresando información de Paso 4...');
         
@@ -331,6 +332,38 @@ async function processJob(job: any): Promise<void> {
         await page.goto(step4Url, { waitUntil: 'domcontentloaded' });
 
         await fillStep4(page, logger);
+      } else if (job.step === 0) {
+        logger.log('📝 Llenando Todos los Pasos (Secuencia Completa 1 a 4)...');
+        
+        logger.log('🕵️‍♂️ Analizando la Carpeta Tributaria para determinar la categoría tributaria...');
+        const categoria = await analyzeTaxCategory(tributariaLocalPath, logger);
+        
+        const clientData: ClientData = {
+          nacionalidad: client.nacionalidad,
+          fecha_nacimiento: client.fecha_nacimiento || '01/01/1990',
+          estado_civil: client.estado_civil,
+          regimen_patrimonial: client.regimen_patrimonial,
+          profesion_oficio: client.profesion_oficio,
+          ocupacion: client.ocupacion,
+          direccion: client.direccion,
+          region: client.region,
+          comuna: client.comuna,
+          email: client.email,
+          telefono_prefijo: client.telefono_prefijo,
+          telefono: client.telefono,
+        };
+
+        await fillAllSteps(
+          page,
+          clientData,
+          tributariaOptimizedPath,
+          retenedoresOptimizedPath,
+          categoria,
+          cmfLocalPath,
+          supabase,
+          client.acreditacion_documentos_json ?? [],
+          logger
+        );
       }
 
       logger.log('📸 Guardando captura de éxito...');
@@ -373,7 +406,7 @@ async function processJob(job: any): Promise<void> {
             localSuccessPath = path.join(successDir, verifyFiles[0].name);
           }
         }
-      } else if (job.step === 4) {
+      } else if (job.step === 4 || job.step === 0) {
         localSuccessPath = path.join(successDir, 'step4_success.png');
         if (!fs.existsSync(localSuccessPath)) {
           const files = fs.readdirSync(successDir);

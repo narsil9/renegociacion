@@ -17,6 +17,7 @@ export interface AcreedorCatalogEntry {
   representante_legal: string | null;
   rut_representante: string | null;
   activo: boolean;
+  nombre_normalizado_local?: string;
 }
 
 export type MatchStatus = 'matched' | 'ambiguous' | 'not_found';
@@ -183,8 +184,31 @@ export async function fetchAcreedoresCatalog(
   if (error) {
     throw new Error(`Error al cargar acreedores_canonicos: ${error.message}`);
   }
-  return (data ?? []) as AcreedorCatalogEntry[];
+  const entries = (data ?? []) as AcreedorCatalogEntry[];
+  for (const entry of entries) {
+    entry.nombre_normalizado_local = normalizeText(entry.nombre);
+  }
+  return entries;
 }
+
+/**
+ * Matches a creditor name extracted from the CMF against the catalog.
+ *
+ * Tiers (first that yields a single hit wins):
+ *  1. Exact normalized equality.
+ *  2. Token-containment: the CMF name appears as a token sequence inside a
+ *     catalog name, or vice-versa.
+ *
+ * Multiple hits in a tier -> 'ambiguous'. No hits at all -> 'not_found'.
+ */
+const ALIASES: Record<string, string> = {
+  'presto lider': 'operadora de tarjetas lider servicios financieros s a',
+  'presto': 'operadora de tarjetas lider servicios financieros s a',
+  'tarjeta presto': 'operadora de tarjetas lider servicios financieros s a',
+  'lider': 'operadora de tarjetas lider servicios financieros s a',
+  'bci': 'banco de credito e inversiones',
+  'santander': 'banco santander',
+};
 
 /**
  * Matches a creditor name extracted from the CMF against the catalog.
@@ -200,10 +224,13 @@ export function matchAcreedor(
   cmfName: string,
   catalog: AcreedorCatalogEntry[]
 ): MatchResult {
-  const target = normalizeText(cmfName);
+  let target = normalizeText(cmfName);
+  if (ALIASES[target]) {
+    target = ALIASES[target];
+  }
 
-  // Tier 1: exact normalized equality (use stored nombre_normalizado, re-normalized for safety)
-  const exact = catalog.filter((e) => normalizeText(e.nombre) === target);
+  // Tier 1: exact normalized equality
+  const exact = catalog.filter((e) => (e.nombre_normalizado_local ?? normalizeText(e.nombre)) === target);
   if (exact.length === 1) {
     return { status: 'matched', cmfName, entry: exact[0] };
   }
@@ -213,7 +240,7 @@ export function matchAcreedor(
 
   // Tier 2: token-containment in either direction
   const containment = catalog.filter((e) => {
-    const candidate = normalizeText(e.nombre);
+    const candidate = e.nombre_normalizado_local ?? normalizeText(e.nombre);
     return (
       isTokenSubsequence(target, candidate) || isTokenSubsequence(candidate, target)
     );

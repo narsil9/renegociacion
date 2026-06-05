@@ -3,6 +3,18 @@
     "INSIDE_CLAUDE_CODE": "1"
   },
   "includeCoAuthoredBy": true,
+  "permissions": {
+    "allow": [
+      "Bash(pm2 list *)",
+      "Bash(node *)",
+      "Bash(npx *)",
+      "Bash(git *)",
+      "Bash(find *)",
+      "Bash(rm *)",
+      "Skill(renegociacion-automation)",
+      "Skill(renegociacion-automation:*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -37,11 +49,6 @@
           }
         ]
       }
-    ]
-  },
-  "permissions": {
-    "allow": [
-      "Bash(pm2 list *)"
     ]
   }
 }

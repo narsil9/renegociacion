@@ -246,6 +246,50 @@ export default function App() {
     }
   };
 
+  // Trigger all steps automation run
+  const triggerAllSteps = async (clientId: string) => {
+    const jobsTable = 'automation_jobs';
+    const isDryRun = dryRunJobs[clientId] !== false;
+
+    try {
+      // Create a temporary loading job locally
+      setJobs((prev) => ({
+        ...prev,
+        [clientId]: {
+          id: 'temp',
+          client_id: clientId,
+          step: 0,
+          status: 'pending',
+          dry_run: isDryRun,
+          error_log: null,
+          screenshot_url: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      }));
+
+      // Insert job parameters
+      const insertPayload = {
+        client_id: clientId,
+        step: 0,
+        status: 'pending',
+        dry_run: isDryRun,
+      };
+
+      // Insert job in Supabase
+      const { error: insertError } = await supabase
+        .from(jobsTable)
+        .insert(insertPayload);
+
+      if (insertError) {
+        throw new Error(insertError.message);
+      }
+    } catch (err: any) {
+      alert(`Error al iniciar automatización completa: ${err.message}`);
+      fetchData();
+    }
+  };
+
   // Stats Calculations
   const totalClients = clients.length;
   const activeJobs = Object.values(jobs).filter(
@@ -368,19 +412,19 @@ export default function App() {
                       {latestOverallJob.status === 'running' && (
                         <span className="badge badge-running">
                           <Loader2 size={12} className="spinner" />
-                          <span>Rellenando Paso {latestOverallJob.step}</span>
+                          <span>{latestOverallJob.step === 0 ? 'Rellenando Todos los Pasos' : `Rellenando Paso ${latestOverallJob.step}`}</span>
                         </span>
                       )}
                       {latestOverallJob.status === 'success' && (
                         <span className="badge badge-success">
                           <CheckCircle2 size={12} />
-                          <span>Paso {latestOverallJob.step} Completado</span>
+                          <span>{latestOverallJob.step === 0 ? 'Flujo Completo Listo' : `Paso ${latestOverallJob.step} Completado`}</span>
                         </span>
                       )}
                       {latestOverallJob.status === 'failed' && (
                         <span className="badge badge-failed">
                           <XCircle size={12} />
-                          <span>Fallo en Paso {latestOverallJob.step}</span>
+                          <span>{latestOverallJob.step === 0 ? 'Fallo en Flujo Completo' : `Fallo en Paso ${latestOverallJob.step}`}</span>
                         </span>
                       )}
                     </div>
@@ -390,8 +434,8 @@ export default function App() {
                     <span className="queue-live-logs-title">Progreso del Trámite</span>
                     <div className="queue-live-console">
                       {latestOverallJob.status === 'pending' && '⏳ Esperando que el robot inicie la solicitud...'}
-                      {latestOverallJob.status === 'running' && '🤖 Ingresando al portal y completando el Paso 1 (Datos Personales)...'}
-                      {latestOverallJob.status === 'success' && '✓ Paso 1 guardado con éxito. Listo para ingresar declaraciones.'}
+                      {latestOverallJob.status === 'running' && (latestOverallJob.step === 0 ? '🤖 Ejecutando todos los pasos de la renegociación (Pasos 1 al 4)...' : '🤖 Ingresando al portal y completando el Paso 1 (Datos Personales)...')}
+                      {latestOverallJob.status === 'success' && (latestOverallJob.step === 0 ? '✓ Automatización completa finalizada con éxito.' : '✓ Paso 1 guardado con éxito. Listo para ingresar declaraciones.')}
                       {latestOverallJob.status === 'failed' && `❌ Detención: ${latestOverallJob.error_log?.split('\n').filter(Boolean).pop() || 'Desconocido'}`}
                     </div>
                   </div>
@@ -524,12 +568,12 @@ export default function App() {
                               ) : latestJob.status === 'success' ? (
                                 <span className="badge badge-success">
                                   <CheckCircle2 size={10} />
-                                  <span>Paso {latestJob.step} Listo {latestJob.dry_run ? '(Dry)' : ''}</span>
+                                  <span>{latestJob.step === 0 ? 'Todo Listo' : `Paso ${latestJob.step} Listo`} {latestJob.dry_run ? '(Dry)' : ''}</span>
                                 </span>
                               ) : (
                                 <span className="badge badge-failed">
                                   <XCircle size={10} />
-                                  <span>Fallo Paso {latestJob.step}</span>
+                                  <span>{latestJob.step === 0 ? 'Fallo Todo' : `Fallo Paso ${latestJob.step}`}</span>
                                 </span>
                               )}
                             </td>
@@ -578,6 +622,26 @@ export default function App() {
                                 >
                                   <Play size={12} fill="currentColor" />
                                   <span>Correr Paso 2</span>
+                                </button>
+
+                                <button
+                                  className="btn btn-action-run"
+                                  onClick={() => triggerAllSteps(client.id)}
+                                  disabled={
+                                    latestJob?.status === 'pending' || 
+                                    latestJob?.status === 'running' ||
+                                    (!isDryRun && !isComplete) // lock live run if data is not complete
+                                  }
+                                  title={!isDryRun && !isComplete ? "Los envíos en vivo requieren tener datos completos" : "Iniciar automatización completa de Pasos 1 a 4"}
+                                  style={{
+                                    backgroundColor: '#8b5cf6', // Violet color
+                                    opacity: (!isDryRun && !isComplete) ? 0.4 : 1,
+                                    cursor: (!isDryRun && !isComplete) ? 'not-allowed' : 'pointer',
+                                    animation: 'none' // Remove default pulse so it looks clean
+                                  }}
+                                >
+                                  <Play size={12} fill="currentColor" />
+                                  <span>Correr Todo</span>
                                 </button>
 
                                 {latestJob?.status === 'failed' && (
