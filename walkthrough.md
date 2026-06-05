@@ -148,4 +148,34 @@ Diseñamos un set de pruebas automáticas (`src/utils/test_invalid_credentials.t
 
 El test verifica la actualización en la tabla local, limpia los campos y restaura el estado original del worker.
 
+---
+
+## 7. Paso 3: Optimización y Enrutamiento de Acreedores (Sandbox y Producción)
+
+Hemos perfeccionado el Step 3 (`src/automation/step3_acreedores.ts` y `src/utils/acreedor_matcher.ts`) para cumplir con las reglas de negocio específicas sobre morosidad y resolver problemas de concurrencia e interfaz:
+
+### 1. Enrutamiento Dinámico según Morosidad
+- **Obligaciones 260:** Solo los acreedores con morosidad > 90 días (`overdue90Days > 0`) se agregan en esta sección usando `#btnAgregarEmpresa` y `#btnAgregarPersona`.
+- **Otros Acreedores:** Los acreedores con morosidad de 0 días (`overdue90Days === 0`) se agregan en esta sección inferior usando `#btnAgregarEmpresa2` y `#btnAgregarPersona2`.
+- **Resultado:** En el caso de Patricio Martini:
+  - *Banco de Crédito e Inversiones* (mora 90+: $14.044.172) y *PRESTO LIDER* (mora 90+: $2.359.938) se enrutaron a **Obligaciones 260**.
+  - *Banco Estado* (mora 90+: $0) y *Santander Consumer* (mora 90+: $0) se enrutaron a **Otros Acreedores**.
+
+### 2. Estabilización de Navegación y Evitación de Swallowed Clicks
+- **Problema:** Los botones de "Subir Documento" y guardado de formularios se clickeaban inmediatamente después del renderizado HTML, pero antes de que los event listeners de jQuery del portal se hubieran bindeado, resultando en clicks ignorados/tragados y timeouts en Playwright.
+- **Solución:** Introdujimos esperas explícitas de recarga y estabilización (`waitForLoadState('load')` y `waitForTimeout(2000)`) después de cada guardado de acreedor y después de cada guardado de documento adjunto.
+
+### 3. Asociación Precisa de Documentos por Monto
+- **Problema:** El orden en que el portal muestra los acreedores no es alfabético ni predecible, lo que generaba errores al adjuntar los certificados de deuda en las filas incorrectas.
+- **Solución:** Modificamos la búsqueda en la tabla para extraer y parsear el monto adeudado (columna 2) y compararlo exactamente con `creditor.totalCredito`. Ahora el script localiza el botón de adjuntar correspondiente a la fila correcta basándose en el monto único de la deuda, con fallback a búsqueda genérica.
+
+### 4. Normalización y Matcher de Catálogo
+- Pre-normalizamos los nombres del catálogo en `fetchAcreedoresCatalog` guardando `nombre_normalizado_local` para acelerar el procesamiento.
+- Agregamos alias comunes (`presto`, `lider`, `bci`, `santander`) para garantizar correspondencia unívoca sin ambigüedad.
+
+### Verificación Visual (Dry Run)
+- La ejecución directa (`npx ts-node -r dotenv/config src/utils/test_step3_direct.ts`) completó exitosamente el 100% de la carga y adjuntó correctamente los 4 certificados en sus respectivas tablas:
+  ![Paso 3 Completado Exitosamente con Documentos](/Users/patomartini/Desktop/renegociacion/outputs/verify_step3_2026-06-05T16-51-11-579Z.png)
+
+
 
