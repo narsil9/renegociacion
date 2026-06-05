@@ -277,7 +277,7 @@ async function processJob(job: any): Promise<void> {
       });
 
       // Clear any prior credential errors upon successful login
-      await clearAlert(client.id, logger).catch(() => {});
+      await clearAlert(client.id, CLIENTS_TABLE, logger).catch(() => {});
 
       if (job.step === 1) {
         logger.log('📝 Llenando el Paso 1 (Información Personal)...');
@@ -320,7 +320,7 @@ async function processJob(job: any): Promise<void> {
         logger.log(`→ Redireccionando a la URL del Paso 3: ${step3Url}`);
         await page.goto(step3Url, { waitUntil: 'domcontentloaded' });
 
-        await fillStep3(page, cmfLocalPath, logger);
+        await fillStep3(page, cmfLocalPath, supabase, logger);
       } else if (job.step === 4) {
         logger.log('📝 Navegando e ingresando información de Paso 4...');
         
@@ -483,7 +483,7 @@ async function processJob(job: any): Promise<void> {
 
       logger.log(`🚨 Detectado error de credenciales. Actualizando "credential_error" a "${alertType}" para cliente ID: ${client.id}...`);
       try {
-        await createAlert(client.id, alertType, alertMessage, logger);
+        await createAlert(client.id, alertType, alertMessage, CLIENTS_TABLE, logger);
       } catch (alertErr: any) {
         logger.error(`Error al actualizar error de credenciales: ${alertErr.message || alertErr}`);
       }

@@ -1,4 +1,4 @@
-import { extractTextFromPdf } from './pdf_analyzer';
+import { extractTextFromPdf, extractTextFromPdfLayout } from './pdf_analyzer';
 import * as fs from 'fs';
 
 interface SimpleLogger {
@@ -91,6 +91,113 @@ function getOverdue90DaysFromTableBlock(blockText: string, log: (m: string) => v
     }
   }
   return 0;
+}
+
+export interface CmfCreditor {
+  institucion: string; // Raw institution name as printed in the CMF report
+  tipoCredito: string; // e.g. "Consumo", "Comercial", "Hipotecario"
+  totalCredito: number; // "Total del crédito" — full balance owed to this creditor
+  vigente: number;
+  overdue30to59: number;
+  overdue60to89: number;
+  overdue90Days: number;
+  esIndirecta: boolean; // true if it comes from the "Deuda Indirecta" table
+}
+
+/**
+ * Parses one CMF debt table block (Deuda Directa or Deuda Indirecta) from the
+ * layout-preserved text, extracting one row per creditor.
+ *
+ * Each layout row looks like:
+ *   "Banco de Chile   Consumo   $19.271.464   $14.783.370   $1.577.380   $1.755.954   $1.154.760"
+ * Column order after the name is: Tipo, Total, Vigente, 30-59, 60-89, 90+.
+ */
+function parseCreditorTable(
+  blockText: string,
+  esIndirecta: boolean,
+  log: (m: string) => void
+): CmfCreditor[] {
+  const creditors: CmfCreditor[] = [];
+  // name (non-greedy) | 2+ spaces | tipo | 5 dollar amounts
+  const rowRegex =
+    /^\s*(.+?)\s{2,}([A-Za-zÁÉÍÓÚáéíóúñÑ][A-Za-zÁÉÍÓÚáéíóúñÑ ]*?)\s+(\$[\d.]+)\s+(\$[\d.]+)\s+(\$[\d.]+)\s+(\$[\d.]+)\s+(\$[\d.]+)\s*$/;
+
+  for (const rawLine of blockText.split('\n')) {
+    const match = rawLine.match(rowRegex);
+    if (!match) continue;
+
+    const institucion = match[1].trim();
+    // Skip the "Total" summary row (it has no tipo / institution name)
+    if (/^total$/i.test(institucion)) continue;
+
+    creditors.push({
+      institucion,
+      tipoCredito: match[2].trim(),
+      totalCredito: parseAmount(match[3]),
+      vigente: parseAmount(match[4]),
+      overdue30to59: parseAmount(match[5]),
+      overdue60to89: parseAmount(match[6]),
+      overdue90Days: parseAmount(match[7]),
+      esIndirecta,
+    });
+  }
+
+  log(
+    `   🔍 ${esIndirecta ? 'Deuda Indirecta' : 'Deuda Directa'}: ${creditors.length} acreedor(es) detectado(s).`
+  );
+  return creditors;
+}
+
+/**
+ * Extracts the full list of creditors (acreedores) from the CMF report,
+ * covering both Deuda Directa (titular) and Deuda Indirecta (codeudor/aval).
+ * This is the source list for Step 3 (Acreedores).
+ */
+export async function extractCreditors(
+  pdfPath: string,
+  logger?: SimpleLogger
+): Promise<CmfCreditor[]> {
+  const log = (msg: string) => {
+    if (logger) logger.log(msg);
+    else console.log(msg);
+  };
+
+  log(`📋 Extrayendo lista de acreedores del Informe CMF: ${pdfPath}...`);
+  const layoutText = await extractTextFromPdfLayout(pdfPath);
+  const lower = layoutText.toLowerCase();
+
+  const directIdx = lower.indexOf('deuda directa');
+  const indirectIdx = lower.indexOf('deuda indirecta');
+  const creditosIdx = lower.indexOf('créditos disponibles') !== -1
+    ? lower.indexOf('créditos disponibles')
+    : lower.indexOf('creditos disponibles');
+
+  const creditors: CmfCreditor[] = [];
+
+  // Deuda Directa block: from "deuda directa" up to "deuda indirecta" (or créditos disponibles)
+  if (directIdx !== -1) {
+    const directEnd = indirectIdx !== -1 ? indirectIdx : (creditosIdx !== -1 ? creditosIdx : layoutText.length);
+    const directBlock = layoutText.substring(directIdx, directEnd);
+    creditors.push(...parseCreditorTable(directBlock, false, log));
+  } else {
+    log('   ⚠️ No se encontró la sección "Deuda Directa".');
+  }
+
+  // Deuda Indirecta block: from "deuda indirecta" up to "créditos disponibles"
+  if (indirectIdx !== -1) {
+    const indirectEnd = creditosIdx !== -1 && creditosIdx > indirectIdx ? creditosIdx : layoutText.length;
+    const indirectBlock = layoutText.substring(indirectIdx, indirectEnd);
+    creditors.push(...parseCreditorTable(indirectBlock, true, log));
+  }
+
+  log(`✅ Total de acreedores extraídos del CMF: ${creditors.length}`);
+  creditors.forEach((c) =>
+    log(
+      `   • ${c.institucion} [${c.tipoCredito}${c.esIndirecta ? ', indirecta' : ''}] — Total: $${c.totalCredito.toLocaleString('es-CL')} (90+d: $${c.overdue90Days.toLocaleString('es-CL')})`
+    )
+  );
+
+  return creditors;
 }
 
 /**

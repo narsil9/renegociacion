@@ -20,12 +20,33 @@ export async function extractTextFromPdf(pdfPath: string): Promise<string> {
 
   const pdftotextPath = '/opt/homebrew/bin/pdftotext';
   try {
-    const { stdout } = await execFileAsync(pdftotextPath, [pdfPath, '-'], { 
-      encoding: 'utf8', 
+    const { stdout } = await execFileAsync(pdftotextPath, [pdfPath, '-'], {
+      encoding: 'utf8',
     });
     return stdout;
   } catch (err: any) {
     throw new Error(`Error al ejecutar pdftotext en ${pdfPath}: ${err.message || err}`);
+  }
+}
+
+/**
+ * Extracts text preserving the original column layout (pdftotext -layout).
+ * Required to parse tabular sections like the CMF creditor tables, where each
+ * row (institution + tipo + amounts) must stay on a single aligned line.
+ */
+export async function extractTextFromPdfLayout(pdfPath: string): Promise<string> {
+  if (!fs.existsSync(pdfPath)) {
+    throw new Error(`Archivo PDF no encontrado para extracción de texto: ${pdfPath}`);
+  }
+
+  const pdftotextPath = '/opt/homebrew/bin/pdftotext';
+  try {
+    const { stdout } = await execFileAsync(pdftotextPath, ['-layout', pdfPath, '-'], {
+      encoding: 'utf8',
+    });
+    return stdout;
+  } catch (err: any) {
+    throw new Error(`Error al ejecutar pdftotext -layout en ${pdfPath}: ${err.message || err}`);
   }
 }
 
