@@ -131,7 +131,7 @@ Hemos integrado en la automatización un sistema robusto que detecta cuando las 
    - **Indicador en Portal**: Mensaje *"Datos de acceso no válidos"*.
    - **Comportamiento**: Se aborta el job en el primer intento y se actualiza `credential_error` a `'clave_unica_incorrecta'`.
 
-Ambos estados son capturados por el Dashboard (`dashboard/src/App.tsx`) para mostrar una alerta visual clara al abogado al lado del nombre del cliente en el panel. Al iniciar sesión exitosamente, esta alerta se limpia de forma automática.
+Ambos estados son registrados en Supabase (`credential_error` en la tabla `clients`) y serán consumidos por el dashboard del supervisor. Al iniciar sesión exitosamente, esta alerta se limpia de forma automática.
 
 ### Requisito en Supabase Sandbox
 Para que la base de datos de Sandbox acepte estas alertas, se debe ejecutar la siguiente consulta en el SQL Editor de Supabase Sandbox:
@@ -176,6 +176,97 @@ Hemos perfeccionado el Step 3 (`src/automation/step3_acreedores.ts` y `src/utils
 ### Verificación Visual (Dry Run)
 - La ejecución directa (`npx ts-node -r dotenv/config src/utils/test_step3_direct.ts`) completó exitosamente el 100% de la carga y adjuntó correctamente los 4 certificados en sus respectivas tablas:
   ![Paso 3 Completado Exitosamente con Documentos](/Users/patomartini/Desktop/renegociacion/outputs/verify_step3_2026-06-05T16-51-11-579Z.png)
+
+---
+
+## 8. Paso 3: Blindaje Productivo — Retry, Idempotencia y Desvinculación del Dashboard
+
+### 1. Sistema de Retry Universal (`withRetry`)
+Se implementó una función genérica `withRetry<T>(fn, opts)` en `step3_acreedores.ts` que envuelve todas las operaciones críticas con back-off lineal:
+
+| Operación | Intentos | Back-off |
+|-----------|----------|----------|
+| Subida Informe CMF | 3 | 4s → 8s |
+| Carga catálogo Supabase | 3 | 3s → 6s |
+| Descarga de cada certificado | 3 | 2s → 4s → 6s |
+| Agregar empresa/persona | 3 | 4s → 8s |
+| Adjuntar documento | 2 | 3s |
+| `#btnContinuar` (producción) | 3 | 4s → 8s |
+
+Cada falla individual en un acreedor **no detiene al resto**. El reporte final siempre lista los saltados con razón exacta.
+
+### 2. Idempotencia — Sin Duplicados en Reintentos
+Antes de cada intento de `addEmpresaAcreedor` / `addPersonaAcreedor`, se llama a `isCreditorAlreadyInTable(page, monto, isOtros)` que escanea la tabla buscando una fila con el mismo monto. Si la encuentra (porque el intento anterior se procesó parcialmente), omite el add y continúa.
+
+### 3. Recuperación de Página (`ensureOnAcreedoresPage`)
+Antes de cada intento de add se verifica la URL actual:
+- Si contiene `login`, `claveunica` o `acceso` → lanza `"Sesión expirada"` (no tiene sentido reintentar sin credenciales).
+- Si no contiene `verAcreedores` → renavega automáticamente a `verAcreedores` con `waitForSelector('#acreedoresRenegociacionForm')`.
+
+### 4. Match por RUT de Certificado (`detectCreditorRutFromDoc`)
+Nueva función que antes del match por nombre escanea el PDF del certificado de acreditación, extrae todos los RUTs chilenos con regex, filtra el RUT del propio cliente, y busca en el catálogo. Esto resuelve casos donde el nombre en el CMF no coincide exactamente con el nombre canónico.
+
+### 5. Validación de RUT del Representante Legal (`isValidRut`)
+Se agregó `isValidRut()` en `acreedor_matcher.ts`. Si el `rut_representante` del catálogo no pasa la validación, el representante se omite con un log de advertencia en lugar de romper el modal de empresa.
+
+### 6. Desvinculación del Dashboard Local
+El directorio `dashboard/` (Vite + React) fue eliminado completamente. Toda comunicación futura con UI pasa por el dashboard del supervisor. Scripts eliminados:
+- `src/utils/trigger_dashboard_run.ts`
+- `src/utils/capture_dashboard.ts`
+- `src/utils/capture_final_dashboard.ts`
+- Scripts npm `dashboard` y `build:dashboard`
+
+---
+
+## 9. Mente Pensante — Orquestador Cognitivo con IA (Claude)
+
+Hemos implementado y verificado completamente el módulo de auditoría cognitiva (`src/utils/cognitive_orchestrator.ts`) que usa Claude para cruzar el Informe CMF con los certificados de acreditación antes de adjuntarlos en el Paso 3.
+
+### Implementación
+
+**Dependencia instalada:**
+```bash
+npm install @anthropic-ai/sdk
+```
+
+**Configuración en `.env`:**
+```
+ANTHROPIC_API_KEY=sk-ant-api03-...
+```
+
+**Modelo utilizado:** `claude-sonnet-4-5-20250929` con extended thinking (`budget_tokens: 2048`).
+
+### Flujo del Orquestador
+
+1. Consulta la tabla `client_documents` en Supabase sandbox para obtener los certificados registrados del cliente.
+2. Descarga cada PDF de Supabase Storage (`documentos` bucket) a `outputs/acreditaciones_tmp/`.
+3. Extrae texto de cada certificado (cap 12,000 chars) y del CMF (cap 15,000 chars) vía `extractTextFromPdf`.
+4. Construye un prompt de auditoría con las 4 reglas legales inyectadas (30 días, Art 260/261, mapeo, RUT).
+5. Llama a Claude y parsea el bloque `<json>...</json>` de la respuesta.
+6. Retorna `OrchestrationResult` con `mappedDocs: AcreditacionDoc[]` listos para el Paso 3 de Playwright.
+
+### Verificación E2E — Patricio Martini (2026-06-08)
+
+**Test ejecutado:**
+```bash
+npx ts-node -r dotenv/config src/utils/test_cognitive_orchestrator.ts
+```
+
+**Resultado:**
+- Documentos encontrados: **12** en `client_documents` (4 tipos × 3 instancias)
+- Claude auditó en **~17 segundos**
+- `status: 'error'` — **esperado** porque los documentos de prueba son viejos (CMF de oct 2025, certs de mayo 2025, fecha actual jun 2026)
+- Alertas emitidas correctamente:
+  - `expired_cmf` — CMF emitido 27/10/2025, 224 días de antigüedad
+  - `expired_certificate` — cert_bci.pdf, emitido 07/05/2025
+  - `expired_certificate` — cert_bci_lider.pdf, emitido 06/05/2025
+- `mappedDocs` generado correctamente con 6 entradas (BCI monto+vencimiento, PRESTO LIDER monto+vencimiento, Banco Estado monto, Santander Consumer monto)
+
+**Nota:** En producción con documentos frescos (<30 días), el `status` será `success` y los `mappedDocs` se pasarán directamente a `attachDocuments()` en el Step 3.
+
+### Tabla `client_documents` Confirmada (DATO-03 completado)
+
+La migración de `acreditacion_documentos_json` (JSONB plano) a la tabla `client_documents` con columnas estructuradas fue completada. Patricio Martini tiene **12 registros** correctamente indexados con `document_type`, `acreditacion_tipo`, `institucion_cmf`, `storage_path`, `filename` y `uploaded_at`.
 
 
 

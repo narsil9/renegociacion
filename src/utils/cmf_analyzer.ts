@@ -1,5 +1,6 @@
 import { extractTextFromPdf, extractTextFromPdfLayout } from './pdf_analyzer';
 import * as fs from 'fs';
+import { getCurrentChileDate, parseDateString, getDaysDifference } from './date_helper';
 
 interface SimpleLogger {
   log(msg: string): void;
@@ -12,6 +13,11 @@ function parseAmount(val: string): number {
   return parseInt(clean, 10) || 0;
 }
 
+export interface ClassifiedCreditor extends CmfCreditor {
+  categoriaArticulo: 260 | 261;
+  documentosRequeridos: ('monto' | 'vencimiento')[];
+}
+
 export interface CmfAnalysisResult {
   rut: string | null;
   name: string | null;
@@ -22,6 +28,11 @@ export interface CmfAnalysisResult {
   meetsAmountRequirement: boolean; // Overdue debt >= 80 UF (approx $3,253,000 CLP)
   ufValueCLP: number;
   requiredAmountCLP: number;
+  fechaEmision: string | null;
+  cmfAgeDays: number;
+  isExpired: boolean;
+  creditors: CmfCreditor[];
+  classifiedCreditors: ClassifiedCreditor[];
 }
 
 function getOverdue90DaysFromTableBlock(blockText: string, log: (m: string) => void): number {
@@ -102,43 +113,143 @@ export interface CmfCreditor {
   overdue60to89: number;
   overdue90Days: number;
   esIndirecta: boolean; // true if it comes from the "Deuda Indirecta" table
+  fechaOtorgamiento?: string | null;
+}
+
+const KNOWN_TYPES = [
+  { keywords: ['tarjeta de credito', 'tarjeta de crédito'], value: 'Tarjeta de crédito' },
+  { keywords: ['linea de credito', 'línea de crédito'], value: 'Línea de crédito' },
+  { keywords: ['otros creditos', 'otros créditos'], value: 'Otros créditos' },
+  { keywords: ['tarjeta'], value: 'Tarjeta de crédito' },
+  { keywords: ['linea', 'línea'], value: 'Línea de crédito' },
+  { keywords: ['consumo'], value: 'Consumo' },
+  { keywords: ['vivienda', 'hipotecario'], value: 'Vivienda' },
+  { keywords: ['comercial'], value: 'Comercial' },
+  { keywords: ['otros'], value: 'Otros créditos' }
+];
+
+function cleanTipoCredito(rawTipo: string): string {
+  const clean = rawTipo.replace(/\s+/g, ' ').trim();
+  const lower = clean.toLowerCase();
+  for (const item of KNOWN_TYPES) {
+    for (const kw of item.keywords) {
+      if (lower.includes(kw)) {
+        return item.value;
+      }
+    }
+  }
+  return clean || 'Consumo';
 }
 
 /**
  * Parses one CMF debt table block (Deuda Directa or Deuda Indirecta) from the
  * layout-preserved text, extracting one row per creditor.
- *
- * Each layout row looks like:
- *   "Banco de Chile   Consumo   $19.271.464   $14.783.370   $1.577.380   $1.755.954   $1.154.760"
- * Column order after the name is: Tipo, Total, Vigente, 30-59, 60-89, 90+.
+ * Supports both the classic CMF format and the new Ley 21.680 format.
  */
 function parseCreditorTable(
   blockText: string,
   esIndirecta: boolean,
   log: (m: string) => void
 ): CmfCreditor[] {
+  const lines = blockText.split('\n');
+  
+  // 1. Detect format by checking if any line contains a date pattern
+  const hasDates = lines.some(line => /\d{2}\/\d{2}\/\d{4}/.test(line));
+  
+  // Define dynamic boundaries based on format
+  const sliceAEnd = hasDates ? 50 : 38;
+  const sliceBEnd = hasDates ? 75 : 65;
+
+  const groups: string[][] = [];
+  let currentGroup: string[] = [];
+
+  // Group contiguous non-empty lines
+  for (const line of lines) {
+    if (line.trim() === '') {
+      if (currentGroup.length > 0) {
+        groups.push(currentGroup);
+        currentGroup = [];
+      }
+    } else {
+      currentGroup.push(line);
+    }
+  }
+  if (currentGroup.length > 0) {
+    groups.push(currentGroup);
+  }
+
   const creditors: CmfCreditor[] = [];
-  // name (non-greedy) | 2+ spaces | tipo | 5 dollar amounts
-  const rowRegex =
-    /^\s*(.+?)\s{2,}([A-Za-zÁÉÍÓÚáéíóúñÑ][A-Za-zÁÉÍÓÚáéíóúñÑ ]*?)\s+(\$[\d.]+)\s+(\$[\d.]+)\s+(\$[\d.]+)\s+(\$[\d.]+)\s+(\$[\d.]+)\s*$/;
+  const amountsRegex = /(\$[\d.]+)\s+(\$[\d.]+)\s+(\$[\d.]+)\s+(\$[\d.]+)\s+(\$[\d.]+)\s*$/;
 
-  for (const rawLine of blockText.split('\n')) {
-    const match = rawLine.match(rowRegex);
-    if (!match) continue;
+  for (const group of groups) {
+    let amountLineIndex = -1;
+    let match: RegExpMatchArray | null = null;
+    for (let i = 0; i < group.length; i++) {
+      const m = group[i].match(amountsRegex);
+      if (m) {
+        amountLineIndex = i;
+        match = m;
+        break;
+      }
+    }
 
-    const institucion = match[1].trim();
-    // Skip the "Total" summary row (it has no tipo / institution name)
-    if (/^total$/i.test(institucion)) continue;
+    if (amountLineIndex === -1 || !match) {
+      continue;
+    }
+
+    const amounts = [
+      parseAmount(match[1]),
+      parseAmount(match[2]),
+      parseAmount(match[3]),
+      parseAmount(match[4]),
+      parseAmount(match[5])
+    ];
+
+    if (amounts[0] === 0) {
+      continue;
+    }
+
+    const colAParts: string[] = [];
+    const colBParts: string[] = [];
+    const colCParts: string[] = [];
+
+    for (let i = 0; i < group.length; i++) {
+      let line = group[i];
+      if (i === amountLineIndex) {
+        line = line.replace(amountsRegex, '');
+      }
+
+      const colA = line.substring(0, sliceAEnd).trim();
+      const colB = line.substring(sliceAEnd, sliceBEnd).trim();
+      const colC = line.substring(sliceBEnd).trim();
+
+      if (colA) colAParts.push(colA);
+      if (colB) colBParts.push(colB);
+      if (colC) colCParts.push(colC);
+    }
+
+    const institucion = colAParts.join(' ').replace(/\s+/g, ' ').trim();
+    const rawTipo = colBParts.join(' ').replace(/\s+/g, ' ').trim();
+    const rawDate = colCParts.join(' ').replace(/\s+/g, ' ').trim();
+
+    const dateMatch = rawDate.match(/(\d{2}\/\d{2}\/\d{4})/);
+    const fechaOtorgamiento = dateMatch ? dateMatch[1] : null;
+    const tipoCredito = cleanTipoCredito(rawTipo);
+
+    if (institucion.toLowerCase() === 'total' || institucion.toLowerCase().includes('institucion financiera')) {
+      continue;
+    }
 
     creditors.push({
       institucion,
-      tipoCredito: match[2].trim(),
-      totalCredito: parseAmount(match[3]),
-      vigente: parseAmount(match[4]),
-      overdue30to59: parseAmount(match[5]),
-      overdue60to89: parseAmount(match[6]),
-      overdue90Days: parseAmount(match[7]),
-      esIndirecta,
+      tipoCredito,
+      fechaOtorgamiento,
+      totalCredito: amounts[0],
+      vigente: amounts[1],
+      overdue30to59: amounts[2],
+      overdue60to89: amounts[3],
+      overdue90Days: amounts[4],
+      esIndirecta
     });
   }
 
@@ -311,7 +422,48 @@ export async function analyzeCmfPdf(
     log(`🔍 Deuda Indirecta - Total 90+ días de atraso: $${indirectOverdue90Days.toLocaleString('es-CL')}`);
   }
 
-  // 5. Evaluate requirements
+  // 5. Extract emission date and calculate age
+  const dateMatch = normalized.match(/INFORME EMITIDO EL\s+(\d{2}\/\d{2}\/\d{4})/i) ||
+                    normalized.match(/emitido el\s+(\d{2}\/\d{2}\/\d{4})/i);
+  let fechaEmision: string | null = null;
+  if (dateMatch) {
+    fechaEmision = dateMatch[1];
+    log(`🔍 Fecha de Emisión del CMF detectada: ${fechaEmision}`);
+  }
+
+  let isExpired = false;
+  let cmfAgeDays = 0;
+  if (fechaEmision) {
+    const today = getCurrentChileDate();
+    const emisionDate = parseDateString(fechaEmision);
+    if (emisionDate) {
+      cmfAgeDays = getDaysDifference(today, emisionDate);
+      log(`   🔍 Antigüedad del CMF: ${cmfAgeDays} días.`);
+      
+      const bypassCheck = process.env.BYPASS_DATE_CHECK === 'true';
+      if (cmfAgeDays > 30) {
+        if (bypassCheck) {
+          log(`⚠️  El CMF tiene una antigüedad de ${cmfAgeDays} días (> 30 días), pero se OMITIRÁ la expiración por variable BYPASS_DATE_CHECK.`);
+        } else {
+          isExpired = true;
+          log(`❌ El CMF está expirado (antigüedad de ${cmfAgeDays} días).`);
+        }
+      }
+    }
+  }
+
+  // 6. Extract and classify creditors
+  const creditors = await extractCreditors(pdfPath, logger);
+  const classifiedCreditors: ClassifiedCreditor[] = creditors.map(c => {
+    const is260 = c.overdue90Days > 0;
+    return {
+      ...c,
+      categoriaArticulo: is260 ? 260 : 261,
+      documentosRequeridos: is260 ? ['monto', 'vencimiento'] : ['monto']
+    };
+  });
+
+  // 7. Evaluate requirements
   const requiredAmountCLP = 3253000;
   const ufValueCLP = 40662.5;
 
@@ -336,7 +488,12 @@ export async function analyzeCmfPdf(
     meets90DaysRequirement,
     meetsAmountRequirement,
     ufValueCLP,
-    requiredAmountCLP
+    requiredAmountCLP,
+    fechaEmision,
+    cmfAgeDays,
+    isExpired,
+    creditors,
+    classifiedCreditors
   };
 }
 

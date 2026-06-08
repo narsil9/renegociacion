@@ -9,7 +9,9 @@ import {
   normalizeRut,
   normalizeText,
   AcreedorCatalogEntry,
+  isValidRut,
 } from '../utils/acreedor_matcher';
+import { extractTextFromPdf } from '../utils/pdf_analyzer';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -87,16 +89,39 @@ export async function fillStep3(
       log('✓ Boletín Comercial subido.');
     }
 
-    // --- 2. Upload Informe CMF -------------------------------------------
-    log('→ Seleccionando archivo de Informe CMF...');
-    await page.locator('#informeCMF').setInputFiles(cmfLocalPath);
+    // --- 2. Upload Informe CMF (with retry + idempotency check) --------------
+    const cmfAlreadyUploaded = await page
+      .locator('#btnEliminarCMF, #btnVerCMF')
+      .first()
+      .isVisible()
+      .catch(() => false);
 
-    log('→ Presionando botón Subir Informe CMF...');
-    await page.locator('#btnSubirInformeCMF').click();
-
-    log('→ Esperando confirmación de subida de Informe CMF...');
-    await page.locator('#btnEliminarCMF, #btnVerCMF').first().waitFor({ state: 'attached', timeout: 45000 });
-    log('✓ Informe CMF subido correctamente.');
+    if (cmfAlreadyUploaded) {
+      log('✓ Informe CMF ya estaba subido (omitiendo upload).');
+    } else {
+      await withRetry(
+        async () => {
+          if (
+            await page.locator('#btnEliminarCMF, #btnVerCMF').first().isVisible().catch(() => false)
+          ) {
+            return; // already uploaded in a previous attempt
+          }
+          log('→ Seleccionando archivo de Informe CMF...');
+          await page.locator('#informeCMF').setInputFiles(cmfLocalPath);
+          log('→ Presionando botón Subir Informe CMF...');
+          await page.locator('#btnSubirInformeCMF').click();
+          log('→ Esperando confirmación de subida de Informe CMF...');
+          await page.locator('#btnEliminarCMF:not(.hidden), #btnVerCMF:not(.hidden)').first().waitFor({ state: 'attached', timeout: 45000 });
+        },
+        {
+          attempts: 3,
+          delayMs: 4000,
+          onRetry: (attempt, err) =>
+            log(`⚠️ Reintento ${attempt}/2 subida CMF: ${err.message.substring(0, 120)}`),
+        }
+      );
+      log('✓ Informe CMF subido correctamente.');
+    }
 
     // --- 3. Extract creditors from the CMF + load catalog ----------------
     const creditors = await extractCreditors(cmfLocalPath, logger);
@@ -105,7 +130,12 @@ export async function fillStep3(
     }
 
     log('→ Cargando catálogo acreedores_canonicos...');
-    const catalog = await fetchAcreedoresCatalog(supabase);
+    const catalog = await withRetry(() => fetchAcreedoresCatalog(supabase), {
+      attempts: 3,
+      delayMs: 3000,
+      onRetry: (attempt, err) =>
+        log(`⚠️ Reintento ${attempt}/2 carga catálogo: ${err.message.substring(0, 100)}`),
+    });
     log(`✓ Catálogo cargado: ${catalog.length} acreedores canónicos.`);
 
     // --- 3b. Download acreditacion docs from Storage ----------------------
@@ -144,31 +174,85 @@ export async function fillStep3(
     // present in the table. We add all first, then attach documents separately.
     const addedDocs: { entry: AcreedorCatalogEntry; creditor: CmfCreditor }[] = [];
 
+    // Extract client's RUT from the CMF to ignore it when scanning certificates
+    let clientRutClean: string | null = null;
+    try {
+      const cmfText = await extractTextFromPdf(cmfLocalPath);
+      const rutMatch = cmfText.match(/Rut\s*:\s*([\d.kK-]+)/i);
+      if (rutMatch) {
+        clientRutClean = normalizeRut(rutMatch[1]);
+        log(`🔍 RUT del cliente extraído del CMF para filtrado de certificados: ${clientRutClean}`);
+      }
+    } catch (err) {
+      log(`⚠️ No se pudo extraer el RUT del cliente del CMF: ${(err as Error).message}`);
+    }
+
     for (const creditor of creditors) {
-      const match = matchAcreedor(creditor.institucion, catalog);
+      let entry: AcreedorCatalogEntry | null = null;
 
-      if (match.status === 'not_found') {
-        const reason = 'No existe en acreedores_canonicos (sin RUT para buscar en el portal).';
-        log(`⏭️  Saltando "${creditor.institucion}": ${reason}`);
-        report.skipped.push({ institucion: creditor.institucion, reason });
-        continue;
-      }
-      if (match.status === 'ambiguous') {
-        const names = (match.candidates ?? []).map((c) => c.nombre).join(' | ');
-        const reason = `Múltiples candidatos en el catálogo: ${names}`;
-        log(`⏭️  Saltando "${creditor.institucion}": ${reason}`);
-        report.skipped.push({ institucion: creditor.institucion, reason });
-        continue;
-      }
-
-      const entry = match.entry!;
-      try {
-        const isPersona = entry.tipo?.toLowerCase().includes('persona') === true;
-        if (isPersona) {
-          await addPersonaAcreedor(page, entry, creditor, log);
-        } else {
-          await addEmpresaAcreedor(page, entry, creditor, log);
+      // 1. Try to detect creditor by certificate RUT first
+      const creditorDocs = findAcreditacionDocs(creditor.institucion, docs);
+      for (const doc of creditorDocs) {
+        if (doc?.local_path && fs.existsSync(doc.local_path)) {
+          log(`🔍 Escaneando certificado "${path.basename(doc.local_path)}" para identificar RUT del emisor...`);
+          const docMatchedEntry = await detectCreditorRutFromDoc(doc.local_path, clientRutClean, catalog, log);
+          if (docMatchedEntry) {
+            log(`   ✓ Coincidencia por certificado: RUT ${docMatchedEntry.rut} (${docMatchedEntry.nombre}). Sobrescribiendo match de nombre.`);
+            entry = docMatchedEntry;
+            break;
+          }
         }
+      }
+
+      // 2. Fallback to matching by name
+      if (!entry) {
+        const match = matchAcreedor(creditor.institucion, catalog);
+
+        if (match.status === 'not_found') {
+          const reason = 'No existe en acreedores_canonicos (sin RUT para buscar en el portal).';
+          log(`⏭️  Saltando "${creditor.institucion}": ${reason}`);
+          report.skipped.push({ institucion: creditor.institucion, reason });
+          continue;
+        }
+        if (match.status === 'ambiguous') {
+          const names = (match.candidates ?? []).map((c) => c.nombre).join(' | ');
+          const reason = `Múltiples candidatos en el catálogo: ${names}`;
+          log(`⏭️  Saltando "${creditor.institucion}": ${reason}`);
+          report.skipped.push({ institucion: creditor.institucion, reason });
+          continue;
+        }
+
+        entry = match.entry!;
+      }
+      const isOtros = creditor.overdue90Days === 0;
+      try {
+        await withRetry(
+          async () => {
+            // Idempotency: if already in table (from a previous attempt), skip the add.
+            if (await isCreditorAlreadyInTable(page, creditor.totalCredito, isOtros)) {
+              log(`   ℹ️ "${entry.nombre}" ya existe en la tabla — omitiendo add.`);
+              return;
+            }
+            await ensureOnAcreedoresPage(page, log);
+            await dismissOpenModal(page).catch(() => {});
+            await dismissBlockingDialogs(page, log).catch(() => {});
+            const isPersona = entry.tipo?.toLowerCase().includes('persona') === true;
+            if (isPersona) {
+              await addPersonaAcreedor(page, entry, creditor, log);
+            } else {
+              await addEmpresaAcreedor(page, entry, creditor, log);
+            }
+          },
+          {
+            attempts: 3,
+            delayMs: 4000,
+            onRetry: (attempt, err) => {
+              log(
+                `⚠️ Reintento ${attempt}/2 para "${entry.nombre}": ${err.message.substring(0, 120)}`
+              );
+            },
+          }
+        );
         report.added.push({
           institucion: creditor.institucion,
           nombreCatalogo: entry.nombre,
@@ -177,7 +261,7 @@ export async function fillStep3(
         log(`✓ Acreedor agregado: ${entry.nombre} ($${creditor.totalCredito.toLocaleString('es-CL')}).`);
         addedDocs.push({ entry, creditor });
       } catch (err) {
-        const reason = `Error al agregar en el portal: ${(err as Error).message}`;
+        const reason = `Error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
         logError(`✗ Falló agregar "${creditor.institucion}" (${entry.nombre}).`, err);
         report.skipped.push({ institucion: creditor.institucion, reason });
         await dismissOpenModal(page).catch(() => {});
@@ -189,10 +273,28 @@ export async function fillStep3(
     if (docs.length > 0 && addedDocs.length > 0) {
       log('→ Adjuntando certificados de acreditación...');
       for (const { entry, creditor } of addedDocs) {
-        const doc = findAcreditacionDoc(creditor.institucion, docs);
-        if (doc?.local_path) {
-          await attachDocumentoAcreedor(page, doc, creditor.totalCredito, creditor.overdue90Days, log).catch((err) =>
-            log(`⚠️ No se pudo adjuntar documento para "${entry.nombre}": ${(err as Error).message}`)
+        const creditorDocs = findAcreditacionDocs(creditor.institucion, docs);
+        for (const doc of creditorDocs) {
+          if (!doc.local_path) continue;
+
+          const isOtros = creditor.overdue90Days === 0;
+          if (isOtros && doc.tipo_documento !== 22) {
+            log(`   ℹ️ Omitiendo documento tipo ${doc.tipo_documento} para "${creditor.institucion}" porque es Otros Acreedores (morosidad <= 90 días).`);
+            continue;
+          }
+
+          await withRetry(
+            () => attachDocumentoAcreedor(page, doc, creditor.totalCredito, creditor.overdue90Days, log),
+            {
+              attempts: 2,
+              delayMs: 3000,
+              onRetry: (attempt, err) =>
+                log(
+                  `⚠️ Reintento ${attempt}/1 adjuntar doc tipo ${doc.tipo_documento} "${entry.nombre}": ${err.message.substring(0, 100)}`
+                ),
+            }
+          ).catch((err) =>
+            log(`⚠️ No se pudo adjuntar documento tipo ${doc.tipo_documento} para "${entry.nombre}": ${(err as Error).message}`)
           );
         }
       }
@@ -215,6 +317,8 @@ export async function fillStep3(
       log(`📸 Screenshot de verificación Paso 3: ${shot}`);
 
       log('🧹 DRY_RUN=true: limpiando acreedores agregados e Informe CMF...');
+      await dismissOpenModal(page).catch(() => {});
+      await dismissBlockingDialogs(page, log).catch(() => {});
       await cleanupAcreedores(page, log).catch((err) => logError('No se pudo limpiar acreedores.', err));
       await cleanupCMF(page, log).catch((err) => logError('No se pudo limpiar el Informe CMF.', err));
 
@@ -227,11 +331,24 @@ export async function fillStep3(
 
     // --- PRODUCCIÓN: guardar y continuar al Paso 4 -----------------------
     log('→ Guardando y continuando al Paso 4...');
-    const urlAntes = page.url();
-    await page.locator('#btnContinuar').click();
-
-    log('→ Esperando redirección al Paso 4...');
-    await page.waitForFunction((before: string) => window.location.href !== before, urlAntes, { timeout: 60000 });
+    await withRetry(
+      async () => {
+        const urlAntes = page.url();
+        await page.locator('#btnContinuar').click();
+        log('→ Esperando redirección al Paso 4...');
+        await page.waitForFunction(
+          (before: string) => window.location.href !== before,
+          urlAntes,
+          { timeout: 60000 }
+        );
+      },
+      {
+        attempts: 3,
+        delayMs: 4000,
+        onRetry: (attempt, err) =>
+          log(`⚠️ Reintento ${attempt}/2 botón Continuar: ${err.message.substring(0, 100)}`),
+      }
+    );
 
     const successPath = path.join(outputDir, 'step3_success.png');
     await page.screenshot({ path: successPath, fullPage: true });
@@ -302,10 +419,12 @@ async function addEmpresaAcreedor(
   await locByName(page, 'empresaAcreedor.notificacionTelefono').fill(truncate(entry.telefono ?? '', MAX.telefono));
 
   // Legal representative (optional)
-  if (entry.representante_legal && entry.rut_representante) {
+  if (entry.representante_legal && entry.rut_representante && isValidRut(entry.rut_representante)) {
     await addRepresentante(page, entry, '#agregarRepresentanteLegalEmpresa', log).catch((err) =>
       log(`   ⚠️ No se pudo agregar representante legal: ${(err as Error).message}`)
     );
+  } else if (entry.representante_legal) {
+    log(`   ⚠️ Omitiendo agregar representante legal "${entry.representante_legal}" porque su RUT "${entry.rut_representante}" no tiene un formato válido.`);
   }
 
   // Debt amount = "Total del crédito" from the CMF.
@@ -423,11 +542,16 @@ async function cleanupAcreedores(page: Page, log: (m: string) => void): Promise<
         .first();
       if ((await deleteBtn.count()) === 0) break;
 
+      log(`   🗑️ Eliminando fila de acreedor...`);
       await deleteBtn.click();
       const confirm = page.locator('#btnConfirmarModal');
-      await confirm.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-      if (await confirm.isVisible().catch(() => false)) await confirm.click();
-      await page.waitForTimeout(1500);
+      await confirm.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+      if (await confirm.isVisible().catch(() => false)) {
+        await confirm.click();
+        await page.locator('#dlgConfirmar').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+      }
+      await page.waitForLoadState('load').catch(() => {});
+      await page.waitForTimeout(2000);
     }
   }
   log('   🗑️ Acreedores de prueba eliminados (best-effort).');
@@ -437,10 +561,18 @@ async function cleanupCMF(page: Page, log: (m: string) => void): Promise<void> {
   const deleteSelector = '#btnEliminarCMF';
   if (!(await page.locator(deleteSelector).count())) return;
 
+  log('   🗑️ Eliminando Informe CMF...');
   await page.locator(deleteSelector).click();
-  await page.waitForSelector('#btnConfirmarModal', { state: 'visible', timeout: 5000 });
-  await page.locator('#btnConfirmarModal').click();
+  const confirm = page.locator('#btnConfirmarModal');
+  await confirm.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+  if (await confirm.isVisible().catch(() => false)) {
+    await confirm.click();
+    await page.locator('#dlgConfirmar').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+  }
   await page.locator(deleteSelector).waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  await page.waitForLoadState('load').catch(() => {});
+  await page.waitForSelector('#acreedoresRenegociacionForm', { timeout: 20000 }).catch(() => {});
+  await page.waitForTimeout(2000);
   log('   🗑️ Informe CMF eliminado.');
 }
 
@@ -489,10 +621,12 @@ async function addPersonaAcreedor(
   await locByName(page, 'personaAcreedor.notificacionEmail').fill(truncate(entry.email ?? '', MAX.email));
   await locByName(page, 'personaAcreedor.notificacionTelefono').fill(truncate(entry.telefono ?? '', MAX.telefono));
 
-  if (entry.representante_legal && entry.rut_representante) {
+  if (entry.representante_legal && entry.rut_representante && isValidRut(entry.rut_representante)) {
     await addRepresentante(page, entry, '#agregarRepresentanteLegalPersona', log).catch((err) =>
       log(`   ⚠️ No se pudo agregar representante legal: ${(err as Error).message}`)
     );
+  } else if (entry.representante_legal) {
+    log(`   ⚠️ Omitiendo agregar representante legal "${entry.representante_legal}" porque su RUT "${entry.rut_representante}" no tiene un formato válido.`);
   }
 
   await locByName(page, 'personaAcreedor.deudaMonto').fill(truncate(String(creditor.totalCredito), MAX.monto));
@@ -556,13 +690,13 @@ function normInst(s: string): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
-function findAcreditacionDoc(
+function findAcreditacionDocs(
   institucion: string,
   docs: AcreditacionDoc[]
-): AcreditacionDoc | undefined {
-  if (!docs.length) return undefined;
+): AcreditacionDoc[] {
+  if (!docs.length) return [];
   const target = normInst(institucion);
-  return docs.find((d) => {
+  return docs.filter((d) => {
     const n = normInst(d.institucion_cmf);
     return n === target || target.includes(n) || n.includes(target);
   });
@@ -588,12 +722,28 @@ async function downloadAcreditacionDocs(
     }
 
     log(`→ Descargando certificado "${doc.institucion_cmf}"...`);
-    const { data, error } = await supabase.storage.from('documentos').download(doc.storage_path);
-    if (error || !data) {
-      log(`⚠️ No se pudo descargar "${doc.storage_path}": ${error?.message ?? 'blob vacío'}`);
+    let downloaded: Blob | null = null;
+    try {
+      downloaded = await withRetry(
+        async () => {
+          const { data, error } = await supabase.storage.from('documentos').download(doc.storage_path);
+          if (error || !data) throw new Error(error?.message ?? 'blob vacío');
+          return data;
+        },
+        {
+          attempts: 3,
+          delayMs: 2000,
+          onRetry: (attempt, err) =>
+            log(`⚠️ Reintento ${attempt}/2 descarga "${doc.storage_path}": ${err.message}`),
+        }
+      );
+    } catch (err) {
+      log(
+        `⚠️ No se pudo descargar "${doc.storage_path}" tras 3 intentos: ${(err as Error).message}`
+      );
       continue;
     }
-    fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer()));
+    fs.writeFileSync(localPath, Buffer.from(await downloaded.arrayBuffer()));
     doc.local_path = localPath;
     log(`✓ Descargado: ${path.basename(localPath)}`);
   }
@@ -617,7 +767,7 @@ async function attachDocumentoAcreedor(
   const isOtros = overdue90Days === 0;
   const tableSelector = isOtros ? '#tablaOtrosAcreedores' : '#tablaAcreedores';
 
-  log(`→ Adjuntando documento de "${doc.institucion_cmf}" (Monto: $${monto.toLocaleString('es-CL')}, Otros: ${isOtros})...`);
+  log(`→ Adjuntando documento tipo ${doc.tipo_documento} de "${doc.institucion_cmf}" (Monto: $${monto.toLocaleString('es-CL')}, Otros: ${isOtros})...`);
 
   // Wait for the table to have at least one row after the AJAX reload
   await page.locator(`${tableSelector} tbody tr`).first().waitFor({ state: 'visible', timeout: 20000 });
@@ -627,9 +777,9 @@ async function attachDocumentoAcreedor(
   let docBtn = null;
 
   const targetName = normalizeText(doc.institucion_cmf);
-  log(`   🔍 Searching in ${tableSelector} for row matching "${doc.institucion_cmf}" (normalized: "${targetName}") and amount $${monto.toLocaleString('es-CL')}...`);
+  log(`   🔍 Buscando en ${tableSelector} fila con monto $${monto.toLocaleString('es-CL')} para subir tipo ${doc.tipo_documento}...`);
 
-  // First pass: look for a row with matching amount that does NOT have a document attached yet
+  // First pass: look for a row with matching amount and check if the specific document type is already attached
   for (let i = rowCount - 1; i >= 0; i--) {
     const row = rows.nth(i);
     const cols = row.locator('td');
@@ -640,37 +790,41 @@ async function attachDocumentoAcreedor(
     const cleanMonto = parseInt(montoText?.replace(/[^0-9]/g, '') ?? '0', 10);
 
     if (cleanMonto === monto) {
-      const acreditaText = await cols.nth(6).textContent().catch(() => '');
-      const isSi = acreditaText?.trim().toLowerCase() === 'si' || acreditaText?.trim().toLowerCase() === 'sí';
+      const docColText = (await cols.nth(5).textContent().catch(() => '')) ?? '';
+      const docColTextNorm = normalizeText(docColText);
 
-      const btn = cols.nth(5).locator('button, a').first();
+      let alreadyUploaded = false;
+      if (doc.tipo_documento === 22) {
+        alreadyUploaded = docColTextNorm.includes('monto') || docColTextNorm.includes('monto y vencimiento') || docColTextNorm.includes('vencimiento y monto');
+      } else if (doc.tipo_documento === 23) {
+        alreadyUploaded = docColTextNorm.includes('vencimiento') || docColTextNorm.includes('monto y vencimiento') || docColTextNorm.includes('vencimiento y monto');
+      } else if (doc.tipo_documento === 24) {
+        alreadyUploaded = docColTextNorm.includes('monto y vencimiento') || docColTextNorm.includes('vencimiento y monto') || (docColTextNorm.includes('monto') && docColTextNorm.includes('vencimiento'));
+      }
+
+      if (alreadyUploaded) {
+        log(`   ℹ️ El documento tipo ${doc.tipo_documento} ya está adjuntado para esta fila (Monto: $${monto.toLocaleString('es-CL')}). Omitiendo upload.`);
+        return;
+      }
+
+      const btn = cols.nth(5).locator('button, a').filter({ hasText: /subir/i }).first();
       if (await btn.count() > 0) {
         docBtn = btn;
-        if (!isSi) {
-          log(`   ✓ Found exact row by amount at index ${i} in ${tableSelector} with no document.`);
-          break;
-        }
+        log(`   ✓ Fila exacta encontrada por monto en índice ${i} de ${tableSelector} para subir tipo ${doc.tipo_documento}.`);
+        break;
       }
     }
   }
 
   // Second pass fallback: generic match using text or col position in the same table
   if (!docBtn) {
-    log(`   ⚠️ No exact row found by amount. Using fallback search in ${tableSelector}...`);
+    log(`   ⚠️ No se encontró fila exacta por monto. Buscando por botón de subida en ${tableSelector}...`);
     for (let i = rowCount - 1; i >= 0; i--) {
-      const byText = rows.nth(i).getByText(/subir documento/i).first();
+      const byText = rows.nth(i).locator('button, a').filter({ hasText: /subir/i }).first();
       if ((await byText.count()) > 0) {
         docBtn = byText;
         break;
       }
-      for (const colIdx of [4, 5]) {
-        const candidate = rows.nth(i).locator('td').nth(colIdx).locator('button, a').first();
-        if ((await candidate.count()) > 0) {
-          docBtn = candidate;
-          break;
-        }
-      }
-      if (docBtn) break;
     }
   }
 
@@ -867,6 +1021,80 @@ async function fillDateField(
   log(`   🔍 Vencimiento tras pressSequentially: "${v3}"`);
 }
 
+// ─── Retry / resilience helpers ──────────────────────────────────────────────
+
+/**
+ * Retries an async operation up to `attempts` times with linear back-off.
+ * If all attempts fail, the last error is re-thrown.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  opts: {
+    attempts?: number;
+    delayMs?: number;
+    onRetry?: (attempt: number, err: Error) => void;
+  } = {}
+): Promise<T> {
+  const { attempts = 3, delayMs = 3000, onRetry } = opts;
+  let lastErr: Error = new Error('No attempts made');
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err as Error;
+      if (i < attempts) {
+        onRetry?.(i, lastErr);
+        await new Promise<void>((r) => setTimeout(r, delayMs * i));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * Returns true if a row with exactly `monto` already exists in the target table.
+ * Used to skip adding a creditor again after a retry.
+ */
+async function isCreditorAlreadyInTable(
+  page: Page,
+  monto: number,
+  isOtros: boolean
+): Promise<boolean> {
+  const tableId = isOtros ? '#tablaOtrosAcreedores' : '#tablaAcreedores';
+  const rows = page.locator(`${tableId} tbody tr`);
+  const count = await rows.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const cols = rows.nth(i).locator('td');
+    const colCount = await cols.count().catch(() => 0);
+    if (colCount < 3) continue;
+    const montoText = await cols.nth(2).textContent().catch(() => '');
+    const cleanMonto = parseInt(montoText?.replace(/[^0-9]/g, '') ?? '0', 10);
+    if (cleanMonto === monto) return true;
+  }
+  return false;
+}
+
+/**
+ * Verifies we are still on the verAcreedores page.
+ * Navigates back if we drifted (e.g. after an unexpected redirect).
+ * Throws if the session appears to have expired.
+ */
+async function ensureOnAcreedoresPage(page: Page, log: (m: string) => void): Promise<void> {
+  const url = page.url();
+  if (url.includes('login') || url.includes('claveunica') || url.includes('acceso')) {
+    throw new Error(`Sesión expirada — redirigido a: ${url}`);
+  }
+  if (!url.includes('verAcreedores') && !url.includes('acreedores')) {
+    log(`⚠️ URL inesperada (${url}). Renavegando a verAcreedores...`);
+    const base = new URL(url).origin;
+    await page.goto(`${base}/miSuperir/autenticado/renegociacion/verAcreedores`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.waitForSelector('#acreedoresRenegociacionForm', { timeout: 20000 });
+    await page.waitForTimeout(2000);
+  }
+}
+
 async function selectBootstrap(page: Page, selectId: string, value: string): Promise<void> {
   await page.locator(`#${selectId}`).selectOption(value);
   await page.evaluate(({ id, val }) => {
@@ -887,5 +1115,45 @@ async function selectBootstrap(page: Page, selectId: string, value: string): Pro
     }
   }, { id: selectId, val: value });
   await page.waitForTimeout(300);
+}
+
+/**
+ * Scans a certificate PDF for Chilean RUTs, filters out the client's RUT,
+ * and checks if any remaining RUT matches a canonical creditor in the catalog.
+ */
+async function detectCreditorRutFromDoc(
+  pdfPath: string,
+  clientRut: string | null,
+  catalog: AcreedorCatalogEntry[],
+  log: (m: string) => void
+): Promise<AcreedorCatalogEntry | null> {
+  try {
+    const text = await extractTextFromPdf(pdfPath);
+    const rutRegex = /\b\d{1,2}(?:\.?\d{3}){2}\s*-\s*[\dkK]\b|\b\d{7,8}\s*-\s*[\dkK]\b/gi;
+    const matches = text.match(rutRegex) || [];
+    
+    const clientRutNorm = clientRut ? normalizeRut(clientRut) : null;
+
+    for (const match of matches) {
+      const norm = normalizeRut(match);
+      if (!norm) continue;
+      
+      // Skip the client's RUT
+      if (clientRutNorm && norm === clientRutNorm) continue;
+
+      // Find in catalog
+      const entry = catalog.find((e) => {
+        const catRut = normalizeRut(e.rut);
+        return catRut === norm;
+      });
+
+      if (entry) {
+        return entry;
+      }
+    }
+  } catch (err) {
+    log(`   ⚠️ Error al intentar extraer RUT del certificado ${path.basename(pdfPath)}: ${(err as Error).message}`);
+  }
+  return null;
 }
 

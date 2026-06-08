@@ -58,6 +58,16 @@ export function normalizeRut(rut: string | null): string | null {
 }
 
 /**
+ * Returns true if the RUT is in a valid format (7-8 digits followed by a dash and check digit/K).
+ */
+export function isValidRut(rut: string | null): boolean {
+  if (!rut) return false;
+  const norm = normalizeRut(rut);
+  if (!norm) return false;
+  return /^\d{7,8}-[\dK]$/i.test(norm);
+}
+
+/**
  * Map of comuna (normalized) -> portal Región <select> option value.
  * Covers every comuna currently present in `acreedores_canonicos`.
  */
@@ -202,10 +212,10 @@ export async function fetchAcreedoresCatalog(
  * Multiple hits in a tier -> 'ambiguous'. No hits at all -> 'not_found'.
  */
 const ALIASES: Record<string, string> = {
-  'presto lider': 'operadora de tarjetas lider servicios financieros s a',
-  'presto': 'operadora de tarjetas lider servicios financieros s a',
-  'tarjeta presto': 'operadora de tarjetas lider servicios financieros s a',
-  'lider': 'operadora de tarjetas lider servicios financieros s a',
+  'presto lider': 'tarjeta lider',
+  'presto': 'tarjeta lider',
+  'tarjeta presto': 'tarjeta lider',
+  'lider': 'tarjeta lider',
   'bci': 'banco de credito e inversiones',
   'santander': 'banco santander',
 };

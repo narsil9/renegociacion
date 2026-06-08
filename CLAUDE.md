@@ -4,7 +4,7 @@ This repository contains the hybrid automation system for filling out the renego
 
 ## Quick Facts
 
-- **Stack**: Node.js, TypeScript, Playwright, Ghostscript (PDF compression), Supabase (Client Data & Cookie Sharing)
+- **Stack**: Node.js, TypeScript, Playwright, Ghostscript (PDF compression), Supabase (Client Data & Cookie Sharing), Anthropic SDK (`@anthropic-ai/sdk` — Cognitive Orchestrator / Mente Pensante)
 - **Runtime Environment**: Mac Mini (Headless Server)
 - **Start / Run Command**: `npm run automate -- --rut=<RUT> --step=<STEP_NUMBER>`
 - **Worker Command**: `npm run worker`
@@ -13,10 +13,12 @@ This repository contains the hybrid automation system for filling out the renego
 
 ## Key Directories
 
-- `src/automation/` - Step-specific Playwright scripts (`step1_personal.ts`, `step2_declaraciones.ts`, `login.ts`)
-- `src/utils/` - Utility functions (browser controllers, cookie handlers, logger, Supabase clients, PDF optimizer)
-- `dashboard/` - Next.js Dashboard code (simple portal control panel)
+- `src/automation/` - Step-specific Playwright scripts (`login.ts`, `step1_personal.ts`, `step2_declaraciones.ts`, `step3_acreedores.ts`, `step4_apoderado.ts`, `all_steps.ts`)
+- `src/utils/` - Utility functions (browser controllers, logger, Supabase clients, PDF optimizer/analyzer, acreedor_matcher, cmf_analyzer, **cognitive_orchestrator**, date_helper)
 - `outputs/` - Screenshots, HTML snapshots, and log files of successful/failed automation steps
+- `outputs/acreditaciones_tmp/` - Temporary local copies of downloaded certificate PDFs (used by cognitive_orchestrator)
+
+> ⚠️ The local `dashboard/` directory has been **removed**. All UI control is now handled by the supervisor's external dashboard.
 
 ## Code Style
 
@@ -54,6 +56,30 @@ This repository contains the hybrid automation system for filling out the renego
 
 ### Playwright Stability
 - Always wait for script stabilization (`page.waitForTimeout(3000)`) after navigating to a step to allow frontend event handlers to register before clicking delete or upload buttons.
+
+### Step 3 — Acreedores Business Rules
+- **Obligaciones 260** (`#btnAgregarEmpresa` / `#btnAgregarPersona`): Only creditors where `overdue90Days > 0`. The sum of `overdue90Days` across all such creditors **must exceed 80 UF (~$3,253,000 CLP)**. `fillStep3` logs a warning if it doesn't.
+- **Otros Acreedores** (`#btnAgregarEmpresa2` / `#btnAgregarPersona2`): All creditors where `overdue90Days === 0`. Both sections share the same `#modalEmpresa` / `#modalPersona` modals — the distinction is which button opens them.
+
+### Step 3 — Known Portal Blockers
+- **`#dlgImportante` blocking `#btnGuardarEmpresa`**: After saving a representante legal, the portal shows `#dlgImportante` which intercepts all pointer events. The fix is `dismissBlockingDialogs(page, log)`, called both after `#modalRepresentante` closes and immediately before clicking `#btnGuardarEmpresa`.
+- **`Subir Documento` is a plain `<a>`, not `<a class="btn">`**: Use `getByText(/subir documento/i)` as the primary selector. Document attachment only works after ALL creditors have been added (portal enables the links then). This requires the two-phase approach: add all creditors first, then attach documents.
+
+### Step 3 — Resilience Pattern (`withRetry`)
+All critical Playwright operations in `step3_acreedores.ts` are wrapped in `withRetry<T>(fn, opts)` with linear back-off:
+
+| Operation | Attempts | Delay |
+|-----------|----------|-------|
+| CMF upload | 3 | 4s/8s |
+| Catalog fetch (Supabase) | 3 | 3s/6s |
+| Each document download | 3 | 2s/4s/6s |
+| Add empresa/persona | 3 | 4s/8s |
+| Attach document | 2 | 3s |
+| `#btnContinuar` (prod) | 3 | 4s/8s |
+
+**Idempotency**: Before each retry of an add operation, `isCreditorAlreadyInTable` checks if the creditor row (matched by `monto`) already exists in the table — prevents duplicates from partial successes.
+
+**Page recovery**: `ensureOnAcreedoresPage` checks the current URL before each add attempt. If it drifted (unexpected redirect), it navigates back to `verAcreedores`. If it hit a login/ClaveÚnica page, it throws "Sesión expirada" immediately.
 
 ---
 
@@ -98,6 +124,53 @@ Almacena las credenciales de acceso del cliente y todos los datos estructurados 
 #### `acreedores_canonicos` (PASO 3 Normalización)
 Catálogo maestro de acreedores. Cada acreedor tiene un `nombre` y un `nombre_normalizado`, usados para normalizar los nombres extraídos del CMF antes de ingresarlos en el portal Superir (Paso 3).
 
+#### `client_documents` (PASO 3 — Acreditaciones de Deuda)
+Tabla de documentos de acreditación por cliente, usada por el **Orquestador Cognitivo**. Migrada desde el campo JSONB `acreditacion_documentos_json` de la tabla `clients`.
+
+| Campo | Descripción |
+|-------|-------------|
+| `id` | UUID de la fila |
+| `client_id` | FK → `clients.id` |
+| `document_type` | Código numérico del tipo (22=monto, 23=vencimiento, 24=genérico) |
+| `acreditacion_tipo` | `'monto'`, `'vencimiento'`, o `'general'` |
+| `institucion_cmf` | Nombre de la institución según el CMF (ej. `'Banco Estado'`) |
+| `storage_path` | Ruta en Supabase Storage (`documentos` bucket) |
+| `filename` | Nombre del archivo (ej. `cert_bci.pdf`) |
+| `uploaded_at` | ISO timestamp de cuando se subió el archivo |
+
+**Nota:** La tabla `client_documents` se consulta en el sandbox. El bucket `documentos` contiene las 4 categorías de archivos del cliente (CMF, carpeta tributaria, agentes retenedores, certificados de acreditación).
+
+---
+
+## Cognitive Orchestrator — Mente Pensante
+
+`src/utils/cognitive_orchestrator.ts` es el módulo de IA que audita los documentos de acreditación **antes** de que el Paso 3 los adjunte al portal.
+
+### Función principal
+```typescript
+runCognitiveOrchestrator(client, cmfLocalPath, supabase, logger): Promise<OrchestrationResult>
+```
+
+### Flujo
+1. Verifica que `ANTHROPIC_API_KEY` esté en `.env`.
+2. Descarga cada certificado desde `client_documents` → Supabase Storage → `outputs/acreditaciones_tmp/`.
+3. Extrae texto (hasta 12,000 chars/cert, 15,000 chars/CMF) vía `extractTextFromPdf`.
+4. Llama a `claude-sonnet-4-5-20250929` con **thinking activado** (`budget_tokens: 2048`).
+5. Parsea el bloque `<json>...</json>` de la respuesta.
+6. Retorna `OrchestrationResult` con `status`, `alerts`, `documentMapping` y `mappedDocs` (listos para Playwright).
+
+### Reglas de Auditoría
+- **Regla 1 (30 días)**: CMF y certificados no pueden tener más de 30 días de antigüedad. Devuelve `expired_cmf` o `expired_certificate` si se violan.
+- **Regla 2 (Art 260/261)**: Deudas con morosidad ≥90 días requieren `monto` + `vencimiento`. Deudas al día solo requieren `monto`.
+- **Regla 3 (Mapeo)**: Asocia certificados a acreedores del CMF por nombre de institución.
+- **Regla 4 (RUT)**: Valida el RUT del emisor del certificado.
+
+### Configuración requerida en `.env`
+```
+ANTHROPIC_API_KEY=sk-ant-api03-...
+```
+**Nunca hardcodear ni commitear esta clave.**
+
 ---
 
 ## Flujo de datos para la automatización Superir
@@ -141,4 +214,10 @@ npm run worker
 
 # Compile TypeScript
 npm run build
+
+# Test Paso 3 directly (no job queue)
+npx ts-node -r dotenv/config src/utils/test_step3_direct.ts
+
+# Inspect the verAcreedores page for HTML IDs (run while portal session is active)
+npx ts-node -r dotenv/config src/utils/inspect_otros_acreedores.ts
 ```

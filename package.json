@@ -8,11 +8,10 @@
     "dev": "ts-node src/index.ts",
     "automate": "ts-node src/index.ts",
     "worker": "ts-node src/worker.ts",
-    "dashboard": "npm run dev --prefix dashboard",
-    "build:dashboard": "npm run build --prefix dashboard",
     "test": "echo \"No tests yet\" && exit 0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.102.0",
     "@supabase/supabase-js": "^2.106.2",
     "dotenv": "^16.4.5",
     "pg": "^8.21.0",

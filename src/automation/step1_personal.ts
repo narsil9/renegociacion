@@ -187,6 +187,19 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
       }
 
       await clearAndFill(page, '#personaFechaNacimiento', dateValue);
+
+      if (inputType !== 'date') {
+        log('→ Seteando fecha de nacimiento en el widget bootstrap-datepicker...');
+        const datepickerUpdated = await page.evaluate((val) => {
+          const $el = (window as any).jQuery ? (window as any).jQuery('#personaFechaNacimiento') : null;
+          if ($el && typeof $el.datepicker === 'function') {
+            $el.datepicker('setDate', val);
+            return true;
+          }
+          return false;
+        }, dateValue);
+        log(`→ ¿Datepicker de Bootstrap actualizado? ${datepickerUpdated ? 'SÍ' : 'NO'}`);
+      }
     } else {
       log('→ Campo Fecha de Nacimiento omitido (pre-llenado automáticamente por el portal o sin valor válido).');
     }

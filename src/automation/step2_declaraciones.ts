@@ -33,12 +33,12 @@ export async function fillStep2(
   }
 
   try {
-    log('⏳ Esperando formulario de Paso 2 (Declaraciones)...');
-    await page.waitForSelector('#declaracionRenegociacionForm', { timeout: 30000 });
-    
     if (!page.url().includes('renegociacion')) {
       throw new Error(`URL inesperada para Paso 2: ${page.url()}`);
     }
+
+    log('⏳ Esperando formulario de Paso 2 (Declaraciones)...');
+    await page.waitForSelector('#declaracionRenegociacionForm', { timeout: 30000 });
 
     log('→ Esperando estabilización de scripts en la página...');
     await page.waitForTimeout(3000);
@@ -121,6 +121,15 @@ export async function fillStep2(
       if (isTributariaUploaded) {
         log('🗑️  Eliminando Carpeta Tributaria...');
         await page.locator('button[data-documento="carpetaTributaria"]').click();
+        
+        // Confirm the deletion in the dialog
+        const confirm = page.locator('#btnConfirmarModal');
+        await confirm.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+        if (await confirm.isVisible().catch(() => false)) {
+          await confirm.click();
+          await page.locator('#dlgConfirmar').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+        }
+        
         await page.locator('#descargaCarpetaTributaria').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
         log('✓ Página recargada tras eliminar Carpeta Tributaria.');
         
@@ -137,6 +146,15 @@ export async function fillStep2(
       if (isRetenedoresUploaded) {
         log('🗑️  Eliminando Agentes Retenedores...');
         await page.locator('button[data-documento="informacionIngresos"]').click();
+        
+        // Confirm the deletion in the dialog
+        const confirm = page.locator('#btnConfirmarModal');
+        await confirm.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+        if (await confirm.isVisible().catch(() => false)) {
+          await confirm.click();
+          await page.locator('#dlgConfirmar').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+        }
+        
         await page.locator('#descargaInformacionIngresos').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
         log('✓ Página recargada tras eliminar Agentes Retenedores.');
       }
@@ -172,7 +190,11 @@ export async function fillStep2(
     log(`→ Nueva URL: ${page.url()}`);
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] ✗ Error en Paso 2.`);
+    if (logger) {
+      logger.error('✗ Error en Paso 2.', error);
+    } else {
+      console.error(`[${new Date().toISOString()}] ✗ Error en Paso 2.`, error);
+    }
     await screenshotOnFailure(page, 'step2');
     throw error;
   }

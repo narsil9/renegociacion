@@ -1,21 +1,24 @@
 import * as dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ override: true });
 
 import { launchBrowser, screenshotOnFailure } from './utils/browser';
-import { loginAndNavigateToStep1 } from './automation/login';
+import { loginAndNavigateToStep1, CredentialError } from './automation/login';
 import { fillStep1, ClientData } from './automation/step1_personal';
 import { supabase } from './utils/supabaseWorker';
 import { RunnerLogger } from './utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fillStep2 } from './automation/step2_declaraciones';
-import { fillStep3 } from './automation/step3_acreedores';
+import { fillStep3, AcreditacionDoc } from './automation/step3_acreedores';
 import { fillStep4 } from './automation/step4_apoderado';
 import { fillAllSteps } from './automation/all_steps';
 import { getOptimizedPdfPath } from './utils/pdf_optimizer';
 import { analyzeTaxCategory } from './utils/pdf_analyzer';
 import { analyzeCmfPdf } from './utils/cmf_analyzer';
 import { createAlert, clearAlert } from './utils/alerts';
+import { cleanupDraft } from './automation/cleanup';
+import { runCognitiveOrchestrator } from './utils/cognitive_orchestrator';
+
 
 const POLL_INTERVAL_MS = 5000;
 let keepRunning = true;
@@ -152,6 +155,7 @@ async function processJob(job: any): Promise<void> {
     let retenedoresOptimizedPath = '';
     let cmfLocalPath = '';
     let browserInstance: any = null;
+    let mappedAcreditacionDocs: AcreditacionDoc[] = [];
 
     try {
       if (job.step === 3 || job.step === 0) {
@@ -182,16 +186,60 @@ async function processJob(job: any): Promise<void> {
         // 2. Analyze CMF PDF
         const cmfResult = await analyzeCmfPdf(cmfLocalPath, logger);
 
-        if (!cmfResult.meets90DaysRequirement || !cmfResult.meetsAmountRequirement) {
-          const detail = `El cliente no cumple con los requisitos legales para la renegociación. Atraso 90+ días: ${cmfResult.meets90DaysRequirement ? 'Sí' : 'No'}. Monto 90+ días: $${cmfResult.directOverdue90Days.toLocaleString('es-CL')} (mínimo requerido: $${cmfResult.requiredAmountCLP.toLocaleString('es-CL')} / 80 UF).`;
-          logger.error(`❌ Validación fallida: ${detail}`);
+        // 3. Run AI Cognitive Orchestrator ("Mente Pensante")
+        logger.log('🧠 Ejecutando orquestador cognitivo de IA (Claude Opus) para auditar documentos y fechas...');
+        const orchResult = await runCognitiveOrchestrator(client, cmfLocalPath, supabase, logger);
+
+        let validationFailed = false;
+        let validationErrorDetail = '';
+
+        if (orchResult.status === 'error') {
+          validationFailed = true;
+          validationErrorDetail = orchResult.reason || 'Auditoría cognitiva fallida.';
+        } else if (!cmfResult.meets90DaysRequirement || !cmfResult.meetsAmountRequirement) {
+          validationFailed = true;
+          validationErrorDetail = `El cliente no cumple con los requisitos legales para la renegociación. Atraso 90+ días: ${cmfResult.meets90DaysRequirement ? 'Sí' : 'No'}. Monto 90+ días: $${(cmfResult.overdue90DaysTotal || 0).toLocaleString('es-CL')} (mínimo requerido: $${cmfResult.requiredAmountCLP.toLocaleString('es-CL')} / 80 UF).`;
+        }
+
+        if (orchResult.status === 'success' && orchResult.mappedDocs) {
+          mappedAcreditacionDocs = orchResult.mappedDocs;
+        }
+
+        if (validationFailed) {
+          logger.error(`❌ Validación fallida: ${validationErrorDetail}`);
           
+          // Trigger automatic cleanup of portal draft
+          try {
+            logger.log('⏳ Iniciando navegador y sesión para limpiar el borrador en el portal...');
+            let claveUnicaPassword = '';
+            if (client.rut === '21917363-6' || client.airtable_id === 'recPatoPrueba') {
+              claveUnicaPassword = process.env.CLAVE_UNICA_PASSWORD || '';
+            } else {
+              claveUnicaPassword = client.clave_unica_password;
+            }
+            if (claveUnicaPassword) {
+              const { browser, page } = await launchBrowser();
+              browserInstance = browser;
+              await loginAndNavigateToStep1(page, client.clave_unica_rut, claveUnicaPassword, logger, {
+                region: client.region,
+                comuna: client.comuna,
+                email: client.email,
+                telefono: client.telefono,
+              });
+              await cleanupDraft(page, logger);
+            } else {
+              logger.log('⚠️ No se encontró ClaveÚnica en el perfil del cliente, omitiendo la limpieza automática.');
+            }
+          } catch (cleanupErr: any) {
+            logger.error(`⚠️ No se pudo realizar la autolimpieza en el portal: ${cleanupErr.message || cleanupErr}`);
+          }
+
           // Update job status to failed (no retries)
           await supabase
             .from(JOBS_TABLE)
             .update({
               status: 'failed',
-              error_log: logger.getBufferText() + `\n\n❌ ERROR DE VALIDACIÓN: ${detail}`,
+              error_log: logger.getBufferText() + `\n\n❌ ERROR DE VALIDACIÓN: ${validationErrorDetail}`,
               updated_at: new Date().toISOString(),
             })
             .eq('id', job.id);
@@ -321,7 +369,7 @@ async function processJob(job: any): Promise<void> {
         logger.log(`→ Redireccionando a la URL del Paso 3: ${step3Url}`);
         await page.goto(step3Url, { waitUntil: 'domcontentloaded' });
 
-        await fillStep3(page, cmfLocalPath, supabase, logger, undefined, client.acreditacion_documentos_json ?? []);
+        await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs);
       } else if (job.step === 4) {
         logger.log('📝 Navegando e ingresando información de Paso 4...');
         
@@ -361,7 +409,7 @@ async function processJob(job: any): Promise<void> {
           categoria,
           cmfLocalPath,
           supabase,
-          client.acreditacion_documentos_json ?? [],
+          mappedAcreditacionDocs,
           logger
         );
       }
@@ -444,7 +492,7 @@ async function processJob(job: any): Promise<void> {
       lastError = err;
       logger.error(`❌ Fallo en intento ${attempt} de ${maxAttempts}:`, err);
 
-      const isValidationError = err.message?.includes('Alerta:');
+      const isValidationError = err instanceof CredentialError;
 
       if (browserInstance) {
         try {
@@ -504,15 +552,10 @@ async function processJob(job: any): Promise<void> {
     logger.error(`❌ Todos los ${maxAttempts} intentos fallaron. Marcando job como fallido.`);
 
     // Check if it was a validation error (ClaveÚnica or RUT invalid)
-    const isValidationError = lastError?.message?.includes('Alerta:');
+    const isValidationError = lastError instanceof CredentialError;
     if (isValidationError) {
-      let alertType = 'clave_unica_incorrecta';
-      let alertMessage = 'La ClaveÚnica o contraseña ingresada es incorrecta (Datos de acceso no válidos).';
-
-      if (lastError.message.includes('RUN (RUT) ingresado es incorrecto') || lastError.message.includes('RUN de 7 u 8 números')) {
-        alertType = 'rut_incorrecto';
-        alertMessage = 'El RUT (RUN) ingresado es incorrecto. Ingrese correctamente su RUN de 7 u 8 números más dígito verificador.';
-      }
+      const alertType = lastError.code;
+      const alertMessage = lastError.message;
 
       logger.log(`🚨 Detectado error de credenciales. Actualizando "credential_error" a "${alertType}" para cliente ID: ${client.id}...`);
       try {

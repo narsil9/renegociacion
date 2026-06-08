@@ -9,7 +9,7 @@ interface SimpleLogger {
 export class CredentialError extends Error {
   constructor(
     message: string,
-    public readonly code: 'rut_incorrecto' | 'clave_unica_incorrecta'
+    public readonly code: 'rut_incorrecto' | 'clave_unica_incorrecta' | 'riesgo_bloqueo' | 'usuario_bloqueado'
   ) {
     super(message);
     this.name = 'CredentialError';
@@ -58,6 +58,16 @@ export async function loginAndNavigateToStep1(
 
     log('→ Esperando formulario de ClaveÚnica...');
     await page.waitForSelector('#uname', { timeout: 30000 });
+
+    const preLoginText = await page.innerText('body').catch(() => '');
+    const preLoginLower = preLoginText.toLowerCase();
+    const preLockoutKeywords = ['bloque', 'intentos', 'intentando', 'suspend', 'límite', 'limite', 'inhabilit', 'intento fallido'];
+    const preFound = preLockoutKeywords.find(kw => preLoginLower.includes(kw));
+    if (preFound) {
+      const msg = `ALERTA DE BLOQUEO PREVIA DETECTADA (clave: "${preFound}"): "${preLoginText.trim().replace(/\s+/g, ' ').substring(0, 350)}..."`;
+      log(`❌ ${msg}`);
+      throw new CredentialError(msg, 'usuario_bloqueado');
+    }
 
     log('→ Ingresando credenciales...');
     
@@ -142,12 +152,25 @@ export async function loginAndNavigateToStep1(
         page.waitForURL(/autenticado/, { timeout: 45000 }),
         page.waitForSelector('text="Datos de acceso no válidos"', { state: 'visible', timeout: 45000 }),
         page.waitForSelector('text="Ingresa correctamente tu RUN de 7 u 8 números más dígito verificador"', { state: 'visible', timeout: 45000 }),
+        page.locator('body').filter({ hasText: /bloque|intentos|intentando|suspend|límite|limite|inhabilit|intento fallido/i }).waitFor({ state: 'visible', timeout: 45000 }).catch(() => null)
       ]);
     } catch (raceErr) {
       // Ignore race timeout and let url check decide
     }
 
     if (!page.url().includes('autenticado')) {
+      const bodyText = await page.innerText('body').catch(() => '');
+      const lowerBody = bodyText.toLowerCase();
+
+      const lockoutKeywords = ['bloque', 'intentos', 'intentando', 'suspend', 'límite', 'limite', 'inhabilit', 'intento fallido'];
+      const foundKeyword = lockoutKeywords.find(kw => lowerBody.includes(kw));
+
+      if (foundKeyword) {
+        const msg = `ALERTA DE BLOQUEO DETECTADA (clave: "${foundKeyword}"): "${bodyText.trim().replace(/\s+/g, ' ').substring(0, 350)}..."`;
+        log(`❌ ${msg}`);
+        throw new CredentialError(msg, 'riesgo_bloqueo');
+      }
+
       const isInvalidRun = await page.locator('text="Ingresa correctamente tu RUN de 7 u 8 números más dígito verificador"').isVisible().catch(() => false);
       const isInvalidAccess = await page.locator('text="Datos de acceso no válidos"').isVisible().catch(() => false);
 

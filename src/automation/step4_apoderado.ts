@@ -22,12 +22,12 @@ export async function fillStep4(
   };
 
   try {
-    log('⏳ Esperando formulario de Paso 4 (Apoderado)...');
-    await page.waitForSelector('#apoderadoRenegociacionForm', { timeout: 30000 });
-
     if (!page.url().includes('renegociacion')) {
       throw new Error(`URL inesperada para Paso 4: ${page.url()}`);
     }
+
+    log('⏳ Esperando formulario de Paso 4 (Apoderado)...');
+    await page.waitForSelector('#apoderadoRenegociacionForm', { timeout: 30000 });
 
     log('→ Esperando estabilización de scripts en la página...');
     await page.waitForTimeout(3000);
@@ -73,7 +73,11 @@ export async function fillStep4(
     log(`→ Nueva URL: ${page.url()}`);
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] ✗ Error en Paso 4.`);
+    if (logger) {
+      logger.error('✗ Error en Paso 4.', error);
+    } else {
+      console.error(`[${new Date().toISOString()}] ✗ Error en Paso 4.`, error);
+    }
     await screenshotOnFailure(page, 'step4');
     throw error;
   }

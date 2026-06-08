@@ -43,12 +43,12 @@ async function insertMiledJob() {
     .delete()
     .eq('client_id', clientId);
 
-  console.log('→ Insertando nuevo job del Paso 2 pendiente en la cola "automation_jobs" (con Dry Run)...');
+  console.log('→ Insertando nuevo job del Paso 3 pendiente en la cola "automation_jobs" (con Dry Run)...');
   const { data: jobs, error: jobError } = await supabase
     .from('automation_jobs')
     .insert({
       client_id: clientId,
-      step: 2,
+      step: 3,
       status: 'pending',
       dry_run: true,
     })
