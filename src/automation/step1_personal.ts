@@ -86,8 +86,8 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
   };
   validateClientData(client);
 
-  page.on('console', msg => log(`[PAGE CONSOLE] ${msg.type()}: ${msg.text()}`));
-  page.on('pageerror', err => log(`[PAGE ERROR] ${err.message}\n${err.stack}`));
+  page.once('console', msg => log(`[PAGE CONSOLE] ${msg.type()}: ${msg.text()}`));
+  page.once('pageerror', err => log(`[PAGE ERROR] ${err.message}\n${err.stack}`));
 
   try {
     await page.waitForSelector('#renegociacionForm', { timeout: 30000 });
@@ -355,7 +355,8 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
     log(`→ Nueva URL: ${page.url()}`);
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] ✗ Error en Paso 1.`);
+    if (logger) logger.error('✗ Error en Paso 1.', error);
+    else console.error(`[${new Date().toISOString()}] ✗ Error en Paso 1.`, error);
     await screenshotOnFailure(page, 'step1');
     throw error;
   }

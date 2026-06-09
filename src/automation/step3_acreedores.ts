@@ -526,7 +526,8 @@ async function addRepresentante(
 
 /** Returns a date N days ago as dd/mm/yyyy. */
 function dateDaysAgo(days: number): string {
-  const d = new Date();
+  // Use Chile timezone so the date is correct regardless of Mac Mini system timezone
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }));
   d.setDate(d.getDate() - days);
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }

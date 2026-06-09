@@ -13,12 +13,23 @@ import { fillStep3, AcreditacionDoc } from './automation/step3_acreedores';
 import { fillStep4 } from './automation/step4_apoderado';
 import { fillAllSteps } from './automation/all_steps';
 import { getOptimizedPdfPath } from './utils/pdf_optimizer';
-import { analyzeTaxCategory } from './utils/pdf_analyzer';
+import { analyzeTaxCategory, detectF29ActivityLast24Months } from './utils/pdf_analyzer';
 import { analyzeCmfPdf } from './utils/cmf_analyzer';
 import { createAlert, clearAlert } from './utils/alerts';
 import { cleanupDraft } from './automation/cleanup';
 import { runCognitiveOrchestrator } from './utils/cognitive_orchestrator';
 
+/**
+ * BUG-08 FIX: Dedicated error class for cases that must not be retried and
+ * must preserve the 'blocked' status (e.g. F29 activity detected).
+ * Treated the same as CredentialError in the retry loop — breaks immediately.
+ */
+class BlockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BlockedError';
+  }
+}
 
 const POLL_INTERVAL_MS = 5000;
 let keepRunning = true;
@@ -183,11 +194,11 @@ async function processJob(job: any): Promise<void> {
         fs.writeFileSync(cmfLocalPath, Buffer.from(await cmfBlob.arrayBuffer()));
         logger.log('✓ Informe CMF descargado.');
 
-        // 2. Analyze CMF PDF
+        // 2. Analyze CMF PDF (result also passed into cognitive orchestrator to avoid double-parse)
         const cmfResult = await analyzeCmfPdf(cmfLocalPath, logger);
 
         // 3. Run AI Cognitive Orchestrator ("Mente Pensante")
-        logger.log('🧠 Ejecutando orquestador cognitivo de IA (Claude Opus) para auditar documentos y fechas...');
+        logger.log('🧠 Ejecutando orquestador cognitivo de IA (Claude Sonnet 4.5) para auditar documentos y fechas...');
         const orchResult = await runCognitiveOrchestrator(client, cmfLocalPath, supabase, logger);
 
         let validationFailed = false;
@@ -352,7 +363,45 @@ async function processJob(job: any): Promise<void> {
         
         logger.log('🕵️‍♂️ Analizando la Carpeta Tributaria para determinar la categoría tributaria...');
         const categoria = await analyzeTaxCategory(tributariaLocalPath, logger);
-        
+
+        // --- BLOQUEO: Primera categoría con actividad F29 en últimos 24 meses ---
+        if (categoria === 'primera') {
+          logger.log('🔍 Contribuyente de Primera Categoría — verificando actividad F29 en los últimos 24 meses...');
+          const f29Result = await detectF29ActivityLast24Months(tributariaLocalPath, logger);
+
+          if (f29Result.hasActivityLast24Months) {
+            const alertDesc = `Paso 2 bloqueado: ${f29Result.summary}`;
+            logger.log(`🚫 ${alertDesc}`);
+
+            // BUG-10 FIX: wrap insert in try/catch so a schema error doesn't
+            // replace the block message with a cryptic Supabase error.
+            try {
+              const { error: insertErr } = await supabase.from('automation_alerts').insert({
+                job_id: job.id,
+                client_id: String(client.id),
+                step: 2,
+                alert_type: 'blocked',
+                description: alertDesc
+              });
+              if (insertErr) logger.error('⚠️ No se pudo registrar alerta en automation_alerts:', insertErr.message);
+            } catch (alertInsertErr: any) {
+              logger.error('⚠️ Excepción al insertar en automation_alerts:', alertInsertErr);
+            }
+
+            // Marcar el job como bloqueado
+            await supabase
+              .from(JOBS_TABLE)
+              .update({ status: 'blocked', error_message: alertDesc, updated_at: new Date().toISOString() })
+              .eq('id', job.id);
+
+            // BUG-08 FIX: throw BlockedError instead of generic Error so the
+            // retry loop breaks immediately and doesn't overwrite status to 'failed'.
+            throw new BlockedError(alertDesc);
+          } else {
+            logger.log('✅ Sin actividad F29 en los últimos 24 meses. Continuando con Paso 2.');
+          }
+        }
+
         const currentUrl = page.url();
         const baseUrl = new URL(currentUrl).origin;
         const step2Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verDeclaraciones`;
@@ -493,6 +542,7 @@ async function processJob(job: any): Promise<void> {
       logger.error(`❌ Fallo en intento ${attempt} de ${maxAttempts}:`, err);
 
       const isValidationError = err instanceof CredentialError;
+      const isBlockedError = err instanceof BlockedError; // BUG-08 FIX
 
       if (browserInstance) {
         try {
@@ -515,8 +565,9 @@ async function processJob(job: any): Promise<void> {
 
       fullErrorLog = logger.getBufferText();
 
-      if (isValidationError) {
-        logger.error('🛑 Se detectó un error de validación/credenciales de ClaveÚnica. Abortando reintentos.');
+      if (isValidationError || isBlockedError) {
+        if (isValidationError) logger.error('🛑 Se detectó un error de validación/credenciales de ClaveÚnica. Abortando reintentos.');
+        if (isBlockedError) logger.error('🛑 Job bloqueado (BlockedError). El estado \'blocked\' ya fue guardado. Abortando reintentos sin sobreescribir.');
         break;
       }
 

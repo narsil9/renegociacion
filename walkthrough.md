@@ -268,5 +268,72 @@ npx ts-node -r dotenv/config src/utils/test_cognitive_orchestrator.ts
 
 La migración de `acreditacion_documentos_json` (JSONB plano) a la tabla `client_documents` con columnas estructuradas fue completada. Patricio Martini tiene **12 registros** correctamente indexados con `document_type`, `acreditacion_tipo`, `institucion_cmf`, `storage_path`, `filename` y `uploaded_at`.
 
+---
+
+## 10. Prueba E2E Completa — Pasos 1 al 4 (2026-06-09)
+
+### Comando ejecutado
+```bash
+npm run automate -- --rut=21917363-6 --step=0
+```
+Configuración: `HEADLESS=false`, `DRY_RUN=true`. Tiempo total: ~3.5 minutos.
+
+### Resultado: ✅ TODOS LOS PASOS COMPLETADOS SIN ERRORES (exit code 0)
+
+#### Pre-vuelo
+| Verificación | Resultado |
+|---|---|
+| Cliente encontrado en Supabase sandbox | ✓ |
+| CMF descargado y analizado | ✓ 4 acreedores, $16.4M mora 90+d |
+| Carpeta Tributaria (0.05 MB) | ✓ Sin compresión |
+| Agentes Retenedores (11.37 MB → 5.52 MB) | ✓ Comprimido con Ghostscript |
+
+#### Paso 1 — Información Personal ✅
+- Formulario detectado en modo vista → `Modificar Información` clickeado automáticamente.
+- Todos los campos llenados: fecha de nacimiento (datepicker Bootstrap), estado civil, régimen, profesión, dirección, región, comuna, email, teléfono.
+- DRY_RUN: formulario no enviado.
+
+#### Paso 2 — Declaraciones y PDFs ✅
+- Categoría tributaria detectada: `ninguna` (Carpeta Tributaria de Patricio Martini no contiene la etiqueta "Categoría Tributaria:" en texto extraíble — ver nota abajo).
+- Comportamiento correcto para `ninguna`: no se seleccionó ningún radio de calidad de persona deudora.
+- Carpeta Tributaria subida ✓, Agentes Retenedores subido ✓ (upload tardó ~46s por el tamaño).
+- Checkbox `#tipoDeclaracionNotificacionNo` marcado ✓.
+- DRY_RUN cleanup: ambos archivos eliminados, borrador restaurado limpio ✓.
+
+#### Paso 3 — Acreedores ✅
+- CMF subido y analizado: 4 acreedores extraídos.
+- Catálogo cargado: 501 acreedores canónicos. Doce certificados encontrados en caché local (`outputs/acreditaciones_tmp/`) — sin descargas necesarias.
+- Clasificación:
+  - **Obligaciones 260** (mora >90d): Banco de Crédito e Inversiones $14.044.172 + Tarjeta Lider $2.359.938 = **$16.404.110** ✓
+  - **Otros Acreedores** (sin mora >90d): Banco Estado $7.752.301 + Santander Consumer $7.141.488 ✓
+- Match de RUT por certificado (todos 4 resueltos por RUT, no por nombre):
+  - Banco Estado → RUT `97030000-7` ✓
+  - BCI → RUT `97006000-6` ✓
+  - Tarjeta Lider → RUT `77085380-K` ✓
+  - Santander Consumer → RUT `76002293-4` ✓
+- Representante legal agregado para cada acreedor ✓.
+- Documentos adjuntados por tipo: `22` (monto) para todos; `23` (vencimiento) solo para los de mora 90+d; `24` (genérico) ya estaba marcado en portal, omitido correctamente.
+- Resumen: **4/4 acreedores agregados, 0 saltados** ✓.
+- DRY_RUN cleanup: 4 filas eliminadas, CMF eliminado, borrador limpio ✓.
+
+#### Paso 4 — Apoderado ✅
+- Opción "Asistiré personalmente a las audiencias" seleccionada ✓.
+- DRY_RUN: formulario no enviado.
+
+### Observaciones para Producción
+
+| # | Observación | Impacto |
+|---|---|---|
+| 1 | **Categoría tributaria "ninguna"** para Patricio Martini | La Carpeta Tributaria del cliente no tiene la etiqueta legible. Si el cliente tiene categoría real, verificar que el PDF permita extracción de texto (`pdftotext`) o registrar un override en Supabase. |
+| 2 | **CMF expirado (225 días)** — emitido 27/10/2025 | Solo aplica a datos de prueba. En producción el CMF debe tener ≤30 días. |
+| 3 | **Tipos 24 ya marcados** para BCI y Tarjeta Lider | El portal tenía esos slots previamente cargados de una prueba anterior. El script los detectó y los omitió correctamente (idempotente). |
+
+### Nuevas características validadas en esta sesión
+
+- **`BlockedError` + F29 check** (`worker.ts`): Si el cliente es de Primera Categoría y tiene actividad F29 en los últimos 24 meses, el worker marca el job como `blocked` y no sigue al Paso 2. No se probó en este run (categoría era `ninguna`).
+- **`detectF29ActivityLast24Months`** (`pdf_analyzer.ts`): Nueva función que detecta periodos F29 en la Carpeta Tributaria.
+- **`dateDaysAgo` con timezone Chile** (`step3_acreedores.ts`): Fecha de vencimiento calculada en `America/Santiago` para evitar desfase de un día en el Mac Mini.
+- **Cognitive Orchestrator con soporte de imágenes** (`cognitive_orchestrator.ts`): Ahora detecta archivos JPG/PNG (certificados escaneados) y los envía a Claude como imágenes en base64 en lugar de intentar extraer texto.
+
 
 

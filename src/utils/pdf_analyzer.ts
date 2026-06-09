@@ -1,10 +1,20 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
+import { getCurrentChileDate } from './date_helper';
 
 const execFileAsync = promisify(execFile);
 
 export type TaxCategory = 'primera' | 'segunda' | 'ninguna';
+
+export interface F29ActivityResult {
+  /** true si se encontraron declaraciones F29 con actividad en los últimos 24 meses */
+  hasActivityLast24Months: boolean;
+  /** Meses con actividad detectada, ej. ["2024-03", "2024-02"] */
+  activeMonths: string[];
+  /** Descripción concisa para log/alerta */
+  summary: string;
+}
 
 interface SimpleLogger {
   log(msg: string): void;
@@ -136,4 +146,138 @@ export async function analyzeTaxCategory(
   
   log('⚠️ Advertencia: No se pudo identificar de forma unívoca la categoría tributaria (Primera o Segunda) en el archivo de Carpeta Tributaria. Retornando "ninguna".');
   return 'ninguna';
+}
+
+/**
+ * Detects whether the Carpeta Tributaria contains Formulario 29 (IVA) declarations
+ * with actual activity in the last 24 months relative to today.
+ *
+ * Logic:
+ * 1. Locates the F29 / "Declaraciones de IVA" section in the PDF text.
+ * 2. Scans for period headers ("Marzo 2024", "03/2024", "2024-03", etc.).
+ * 3. Keeps only those within [today - 24 months, today].
+ * 4. Returns hasActivityLast24Months = true if any such periods are found.
+ */
+export async function detectF29ActivityLast24Months(
+  pdfPath: string,
+  logger?: SimpleLogger
+): Promise<F29ActivityResult> {
+  const log = (msg: string) => {
+    if (logger) logger.log(msg);
+    else console.log(msg);
+  };
+
+  log(`📋 Detectando actividad F29 en los últimos 24 meses: ${pdfPath}...`);
+  const text = await extractTextFromPdf(pdfPath);
+
+  // --- Locate the F29 / IVA section ---
+  const lower = text.toLowerCase();
+  const f29Anchors = [
+    'formulario 29',
+    'declaraciones de iva',
+    'declaracion de iva',
+    'iva - debito',
+    'impuesto al valor agregado'
+  ];
+
+  let f29StartIdx = -1;
+  for (const anchor of f29Anchors) {
+    const idx = lower.indexOf(anchor);
+    if (idx !== -1) {
+      f29StartIdx = idx;
+      log(`🔍 Sección F29 encontrada con ancla: "${anchor}" (pos ${idx}).`);
+      break;
+    }
+  }
+
+  if (f29StartIdx === -1) {
+    log('ℹ️ No se encontró sección de Formulario 29 / IVA en la Carpeta Tributaria.');
+    return {
+      hasActivityLast24Months: false,
+      activeMonths: [],
+      summary: 'No se encontró sección F29/IVA en la Carpeta Tributaria.'
+    };
+  }
+
+  // Work only with the F29 section onwards to avoid false positives
+  const f29Section = text.substring(f29StartIdx);
+
+  // BUG-12 FIX: use getCurrentChileDate() for timezone-correct reference —
+  // the rest of the codebase uses this helper to avoid UTC/Chile offset issues.
+  const today = getCurrentChileDate();
+  const cutoff = new Date(today.getFullYear(), today.getMonth() - 24, 1);
+
+  // BUG-13 FIX: Spanish-only entries (PDF is in Spanish); removed dead English entries.
+  // 'may' (English for mayo) was also missing — kept only Spanish keys to avoid confusion.
+  const MONTH_NAMES: Record<string, number> = {
+    enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
+    julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
+  };
+
+  const activeMonths: string[] = [];
+
+  // Pattern 1: "Marzo 2024" / "marzo de 2024"
+  const p1 = /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = p1.exec(f29Section)) !== null) {
+    const month = MONTH_NAMES[m[1].toLowerCase()];
+    const year = parseInt(m[2], 10);
+    if (month !== undefined && !isNaN(year)) {
+      const d = new Date(year, month, 1);
+      if (d >= cutoff && d <= today) {
+        const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+        if (!activeMonths.includes(key)) activeMonths.push(key);
+      }
+    }
+  }
+
+  // Pattern 2: "03/2024" or "2024/03" — BUG-11 FIX: removed space from separator set
+  // to prevent false positives like "folio 03 2024" or "artículo 12 2023".
+  const p2 = /\b(\d{2})[/\-](\d{4})\b|\b(\d{4})[/\-](\d{2})\b/g;
+  while ((m = p2.exec(f29Section)) !== null) {
+    let month: number, year: number;
+    if (m[1] && m[2]) {
+      month = parseInt(m[1], 10) - 1;
+      year = parseInt(m[2], 10);
+    } else {
+      year = parseInt(m[3], 10);
+      month = parseInt(m[4], 10) - 1;
+    }
+    if (month >= 0 && month <= 11 && year >= 2000 && year <= today.getFullYear()) {
+      const d = new Date(year, month, 1);
+      if (d >= cutoff && d <= today) {
+        const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+        if (!activeMonths.includes(key)) activeMonths.push(key);
+      }
+    }
+  }
+
+  // Pattern 3: "2024-03" ISO style
+  const p3 = /\b(\d{4})-(\d{2})\b/g;
+  while ((m = p3.exec(f29Section)) !== null) {
+    const year = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10) - 1;
+    if (month >= 0 && month <= 11 && year >= 2000 && year <= today.getFullYear()) {
+      const d = new Date(year, month, 1);
+      if (d >= cutoff && d <= today) {
+        const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+        if (!activeMonths.includes(key)) activeMonths.push(key);
+      }
+    }
+  }
+
+  activeMonths.sort();
+  const hasActivity = activeMonths.length > 0;
+
+  const summary = hasActivity
+    ? `Primera categoría con ${activeMonths.length} período(s) F29 en los últimos 24 meses: ${activeMonths.join(', ')}.`
+    : 'Primera categoría sin actividad F29 en los últimos 24 meses.';
+
+  log(`📊 Resultado F29: ${summary}`);
+
+  return {
+    hasActivityLast24Months: hasActivity,
+    activeMonths,
+    summary
+  };
 }
