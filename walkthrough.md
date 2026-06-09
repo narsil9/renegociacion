@@ -337,3 +337,24 @@ Configuración: `HEADLESS=false`, `DRY_RUN=true`. Tiempo total: ~3.5 minutos.
 
 
 
+
+---
+
+## Sesión 2026-06-09 (tarde) — Dashboard de carga + pre-chequeo de RUT
+
+### Dashboard "Carga de Documentos" (`dashboard_rene/rp_renegociaciones`)
+Vista `/subir-caso` para que el abogado adjunte documentos a un cliente **ya existente** en Supabase (sin tocar datos personales).
+- **Upload verificado byte a byte**: POST multipart (CMF + 8 certificados) → SHA-256 **9/9 archivos idénticos** entre Supabase Storage y los originales locales, para Patricio (`21917363-6`) y Miled (`20285122-3`). 8 filas en `client_documents` (4 tipo-22 + 4 tipo-23), `informe_cmf_path`, `acreditacion_documentos_json`, job reencolado `dry_run`.
+- **El worker consume esos documentos**: descargó el CMF y los 8 certs desde Storage y el orquestador los auditó por nombre cruzando montos contra el CMF.
+- Fixes: `/api/acreedores` cap 50→1000 (cargan los 501 acreedores); FilePicker con botón claro ("Seleccionar archivo" → "Cambiar archivo" + nombre); errores de inserción ya no se silencian.
+
+### Bug de compilación del worker (corregido)
+`cognitive_orchestrator.ts:409` usaba `doc.downloadFailed` sin declararlo en la interfaz `ClientDocument` → el worker no compilaba. Campo agregado; `tsc --noEmit` limpio.
+
+### Pre-chequeo de RUT determinista (Mente Pensante)
+- Utils compartidos en `acreedor_matcher.ts`: `extractRutsFromText`, `findCatalogEntryByRut` (reusados por Paso 3 y el orquestador).
+- `computeRutCheck` en el orquestador: por cada certificado de texto compara el RUT del emisor contra el banco asignado por el abogado; si difieren marca `rutMismatch` y sugiere el banco correcto. Claude lo corrobora y emite `rut_mismatch`.
+- **Validado con cert real BCI** (RUT 97006000-6): asignar "Banco Santander" o "Banco Estado" → detecta mismatch y sugiere "Banco de Crédito e Inversiones"; asignar el banco correcto → sin falso positivo.
+
+### Validación de ClaveÚnica de Miled
+Login real reproducido → ClaveÚnica del portal devuelve **"Datos de acceso no válidos"**. No es error de ejecución: la clave `Miled12345` es inválida. Pendiente clave real.

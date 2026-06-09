@@ -10,6 +10,8 @@ import {
   normalizeText,
   AcreedorCatalogEntry,
   isValidRut,
+  extractRutsFromText,
+  findCatalogEntryByRut,
 } from '../utils/acreedor_matcher';
 import { extractTextFromPdf } from '../utils/pdf_analyzer';
 import * as fs from 'fs';
@@ -1130,28 +1132,8 @@ async function detectCreditorRutFromDoc(
 ): Promise<AcreedorCatalogEntry | null> {
   try {
     const text = await extractTextFromPdf(pdfPath);
-    const rutRegex = /\b\d{1,2}(?:\.?\d{3}){2}\s*-\s*[\dkK]\b|\b\d{7,8}\s*-\s*[\dkK]\b/gi;
-    const matches = text.match(rutRegex) || [];
-    
-    const clientRutNorm = clientRut ? normalizeRut(clientRut) : null;
-
-    for (const match of matches) {
-      const norm = normalizeRut(match);
-      if (!norm) continue;
-      
-      // Skip the client's RUT
-      if (clientRutNorm && norm === clientRutNorm) continue;
-
-      // Find in catalog
-      const entry = catalog.find((e) => {
-        const catRut = normalizeRut(e.rut);
-        return catRut === norm;
-      });
-
-      if (entry) {
-        return entry;
-      }
-    }
+    const ruts = extractRutsFromText(text);
+    return findCatalogEntryByRut(ruts, catalog, clientRut);
   } catch (err) {
     log(`   ⚠️ Error al intentar extraer RUT del certificado ${path.basename(pdfPath)}: ${(err as Error).message}`);
   }

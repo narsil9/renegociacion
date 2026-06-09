@@ -3,6 +3,14 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { extractTextFromPdf } from './pdf_analyzer';
 import { getCurrentChileDate, getDaysDifference } from './date_helper';
 import { analyzeCmfPdf } from './cmf_analyzer';
+import {
+  fetchAcreedoresCatalog,
+  matchAcreedor,
+  normalizeRut,
+  extractRutsFromText,
+  findCatalogEntryByRut,
+  AcreedorCatalogEntry,
+} from './acreedor_matcher';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -46,6 +54,182 @@ function extractDatesFromText(text: string): Date[] {
   return dates;
 }
 
+/**
+ * Extracts the most likely emission date from a Chilean financial/banking certificate.
+ *
+ * Documents vary widely by issuer (Banco Estado, BCI, Scotiabank, Ripley, CAE,
+ * cooperativas, etc.) so this function tries multiple patterns in priority order:
+ *
+ * HIGH confidence — explicitly labelled emission date:
+ *   • "Fecha de Emisión / Emision / Generación / Impresión / del Certificado: DD/MM/YYYY"
+ *   • "[Chilean city], [a] DD de [mes] de YYYY"   (e.g. "Santiago, 20 de mayo de 2026")
+ *   • "Emitido en [place], [a] DD de [mes] de YYYY"
+ *   • "Certificado emitido el DD/MM/YYYY"
+ *   • "A fecha de hoy, DD de [mes] de YYYY"
+ *
+ * MEDIUM confidence — generic unlabelled date near the top of the document:
+ *   • "Fecha: DD/MM/YYYY" (generic label)
+ *   • Any date found in the first 600 characters (header region)
+ *
+ * LOW confidence — last resort:
+ *   • Most recent date ≤ today and ≥ 2020 found anywhere in the document
+ *
+ * Background: certificates embed many older dates (credit grant date, first overdue
+ * payment, account-opening date, etc.). Using Math.min (earliest) or Math.max
+ * (latest) on all dates is unreliable — explicit label matching is always preferred.
+ */
+function extractEmissionDateFromText(
+  text: string,
+  todayDate: Date
+): { date: Date | null; confidence: 'high' | 'medium' | 'low' } {
+
+  const MONTHS = [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+  ];
+  const MONTHS_JOINED = MONTHS.join('|');
+  const lower = text.toLowerCase();
+
+  /** Parse and validate a candidate date; returns null if invalid or out of range. */
+  function buildDate(day: number, month0: number, year: number): Date | null {
+    const d = new Date(year, month0, day);
+    return (!isNaN(d.getTime()) && d <= todayDate && d.getFullYear() >= 2020) ? d : null;
+  }
+
+  /** Resolve a Spanish month name to 0-based index. */
+  function monthIdx(name: string): number {
+    return MONTHS.findIndex(m => name.toLowerCase().startsWith(m));
+  }
+
+  // ── TIER 1: HIGH CONFIDENCE ─────────────────────────────────────────────────
+
+  // Tier 1-A: Explicit emission/generation/print/certificate date labels with DD/MM/YYYY
+  // Covers: "Fecha de Emisión", "Fecha Emisión", "Fecha Emision", "Fecha de Generación",
+  //         "Fecha Generación", "Fecha de Impresión", "Fecha Impresión",
+  //         "Fecha del Certificado", "Fecha de certificado", "Fecha de vigencia"
+  const labeledNumericPatterns: RegExp[] = [
+    /fecha\s+de?\s*emisi[oó]n\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i,
+    /fecha\s+de?\s*generaci[oó]n\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i,
+    /fecha\s+de?\s*impresi[oó]n\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i,
+    /fecha\s+del?\s*certificado\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i,
+    /fecha\s+de?\s*vigencia\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i,
+    /certificado\s+emitido\s+el\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i,
+    /emitido\s+(?:el|con\s+fecha)\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i,
+    /generado\s+el\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i,
+    /impreso\s+el\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i,
+    /fecha\s+de?\s*consulta\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i,
+  ];
+  for (const re of labeledNumericPatterns) {
+    const m = lower.match(re);
+    if (m) {
+      const d = buildDate(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+      if (d) return { date: d, confidence: 'high' };
+    }
+  }
+
+  // Tier 1-A (ISO variant): same labels with YYYY-MM-DD
+  const labeledIsoPatterns: RegExp[] = [
+    /fecha\s+de?\s*emisi[oó]n\s*:?\s*(\d{4})[/\-.](\d{2})[/\-.](\d{2})/i,
+    /fecha\s+de?\s*generaci[oó]n\s*:?\s*(\d{4})[/\-.](\d{2})[/\-.](\d{2})/i,
+    /fecha\s+del?\s*certificado\s*:?\s*(\d{4})[/\-.](\d{2})[/\-.](\d{2})/i,
+    /emitido\s+(?:el|con\s+fecha)\s*:?\s*(\d{4})[/\-.](\d{2})[/\-.](\d{2})/i,
+  ];
+  for (const re of labeledIsoPatterns) {
+    const m = lower.match(re);
+    if (m) {
+      const d = buildDate(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+      if (d) return { date: d, confidence: 'high' };
+    }
+  }
+
+  // Tier 1-B: Explicit emission labels with Spanish month name
+  // "Fecha de Emisión: 20 de mayo de 2026"
+  const labeledSpanishPatterns: RegExp[] = [
+    new RegExp(`fecha\\s+de?\\s*emisi[oó]n\\s*:?\\s*(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`, 'i'),
+    new RegExp(`fecha\\s+del?\\s*certificado\\s*:?\\s*(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`, 'i'),
+    new RegExp(`certificado\\s+emitido\\s+el\\s*:?\\s*(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`, 'i'),
+    new RegExp(`emitido\\s+(?:el|con\\s+fecha)\\s*:?\\s*(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`, 'i'),
+    new RegExp(`a\\s+fecha\\s+de\\s+hoy[,\\s]+(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`, 'i'),
+  ];
+  for (const re of labeledSpanishPatterns) {
+    const m = lower.match(re);
+    if (m) {
+      const idx = monthIdx(m[2]);
+      if (idx >= 0) {
+        const d = buildDate(parseInt(m[1], 10), idx, parseInt(m[3], 10));
+        if (d) return { date: d, confidence: 'high' };
+      }
+    }
+  }
+
+  // Tier 1-C: City header — "[city], [a] DD de [mes] de YYYY"
+  // Covers Santiago and all major Chilean cities
+  const CITIES = [
+    'santiago', 'valparaíso', 'valparaiso', 'concepción', 'concepcion',
+    'viña del mar', 'vina del mar', 'antofagasta', 'temuco', 'talca',
+    'rancagua', 'iquique', 'la serena', 'puerto montt', 'arica',
+    'chillán', 'chillan', 'copiapó', 'copiapo', 'coquimbo',
+    'osorno', 'punta arenas', 'puerto varas', 'valdivia', 'curicó', 'curico',
+  ];
+  const cityAlt = CITIES.map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const cityRe = new RegExp(
+    `(?:${cityAlt})\\s*,\\s*(?:a\\s+)?(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`,
+    'i'
+  );
+  const mc = lower.match(cityRe);
+  if (mc) {
+    const idx = monthIdx(mc[2]);
+    if (idx >= 0) {
+      const d = buildDate(parseInt(mc[1], 10), idx, parseInt(mc[3], 10));
+      if (d) return { date: d, confidence: 'high' };
+    }
+  }
+
+  // Tier 1-D: "Emitido en [place], [a] DD de [mes] de YYYY"
+  const emitidoEnRe = new RegExp(
+    `emitido\\s+en\\s+[\\w\\s]+,\\s*(?:a\\s+)?(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`,
+    'i'
+  );
+  const me = lower.match(emitidoEnRe);
+  if (me) {
+    const idx = monthIdx(me[2]);
+    if (idx >= 0) {
+      const d = buildDate(parseInt(me[1], 10), idx, parseInt(me[3], 10));
+      if (d) return { date: d, confidence: 'high' };
+    }
+  }
+
+  // ── TIER 2: MEDIUM CONFIDENCE ───────────────────────────────────────────────
+
+  // Tier 2-A: "Fecha: DD/MM/YYYY" (generic, unlabelled as emission)
+  const fechaSimpleRe = /\bfecha\s*:?\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/i;
+  const mf = lower.match(fechaSimpleRe);
+  if (mf) {
+    const d = buildDate(parseInt(mf[1], 10), parseInt(mf[2], 10) - 1, parseInt(mf[3], 10));
+    if (d) return { date: d, confidence: 'medium' };
+  }
+
+  // Tier 2-B: Most recent date found in the first 600 chars (document header area)
+  const headerDates = extractDatesFromText(text.substring(0, 600))
+    .filter(d => d.getTime() <= todayDate.getTime() && d.getFullYear() >= 2020);
+  if (headerDates.length > 0) {
+    const newest = new Date(Math.max(...headerDates.map(d => d.getTime())));
+    return { date: newest, confidence: 'medium' };
+  }
+
+  // ── TIER 3: LOW CONFIDENCE ──────────────────────────────────────────────────
+
+  // Most recent date ≤ today and ≥ 2020 anywhere in the full document
+  const allDates = extractDatesFromText(text)
+    .filter(d => d.getTime() <= todayDate.getTime() && d.getFullYear() >= 2020);
+  if (allDates.length > 0) {
+    const newest = new Date(Math.max(...allDates.map(d => d.getTime())));
+    return { date: newest, confidence: 'low' };
+  }
+
+  return { date: null, confidence: 'low' };
+}
+
 export interface ClientDocument {
   id: string;
   client_id: string;
@@ -63,6 +247,8 @@ export interface ClientDocument {
   imageBase64?: string;
   /** MIME type for the image (image/jpeg | image/png | image/gif | image/webp) */
   imageMimeType?: string;
+  /** true when the file could not be downloaded from Supabase Storage */
+  downloadFailed?: boolean;
 }
 
 export interface ClientProfile {
@@ -225,13 +411,13 @@ export async function runCognitiveOrchestrator(
         if (error || !data) throw new Error(error?.message ?? 'blob vacío');
         fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer()));
       } catch (err: any) {
+        // BUG-03 FIX: Don't abort the entire function when one cert fails to download.
+        // Mark it as failed and continue with remaining documents.
         logError(`Error al descargar ${doc.filename}:`, err);
-        return {
-          status: 'error',
-          reason: `No se pudo descargar el certificado ${doc.filename} de almacenamiento.`,
-          documentMapping: [],
-          alerts: [{ type: 'other', message: `Fallo de almacenamiento al descargar ${doc.filename}.` }]
-        };
+        doc.textContent = `[Error de descarga: ${err.message}]`;
+        doc.isImageDoc = false;
+        doc.downloadFailed = true;
+        continue;
       }
     }
 
@@ -314,7 +500,20 @@ export async function runCognitiveOrchestrator(
 
   // 5. Execute Local TypeScript pre-analysis and validations
   log('Ejecutando análisis pre-calculado local en TypeScript...');
-  
+
+  // 5.0 Load the canonical creditor catalog once, for the deterministic RUT
+  // pre-check (cert issuer RUT vs the bank the lawyer assigned). Degrades
+  // gracefully: if it can't load, the RUT pre-check is skipped and Claude
+  // still verifies RUTs on its own.
+  let catalog: AcreedorCatalogEntry[] = [];
+  try {
+    catalog = await fetchAcreedoresCatalog(supabase);
+    log(`Catálogo cargado para verificación de RUT: ${catalog.length} acreedores.`);
+  } catch (err: any) {
+    logError('No se pudo cargar el catálogo para la verificación de RUT (se delega a Claude):', err);
+  }
+  const clientRutForCerts = client.rut ?? null;
+
   // 5a. Analyze CMF locally
   const cmfResult = await analyzeCmfPdf(cmfLocalPath, logger).catch(err => {
     logError('Error en análisis pre-calculado local de CMF:', err);
@@ -332,9 +531,77 @@ export async function runCognitiveOrchestrator(
     ageDays: number | null;
     antiguedadValida: boolean;
     checkTypeScript: string;
+    // Deterministic RUT pre-check (cert issuer RUT vs the bank assigned by the lawyer)
+    institucionAsignada: string | null;
+    rutEmisorDetectado: string | null;
+    bancoSegunRut: string | null;
+    rutMismatch: boolean;
+    rutCheckTypeScript: string;
   }
+
+  // Deterministic RUT pre-check for one certificate's text. Compares the RUTs
+  // found in the certificate against the catalog RUT of the bank the lawyer
+  // assigned (doc.institucion_cmf). Returns a structured finding for Claude to
+  // corroborate; never blocks on its own.
+  const computeRutCheck = (assignedInst: string | null, certText: string) => {
+    const result = { rutEmisorDetectado: null as string | null, bancoSegunRut: null as string | null, rutMismatch: false, rutCheckTypeScript: '' };
+    if (catalog.length === 0) {
+      result.rutCheckTypeScript = 'Catálogo no disponible: RUT no verificado por TypeScript (Claude debe verificar el RUT del emisor).';
+      return result;
+    }
+
+    const certRuts = extractRutsFromText(certText);
+    const assignedMatch = assignedInst ? matchAcreedor(assignedInst, catalog) : null;
+    // Solo confiamos en el banco asignado cuando el nombre resuelve a UN único
+    // acreedor del catálogo (status 'matched'); ambiguo/no_encontrado/texto libre
+    // NO habilitan un veredicto de mismatch (lo verifica Claude).
+    const assignedEntry = assignedMatch && assignedMatch.status === 'matched' ? assignedMatch.entry! : null;
+    const assignedRutNorm = assignedEntry ? normalizeRut(assignedEntry.rut) : null;
+
+    // Caso 1: el RUT del banco asignado SÍ aparece en el certificado → coincide,
+    // aunque el cert mencione además otros RUTs de catálogo (p.ej. procesadores de pago).
+    if (assignedRutNorm && certRuts.includes(assignedRutNorm)) {
+      result.rutEmisorDetectado = assignedRutNorm;
+      result.bancoSegunRut = assignedEntry!.nombre;
+      result.rutCheckTypeScript = `RUT coincide: el certificado contiene el RUT ${assignedRutNorm} de "${assignedEntry!.nombre}", el banco asignado.`;
+      return result;
+    }
+
+    // Primer banco de catálogo presente en el cert (referencial).
+    const detected = findCatalogEntryByRut(certRuts, catalog, clientRutForCerts);
+    if (detected) {
+      result.rutEmisorDetectado = normalizeRut(detected.rut);
+      result.bancoSegunRut = detected.nombre;
+    }
+
+    // Caso 2 (ALTA confianza → único caso que marca mismatch): el banco asignado
+    // se resolvió de forma unívoca, su RUT NO está en el certificado, y el cert
+    // apunta por RUT a OTRO banco del catálogo.
+    if (assignedRutNorm && detected && normalizeRut(detected.rut) !== assignedRutNorm) {
+      result.rutMismatch = true;
+      result.rutCheckTypeScript = `POSIBLE BANCO INCORRECTO: el certificado contiene el RUT ${result.rutEmisorDetectado} de "${detected.nombre}", y el RUT del banco asignado "${assignedInst}" (${assignedRutNorm}) NO aparece en el documento. Banco correcto probable según RUT: "${detected.nombre}".`;
+      return result;
+    }
+
+    // Caso 3: banco asignado resuelto pero no se pudo confirmar por RUT (su RUT no
+    // está y no hay otro RUT de catálogo) → sin veredicto; lo verifica Claude.
+    if (assignedRutNorm) {
+      result.rutCheckTypeScript = `No se detectó el RUT del banco asignado "${assignedInst}" (${assignedRutNorm}) ni otro RUT de catálogo en el texto. Claude debe verificar el RUT del emisor.`;
+      return result;
+    }
+
+    // Caso 4: el banco asignado NO resolvió a un único acreedor (ambiguo / no
+    // encontrado / texto libre) → NO se marca mismatch; solo se informa. Si el cert
+    // apunta por RUT a un banco, se sugiere como dato para que Claude lo verifique.
+    result.rutCheckTypeScript = detected
+      ? `Banco asignado "${assignedInst ?? 'N/D'}" no resuelto de forma unívoca en el catálogo; el certificado apunta por RUT a "${detected.nombre}" (${result.rutEmisorDetectado}). Claude debe verificar el RUT del emisor.`
+      : `Banco asignado "${assignedInst ?? 'N/D'}" no resuelto en el catálogo y sin RUT de catálogo detectado en el texto. Claude debe verificar el RUT del emisor.`;
+    return result;
+  };
+
   const certificateAnalyses: CertificateAnalysis[] = [];
   let algunCertificadoExpirado = false;
+  const rutMismatchesTS: Array<{ filename: string; asignado: string | null; bancoSegunRut: string | null; rutEmisorDetectado: string | null }> = [];
   
   for (const doc of documents) {
     if (doc.isImageDoc) {
@@ -348,25 +615,25 @@ export async function runCognitiveOrchestrator(
         mostLikelyDate: null,
         ageDays: null,
         antiguedadValida: false, // unknown — Claude must verify
-        checkTypeScript: 'IMAGEN: TypeScript no puede extraer fechas. Claude debe verificar antigüedad directamente en la imagen.'
+        checkTypeScript: 'IMAGEN: TypeScript no puede extraer fechas. Claude debe verificar antigüedad directamente en la imagen.',
+        institucionAsignada: doc.institucion_cmf,
+        rutEmisorDetectado: null,
+        bancoSegunRut: null,
+        rutMismatch: false,
+        rutCheckTypeScript: 'IMAGEN: TypeScript no puede leer el RUT. Claude debe verificar el RUT del emisor directamente en la imagen.'
       });
       // Do NOT set algunCertificadoExpirado here — Claude will determine validity
-      log(`🖼️ ${doc.filename}: análisis de fecha delegado a Claude (documento imagen).`);
+      log(`🖼️ ${doc.filename}: análisis de fecha y RUT delegado a Claude (documento imagen).`);
     } else {
       const dates = extractDatesFromText(doc.textContent || '');
       const formattedDates = dates.map(d => d.toISOString().split('T')[0]);
-      
-      // Filter valid dates <= Today and >= 2020
-      const validDates = dates.filter(d => d.getTime() <= todayDate.getTime() && d.getFullYear() >= 2020);
-      
-      // BUG-02 FIX: Use the EARLIEST valid date as the likely emission date.
-      // Certificates contain multiple dates (cut-off date, next payment, account opening, etc.).
-      // The emission date is almost always the oldest date on the document.
-      // Using Math.max (most recent) was incorrectly picking internal reference dates.
-      let mostLikelyDate: Date | null = null;
-      if (validDates.length > 0) {
-        mostLikelyDate = new Date(Math.min(...validDates.map(d => d.getTime())));
-      }
+
+      // Extract emission date using context-aware logic: looks for "Santiago, DD de [mes] de YYYY"
+      // or "Fecha de Emisión:" first (high confidence), then falls back to most recent valid date.
+      const { date: mostLikelyDate, confidence: dateConfidence } = extractEmissionDateFromText(
+        doc.textContent || '',
+        todayDate
+      );
       
       const mostLikelyStr = mostLikelyDate ? mostLikelyDate.toISOString().split('T')[0] : null;
       const ageDays = mostLikelyDate ? getDaysDifference(todayDate, mostLikelyDate) : null;
@@ -379,6 +646,17 @@ export async function runCognitiveOrchestrator(
         algunCertificadoExpirado = true;
       }
 
+      const rutCheck = computeRutCheck(doc.institucion_cmf, doc.textContent || '');
+      if (rutCheck.rutMismatch) {
+        rutMismatchesTS.push({
+          filename: doc.filename,
+          asignado: doc.institucion_cmf,
+          bancoSegunRut: rutCheck.bancoSegunRut,
+          rutEmisorDetectado: rutCheck.rutEmisorDetectado,
+        });
+        log(`🪪 ${doc.filename}: ${rutCheck.rutCheckTypeScript}`);
+      }
+
       certificateAnalyses.push({
         filename: doc.filename,
         document_type: doc.document_type,
@@ -388,7 +666,16 @@ export async function runCognitiveOrchestrator(
         mostLikelyDate: mostLikelyStr,
         ageDays,
         antiguedadValida: isValidAge,
-        checkTypeScript: isValidAge ? "Cumple (antigüedad <= 30 días)" : (ageDays !== null ? `No cumple (antigüedad de ${ageDays} días > 30)` : "No cumple (no se detectó fecha de emisión)")
+        checkTypeScript: isValidAge
+          ? `Cumple (antigüedad <= 30 días, extracción: ${dateConfidence})`
+          : (ageDays !== null
+              ? `No cumple (${ageDays} días > 30, extracción: ${dateConfidence})`
+              : 'No cumple (no se detectó fecha de emisión)'),
+        institucionAsignada: doc.institucion_cmf,
+        rutEmisorDetectado: rutCheck.rutEmisorDetectado,
+        bancoSegunRut: rutCheck.bancoSegunRut,
+        rutMismatch: rutCheck.rutMismatch,
+        rutCheckTypeScript: rutCheck.rutCheckTypeScript,
       });
     }
   }
@@ -466,7 +753,16 @@ export async function runCognitiveOrchestrator(
     creditors: classifiedCreditors,
     certificates: certificateAnalyses,
     todoDocumentoValidoTS,
-    checkGlobalTypeScript: todoDocumentoValidoTS ? "Todos los documentos cumplen con antigüedad <= 30 días" : "Existen documentos expirados o sin fecha válida"
+    checkGlobalTypeScript: todoDocumentoValidoTS ? "Todos los documentos cumplen con antigüedad <= 30 días" : "Existen documentos expirados o sin fecha válida",
+    rutCheck: {
+      verificado: catalog.length > 0,
+      posiblesBancosIncorrectos: rutMismatchesTS,
+      checkGlobalTypeScript: catalog.length === 0
+        ? "Catálogo no disponible: RUT no verificado por TypeScript (Claude debe verificar)."
+        : (rutMismatchesTS.length === 0
+            ? "Todos los certificados de texto coinciden por RUT con el banco asignado (o requieren verificación de Claude por ser imagen)."
+            : `${rutMismatchesTS.length} certificado(s) con posible banco incorrecto según RUT — Claude debe corroborar y, si confirma, emitir 'rut_mismatch'.`)
+    }
   };
 
   // 6. Construct the prompt for Claude with double-verification guidelines
@@ -519,6 +815,7 @@ REGLAS DE AUDITORÍA QUE DEBES CORROBORAR RIGUROSAMENTE:
 4. **Validación de RUT y Mapeo**:
    - Asocia cada certificado al acreedor del CMF (ej. "Banco Estado", "PRESTO LIDER", "De Credito e Inversiones").
    - Corrobora que el RUT de la institución emisora en el certificado coincida razonablemente con el acreedor.
+   - El análisis local de TypeScript ya hizo un PRE-CHEQUEO determinista de RUT por certificado (campo "rutCheckTypeScript" de cada certificado y el resumen "rutCheck" del payload). Cuando "rutMismatch" sea true, significa que el RUT que TypeScript encontró en el certificado pertenece a un banco DISTINTO ("bancoSegunRut") del que el abogado asignó ("institucionAsignada"). DEBES re-verificar esto leyendo el RUT del emisor en el documento: si confirmas que el RUT del certificado NO corresponde al banco asignado, establece "status" como "error" y emite una alerta "rut_mismatch" indicando el banco correcto según el RUT. Si TypeScript no pudo verificar (certificado imagen o catálogo no disponible), verifica el RUT tú mismo directamente en el documento.
 
 5. **Salida y Filenames**:
    - Los valores de "monto_file" y "vencimiento_file" DEBEN ser el campo "filename" EXACTO tal como aparece en el array de certificados entregado (sin modificar capitalización ni extensión). Si no hay certificado para un campo, usa null.

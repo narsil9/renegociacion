@@ -167,6 +167,32 @@ async function processJob(job: any): Promise<void> {
     let cmfLocalPath = '';
     let browserInstance: any = null;
     let mappedAcreditacionDocs: AcreditacionDoc[] = [];
+    // Si queda con motivo: el cliente califica pero los documentos del Paso 3 no
+    // cumplen → en el flujo completo (step:0) se omite SOLO el Paso 3 y se guardan 1, 2 y 4.
+    let skipStep3Reason: string | null = null;
+
+    // Limpieza best-effort del borrador del portal (login + cleanupDraft). Se usa
+    // cuando el caso es inválido de raíz (no califica) o cuando el Paso 3 individual falla.
+    const cleanupPortalDraftBestEffort = async () => {
+      try {
+        logger.log('⏳ Iniciando navegador y sesión para limpiar el borrador en el portal...');
+        const clave = (client.rut === '21917363-6' || client.airtable_id === 'recPatoPrueba')
+          ? (process.env.CLAVE_UNICA_PASSWORD || '')
+          : client.clave_unica_password;
+        if (clave) {
+          const { browser, page } = await launchBrowser();
+          browserInstance = browser;
+          await loginAndNavigateToStep1(page, client.clave_unica_rut, clave, logger, {
+            region: client.region, comuna: client.comuna, email: client.email, telefono: client.telefono,
+          });
+          await cleanupDraft(page, logger);
+        } else {
+          logger.log('⚠️ No se encontró ClaveÚnica en el perfil del cliente, omitiendo la limpieza automática.');
+        }
+      } catch (cleanupErr: any) {
+        logger.error(`⚠️ No se pudo realizar la autolimpieza en el portal: ${cleanupErr.message || cleanupErr}`);
+      }
+    };
 
     try {
       if (job.step === 3 || job.step === 0) {
@@ -201,64 +227,65 @@ async function processJob(job: any): Promise<void> {
         logger.log('🧠 Ejecutando orquestador cognitivo de IA (Claude Sonnet 4.5) para auditar documentos y fechas...');
         const orchResult = await runCognitiveOrchestrator(client, cmfLocalPath, supabase, logger);
 
-        let validationFailed = false;
-        let validationErrorDetail = '';
-
-        if (orchResult.status === 'error') {
-          validationFailed = true;
-          validationErrorDetail = orchResult.reason || 'Auditoría cognitiva fallida.';
-        } else if (!cmfResult.meets90DaysRequirement || !cmfResult.meetsAmountRequirement) {
-          validationFailed = true;
-          validationErrorDetail = `El cliente no cumple con los requisitos legales para la renegociación. Atraso 90+ días: ${cmfResult.meets90DaysRequirement ? 'Sí' : 'No'}. Monto 90+ días: $${(cmfResult.overdue90DaysTotal || 0).toLocaleString('es-CL')} (mínimo requerido: $${cmfResult.requiredAmountCLP.toLocaleString('es-CL')} / 80 UF).`;
-        }
-
         if (orchResult.status === 'success' && orchResult.mappedDocs) {
           mappedAcreditacionDocs = orchResult.mappedDocs;
         }
 
-        if (validationFailed) {
-          logger.error(`❌ Validación fallida: ${validationErrorDetail}`);
-          
-          // Trigger automatic cleanup of portal draft
-          try {
-            logger.log('⏳ Iniciando navegador y sesión para limpiar el borrador en el portal...');
-            let claveUnicaPassword = '';
-            if (client.rut === '21917363-6' || client.airtable_id === 'recPatoPrueba') {
-              claveUnicaPassword = process.env.CLAVE_UNICA_PASSWORD || '';
-            } else {
-              claveUnicaPassword = client.clave_unica_password;
-            }
-            if (claveUnicaPassword) {
-              const { browser, page } = await launchBrowser();
-              browserInstance = browser;
-              await loginAndNavigateToStep1(page, client.clave_unica_rut, claveUnicaPassword, logger, {
-                region: client.region,
-                comuna: client.comuna,
-                email: client.email,
-                telefono: client.telefono,
-              });
-              await cleanupDraft(page, logger);
-            } else {
-              logger.log('⚠️ No se encontró ClaveÚnica en el perfil del cliente, omitiendo la limpieza automática.');
-            }
-          } catch (cleanupErr: any) {
-            logger.error(`⚠️ No se pudo realizar la autolimpieza en el portal: ${cleanupErr.message || cleanupErr}`);
-          }
-
-          // Update job status to failed (no retries)
+        // --- Decisión de validación ---
+        // (A) ELEGIBILIDAD de fondo (atraso 90+ días y monto >= 80 UF): si NO califica,
+        //     el caso es inválido de raíz → se BLOQUEA TODO (no se guarda ningún paso).
+        const noCalifica = !cmfResult.meets90DaysRequirement || !cmfResult.meetsAmountRequirement;
+        if (noCalifica) {
+          const detalle = `El cliente no cumple con los requisitos legales para la renegociación. Atraso 90+ días: ${cmfResult.meets90DaysRequirement ? 'Sí' : 'No'}. Monto 90+ días: $${(cmfResult.overdue90DaysTotal || 0).toLocaleString('es-CL')} (mínimo requerido: $${cmfResult.requiredAmountCLP.toLocaleString('es-CL')} / 80 UF).`;
+          logger.error(`❌ No califica para renegociación: ${detalle}`);
+          await cleanupPortalDraftBestEffort();
           await supabase
             .from(JOBS_TABLE)
             .update({
               status: 'failed',
-              error_log: logger.getBufferText() + `\n\n❌ ERROR DE VALIDACIÓN: ${validationErrorDetail}`,
+              error_log: logger.getBufferText() + `\n\n❌ ERROR DE VALIDACIÓN (no califica): ${detalle}`,
               updated_at: new Date().toISOString(),
             })
             .eq('id', job.id);
-          
           return;
         }
 
-        logger.log('✓ El cliente cumple con los requisitos del Informe CMF (atraso >= 90 días y monto >= 80 UF). Continuando con automatización...');
+        // (B) El cliente SÍ califica, pero los DOCUMENTOS del Paso 3 no pasan la auditoría
+        //     (vencidos / incompletos / RUT). En el flujo completo (step:0) se OMITE solo el
+        //     Paso 3 y se guardan 1, 2 y 4. En un job de Paso 3 individual, el job falla.
+        if (orchResult.status === 'error') {
+          const motivo = orchResult.reason || 'Los documentos de acreditación del Paso 3 no cumplen los requisitos.';
+          if (job.step === 0) {
+            skipStep3Reason = motivo;
+            logger.log(`⏭️  Paso 3 será OMITIDO (se guardarán Pasos 1, 2 y 4): ${motivo}`);
+            try {
+              const { error: insertErr } = await supabase.from('automation_alerts').insert({
+                job_id: job.id,
+                client_id: String(client.id),
+                step: 3,
+                alert_type: 'blocked',
+                description: `Paso 3 omitido (documentos no cumplen requisitos): ${motivo}`,
+              });
+              if (insertErr) logger.error('⚠️ No se pudo registrar alerta de Paso 3 omitido:', insertErr.message);
+            } catch (alertErr: any) {
+              logger.error('⚠️ Excepción al registrar alerta de Paso 3 omitido:', alertErr?.message || alertErr);
+            }
+          } else {
+            logger.error(`❌ Documentos del Paso 3 inválidos: ${motivo}`);
+            await cleanupPortalDraftBestEffort();
+            await supabase
+              .from(JOBS_TABLE)
+              .update({
+                status: 'failed',
+                error_log: logger.getBufferText() + `\n\n❌ ERROR DE VALIDACIÓN (documentos Paso 3): ${motivo}`,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', job.id);
+            return;
+          }
+        } else {
+          logger.log('✓ El cliente cumple los requisitos y los documentos del Paso 3 son válidos. Continuando con automatización...');
+        }
       }
 
       if (job.step === 2 || job.step === 0) {
@@ -435,6 +462,39 @@ async function processJob(job: any): Promise<void> {
         logger.log('🕵️‍♂️ Analizando la Carpeta Tributaria para determinar la categoría tributaria...');
         const categoria = await analyzeTaxCategory(tributariaLocalPath, logger);
         
+        // BUG-14 / BUG-23 FIX: Run the same F29 check that step===2 does.
+        // Previously, step===0 computed `categoria` but never ran detectF29ActivityLast24Months.
+        if (categoria === 'primera') {
+          logger.log('🔍 [step=0] Contribuyente de Primera Categoría — verificando actividad F29 en los últimos 24 meses...');
+          const f29Result = await detectF29ActivityLast24Months(tributariaLocalPath, logger);
+
+          if (f29Result.hasActivityLast24Months) {
+            const alertDesc = `Paso 2 (all-steps) bloqueado: ${f29Result.summary}`;
+            logger.log(`🚫 ${alertDesc}`);
+
+            try {
+              const { error: insertErr } = await supabase.from('automation_alerts').insert({
+                job_id: job.id,
+                client_id: String(client.id),
+                step: 2,
+                alert_type: 'blocked',
+                description: alertDesc
+              });
+              if (insertErr) logger.error('⚠️ No se pudo registrar alerta en automation_alerts:', insertErr.message);
+            } catch (alertInsertErr: any) {
+              logger.error('⚠️ Excepción al insertar en automation_alerts:', alertInsertErr);
+            }
+
+            await supabase
+              .from(JOBS_TABLE)
+              .update({ status: 'blocked', error_message: alertDesc, updated_at: new Date().toISOString() })
+              .eq('id', job.id);
+
+            throw new BlockedError(alertDesc);
+          } else {
+            logger.log('✅ Sin actividad F29 en los últimos 24 meses. Continuando con all-steps.');
+          }
+        }
         const clientData: ClientData = {
           nacionalidad: client.nacionalidad,
           fecha_nacimiento: client.fecha_nacimiento || '01/01/1990',
@@ -459,7 +519,8 @@ async function processJob(job: any): Promise<void> {
           cmfLocalPath,
           supabase,
           mappedAcreditacionDocs,
-          logger
+          logger,
+          skipStep3Reason
         );
       }
 
@@ -600,31 +661,39 @@ async function processJob(job: any): Promise<void> {
   }
 
   if (!success) {
-    logger.error(`❌ Todos los ${maxAttempts} intentos fallaron. Marcando job como fallido.`);
+    // BUG-15 FIX: If the error was a BlockedError, the status was already
+    // set to 'blocked' inside the step logic. Do NOT overwrite it to 'failed'.
+    const isBlockedFinal = lastError instanceof BlockedError;
 
-    // Check if it was a validation error (ClaveÚnica or RUT invalid)
-    const isValidationError = lastError instanceof CredentialError;
-    if (isValidationError) {
-      const alertType = lastError.code;
-      const alertMessage = lastError.message;
+    if (isBlockedFinal) {
+      logger.log('🛑 Job terminó por BlockedError. El estado "blocked" ya fue guardado — no se sobreescribe a "failed".');
+    } else {
+      logger.error(`❌ Todos los ${maxAttempts} intentos fallaron. Marcando job como fallido.`);
 
-      logger.log(`🚨 Detectado error de credenciales. Actualizando "credential_error" a "${alertType}" para cliente ID: ${client.id}...`);
-      try {
-        await createAlert(client.id, alertType, alertMessage, CLIENTS_TABLE, logger);
-      } catch (alertErr: any) {
-        logger.error(`Error al actualizar error de credenciales: ${alertErr.message || alertErr}`);
+      // Check if it was a validation error (ClaveÚnica or RUT invalid)
+      const isValidationError = lastError instanceof CredentialError;
+      if (isValidationError) {
+        const alertType = lastError.code;
+        const alertMessage = lastError.message;
+
+        logger.log(`🚨 Detectado error de credenciales. Actualizando "credential_error" a "${alertType}" para cliente ID: ${client.id}...`);
+        try {
+          await createAlert(client.id, alertType, alertMessage, CLIENTS_TABLE, logger);
+        } catch (alertErr: any) {
+          logger.error(`Error al actualizar error de credenciales: ${alertErr.message || alertErr}`);
+        }
       }
-    }
 
-    await supabase
-      .from(JOBS_TABLE)
-      .update({
-        status: 'failed',
-        error_log: fullErrorLog,
-        screenshot_url: publicFailureUrl,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', job.id);
+      await supabase
+        .from(JOBS_TABLE)
+        .update({
+          status: 'failed',
+          error_log: fullErrorLog,
+          screenshot_url: publicFailureUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.id);
+    }
   }
 
   // Reset DRY_RUN

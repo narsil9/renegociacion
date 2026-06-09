@@ -23,7 +23,11 @@ export async function fillAllSteps(
   cmfLocalPath: string,
   supabase: SupabaseClient,
   acreditacionDocs: AcreditacionDoc[],
-  logger?: SimpleLogger
+  logger?: SimpleLogger,
+  // Si viene con motivo, se OMITE el Paso 3 (acreedores) pero se completan 1, 2 y 4.
+  // Se usa cuando el cliente SÍ califica pero los documentos de acreditación no cumplen
+  // los requisitos: se guarda lo correcto y no se guarda el Paso 3.
+  skipStep3Reason: string | null = null,
 ): Promise<void> {
   const log = (msg: string) => {
     if (logger) {
@@ -58,16 +62,23 @@ export async function fillAllSteps(
   log('✓ Paso 2 completado.');
 
   // --- PASO 3 ---
-  log('\n📝 === INICIANDO PASO 3 (Acreedores) ===');
-  const step3Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verAcreedores`;
-  if (!page.url().includes('verAcreedores')) {
-    log(`→ Navegando a Paso 3: ${step3Url}`);
-    await page.goto(step3Url, { waitUntil: 'domcontentloaded' });
+  if (skipStep3Reason) {
+    log('\n⏭️  === PASO 3 OMITIDO (Acreedores) ===');
+    log(`   Motivo: ${skipStep3Reason}`);
+    log('   El cliente califica, pero los documentos de acreditación no cumplen los requisitos.');
+    log('   Se guardan los Pasos 1, 2 y 4; el Paso 3 queda sin completar para revisión/corrección.');
   } else {
-    log('→ Ya redirigido a la página de Paso 3.');
+    log('\n📝 === INICIANDO PASO 3 (Acreedores) ===');
+    const step3Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verAcreedores`;
+    if (!page.url().includes('verAcreedores')) {
+      log(`→ Navegando a Paso 3: ${step3Url}`);
+      await page.goto(step3Url, { waitUntil: 'domcontentloaded' });
+    } else {
+      log('→ Ya redirigido a la página de Paso 3.');
+    }
+    await fillStep3(page, cmfLocalPath, supabase, logger, undefined, acreditacionDocs);
+    log('✓ Paso 3 completado.');
   }
-  await fillStep3(page, cmfLocalPath, supabase, logger, undefined, acreditacionDocs);
-  log('✓ Paso 3 completado.');
 
   // --- PASO 4 ---
   log('\n📝 === INICIANDO PASO 4 (Apoderado) ===');

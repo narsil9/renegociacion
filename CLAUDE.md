@@ -168,13 +168,31 @@ runCognitiveOrchestrator(client, cmfLocalPath, supabase, logger): Promise<Orches
 - **Regla 1 (30 días)**: CMF y certificados no pueden tener más de 30 días de antigüedad. Devuelve `expired_cmf` o `expired_certificate` si se violan.
 - **Regla 2 (Art 260/261)**: Deudas con morosidad ≥90 días requieren `monto` + `vencimiento`. Deudas al día solo requieren `monto`.
 - **Regla 3 (Mapeo)**: Asocia certificados a acreedores del CMF por nombre de institución.
-- **Regla 4 (RUT)**: Valida el RUT del emisor del certificado.
+- **Regla 4 (RUT)**: Valida el RUT del emisor del certificado. Devuelve `rut_mismatch` (bloqueante) si el RUT del certificado no corresponde al banco asignado.
+
+### Arquitectura de validación: TS determinista → Claude corrobora
+El orquestador corre **primero** un pre-análisis local en TypeScript (`localAnalysis`) que calcula determinísticamente: requisitos de sesión (90 días / 80 UF), antigüedad de CMF y de cada certificado de **texto**, presencia de monto+vencimiento por acreedor (`cumpleRequisitosAcreditacion`), y el **pre-chequeo de RUT** (`rutCheck` / `rutCheckTypeScript` por certificado). Ese reporte estructurado (lo correcto **y** lo incorrecto) se inyecta en el prompt y **Claude actúa como segunda línea de control**, corroborándolo contra el texto/imágenes y decidiendo `status` final.
+- Los documentos **imagen** (escaneados, 0 caracteres) NO pueden analizarse por TS → se marcan "Claude debe verificar" (fecha y RUT). No generan falsos positivos.
+- **Pre-chequeo de RUT determinista**: por cada certificado de texto, `computeRutCheck` extrae los RUTs (`extractRutsFromText`), busca el banco real en el catálogo (`findCatalogEntryByRut`) y lo compara con el banco que el abogado asignó (`institucion_cmf`). Si difieren, marca `rutMismatch: true` y sugiere el banco correcto; Claude lo corrobora y emite `rut_mismatch`. Resuelve el caso "el abogado asigna 'Banco Santander' pero el certificado es de 'Santander Consumer'".
+- **`extractRutsFromText` / `findCatalogEntryByRut`** viven en `acreedor_matcher.ts` (fuente única de verdad) y son reusados por `step3_acreedores.ts` (`detectCreditorRutFromDoc`).
+- **`BYPASS_DATE_CHECK=true`** (o `BYPASS_DATE_VALIDATION=true`): omite SOLO las alertas de antigüedad (`expired_cmf` / `expired_certificate`) para pruebas mecánicas. NUNCA omite alertas estructurales (`missing_document`, `rut_mismatch`, `amount_mismatch`).
 
 ### Configuración requerida en `.env`
 ```
 ANTHROPIC_API_KEY=sk-ant-api03-...
 ```
 **Nunca hardcodear ni commitear esta clave.**
+
+---
+
+## Dashboard — Carga de Documentos (repo `dashboard_rene/rp_renegociaciones`)
+
+Vista del abogado (`/subir-caso`, label "Carga de Documentos") para adjuntar documentos a un cliente **que ya existe** en Supabase con sus datos personales. **No** crea ni edita datos personales.
+- **`GET /api/subir-caso?rut=`**: confirma que el cliente existe y devuelve su nombre + `has_cmf`.
+- **`POST /api/subir-caso`** (multipart): requiere solo `rut`; **404** si el cliente no existe. Reemplaza los certificados anteriores, sube el CMF (opcional, conserva el existente si no se adjunta) y los certificados, llena `client_documents` (tipo 22=monto, 23=vencimiento), actualiza `acreditacion_documentos_json`, y reencola un job (`step: 1`, `dry_run: true`). Errores de inserción NO se silencian (limpia huérfanos y retorna error).
+- **`GET /api/acreedores`**: catálogo `acreedores_canonicos` (cap subido a 1000 para que carguen los ~501 activos).
+- El form tiene 3 áreas: **CMF**, **Certificados de Deuda (monto)**, **Certificados de Vencimiento**; cada certificado lleva su banco (selector con autocompletado). Selector de archivo con botón claro ("Seleccionar archivo" → "Cambiar archivo" + nombre del archivo).
+- El worker consume estos documentos: descarga el CMF vía `informe_cmf_path` y los certificados vía `client_documents`. Para un run completo 1→4 el cliente además necesita `carpeta_tributaria_path` y `carpeta_retenedores_path` (que el dashboard NO sube).
 
 ---
 
@@ -222,6 +240,11 @@ npm run build
 
 # Test Paso 3 directly (no job queue)
 npx ts-node -r dotenv/config src/utils/test_step3_direct.ts
+
+# 🧹 LIMPIEZA TOTAL del borrador en el portal (correr ANTES de re-testear el flujo real)
+# Borra archivos del Paso 2 y acreedores + CMF del Paso 3 de la solicitud. Login con ClaveÚnica.
+npx ts-node -r dotenv/config src/utils/limpieza_total.ts
+# Para otro cliente: CLAVE_UNICA_RUT=12345678-9 npx ts-node -r dotenv/config src/utils/limpieza_total.ts
 
 # Inspect the verAcreedores page for HTML IDs (run while portal session is active)
 npx ts-node -r dotenv/config src/utils/inspect_otros_acreedores.ts

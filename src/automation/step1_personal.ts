@@ -27,10 +27,19 @@ async function clearAndFill(page: Page, selector: string, value: string): Promis
  * so Bootstrap Select updates its display.
  */
 async function selectBootstrap(page: Page, selectId: string, value: string): Promise<void> {
+  // BUG-16 FIX: Use jQuery selectpicker API when available, falling back to native.
+  // The portal uses Bootstrap Select which replaces <select> with a custom widget.
   await page.locator(`#${selectId}`).selectOption(value);
   await page.evaluate((id) => {
+    const $ = (window as any).jQuery || (window as any).$;
     const el = document.getElementById(id) as HTMLSelectElement;
-    if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
+    if ($ && $(el).selectpicker) {
+      $(el).selectpicker('val', el.value);
+      $(el).selectpicker('refresh');
+      $(el).trigger('change');
+    } else if (el) {
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   }, selectId);
   await page.waitForTimeout(200);
 }
@@ -67,6 +76,16 @@ function validateClientData(client: ClientData): void {
   const missing = required.filter((k) => !client[k]);
   if (missing.length > 0) {
     throw new Error(`Faltan campos requeridos en los datos del cliente: ${missing.join(', ')}`);
+  }
+
+  // BUG-20 FIX: Validate regimen_patrimonial for married clients (estado_civil === '2')
+  if (client.estado_civil === '2' && !client.regimen_patrimonial) {
+    throw new Error('El cliente está casado/a (estado_civil=2) pero no tiene regimen_patrimonial definido en Supabase. El portal requiere este campo para clientes casados.');
+  }
+
+  // BUG-19 FIX: Warn explicitly when fecha_nacimiento was substituted with fallback
+  if (client.fecha_nacimiento === '01/01/1990') {
+    console.warn('⚠️ ADVERTENCIA: fecha_nacimiento tiene valor de fallback "01/01/1990". Es posible que el dato no exista en Supabase.');
   }
 }
 

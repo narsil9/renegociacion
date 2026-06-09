@@ -68,6 +68,52 @@ export function isValidRut(rut: string | null): boolean {
 }
 
 /**
+ * Matches Chilean RUTs in free text, with or without thousands separators.
+ * e.g. "97.006.000-6", "97006000-6", "6.434.569-9".
+ */
+const RUT_IN_TEXT_REGEX = /\b\d{1,2}(?:\.?\d{3}){2}\s*-\s*[\dkK]\b|\b\d{7,8}\s*-\s*[\dkK]\b/gi;
+
+/**
+ * Extracts every Chilean RUT found in a block of text, returned in the
+ * portal-friendly normalized form (no dots, single dash, uppercase K),
+ * de-duplicated and order-preserving. Single source of truth for RUT
+ * extraction shared by Step 3 and the Cognitive Orchestrator.
+ */
+export function extractRutsFromText(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(RUT_IN_TEXT_REGEX) || [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of matches) {
+    const norm = normalizeRut(m);
+    if (norm && !seen.has(norm)) {
+      seen.add(norm);
+      out.push(norm);
+    }
+  }
+  return out;
+}
+
+/**
+ * Given a list of RUTs (e.g. extracted from a certificate) and the canonical
+ * catalog, returns the first catalog entry whose RUT matches one of them,
+ * skipping the client's own RUT. Returns null when none match.
+ */
+export function findCatalogEntryByRut(
+  ruts: string[],
+  catalog: AcreedorCatalogEntry[],
+  clientRut?: string | null
+): AcreedorCatalogEntry | null {
+  const clientRutNorm = clientRut ? normalizeRut(clientRut) : null;
+  for (const rut of ruts) {
+    if (clientRutNorm && rut === clientRutNorm) continue;
+    const entry = catalog.find((e) => normalizeRut(e.rut) === rut);
+    if (entry) return entry;
+  }
+  return null;
+}
+
+/**
  * Map of comuna (normalized) -> portal Región <select> option value.
  * Covers every comuna currently present in `acreedores_canonicos`.
  */

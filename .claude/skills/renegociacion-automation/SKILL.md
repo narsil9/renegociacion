@@ -68,11 +68,16 @@ The portal only enables "Subir Documento" links once ALL creditors are in the ta
 ```
 For each creditor from CMF:
   1. If an acreditación doc exists → scan its PDF for RUTs → match against catalog by RUT
-     (skips client's own RUT, uses isValidRut() guard)
+     (skips client's own RUT, uses isValidRut() guard) → OVERRIDES name match
   2. Fallback → matchAcreedor(name, catalog) → fuzzy name match with ALIASES
   3. If not_found or ambiguous → skip + add to report.skipped
 ```
 Alias map in `acreedor_matcher.ts`: `'presto lider'` → `'tarjeta lider'`, `'bci'` → `'banco de credito e inversiones'`, etc.
+
+**RUT-from-text utilities (single source of truth, `acreedor_matcher.ts`)**:
+- `extractRutsFromText(text)` → normalized RUTs found in a document's text.
+- `findCatalogEntryByRut(ruts, catalog, clientRut?)` → catalog entry whose RUT matches, skipping the client's RUT.
+Used by both `step3_acreedores.ts` (`detectCreditorRutFromDoc`) and the Cognitive Orchestrator's deterministic RUT pre-check. The RUT in the certificate is authoritative — it overrides whatever bank name was assigned.
 
 ### Modal Fields Reference (`#modalEmpresa`)
 ```
@@ -132,7 +137,12 @@ const result = await runCognitiveOrchestrator(client, cmfLocalPath, supabase, lo
 1. **30 días** — CMF y certificados vencen en 30 días desde hoy (Chile). Alerta: `expired_cmf` / `expired_certificate`.
 2. **Art 260 vs 261** — morosidad ≥90 días requiere monto+vencimiento; deuda al día solo requiere monto.
 3. **Mapeo por nombre** — asocia archivos a acreedores del CMF (fuzzy, normalizado).
-4. **Validación RUT** — verifica RUT del emisor del certificado.
+4. **Validación RUT** — verifica RUT del emisor del certificado. Alerta bloqueante `rut_mismatch` si no corresponde al banco asignado.
+
+### Patrón TS-determinista → Claude-corrobora
+El orquestador arma un `localAnalysis` (pre-cálculo TS) y se lo pasa a Claude, que es la **segunda línea de control**. El TS calcula determinísticamente: requisitos 90d/80UF, antigüedad (CMF + certs de texto), presencia monto+vencimiento por acreedor (`cumpleRequisitosAcreditacion`) y el **pre-chequeo de RUT** por certificado (`computeRutCheck` → `rutCheckTypeScript`, `rutMismatch`, `bancoSegunRut`).
+- Certificados **imagen**: TS no puede leer fecha/RUT → marcados "Claude debe verificar". Sin falsos positivos.
+- **`BYPASS_DATE_CHECK=true`** omite SOLO alertas de antigüedad; estructurales (`missing_document`, `rut_mismatch`, `amount_mismatch`) siempre bloquean. Útil para pruebas mecánicas con fixtures vencidos.
 
 ---
 

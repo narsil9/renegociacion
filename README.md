@@ -17,7 +17,7 @@ El sistema consta de tres componentes principales:
 └──────────────────┘      └──────────────────┘      └──────────────────┘
 ```
 
-1. **Dashboard Web (Next.js/React)**: El panel donde el abogado selecciona al cliente, activa la automatización de un paso específico, revisa capturas de pantalla de la ejecución y obtiene un enlace autenticado.
+1. **Dashboard Web (Next.js/React)**: El panel donde el abogado selecciona al cliente, activa la automatización de un paso específico, revisa capturas de pantalla de la ejecución y obtiene un enlace autenticado. Incluye la vista **"Carga de Documentos"** (`/subir-caso`) para adjuntar el CMF y los certificados de deuda/vencimiento de un cliente existente; los archivos se suben a Supabase Storage y `client_documents`, que el worker consume en el Paso 3.
 2. **Base de Datos y Almacenamiento (Supabase)**: Guarda los datos de entrada del cliente, las capturas de pantalla de la automatización y las **cookies de sesión** extraídas por el bot.
 3. **Servidor de Automatización (Mac Mini)**: Ejecuta Playwright para rellenar los datos de manera rápida, simular interacciones complejas, tomar capturas del portal y exportar las cookies.
 
