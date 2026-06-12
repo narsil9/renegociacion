@@ -249,7 +249,7 @@ npm run worker
 npm run build
 
 # Test Paso 3 hardcodeado (sin job queue ni créditos de API) — caso Claudia Silva
-BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config src/utils/test_step3_claudia.ts
+BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/claudia_silva/test_step3.ts
 
 # 🧹 LIMPIEZA TOTAL del borrador en el portal (correr ANTES de re-testear el flujo real)
 # Borra archivos del Paso 2 y acreedores + CMF del Paso 3 de la solicitud. Login con ClaveÚnica.

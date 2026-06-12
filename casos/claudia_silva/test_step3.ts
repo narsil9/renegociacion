@@ -5,7 +5,7 @@
  * descarga los PDFs reales de Supabase Storage y ejecuta el Playwright real del Paso 3.
  *
  * Uso:
- *   npx ts-node -r dotenv/config src/utils/test_step3_claudia.ts
+ *   npx ts-node -r dotenv/config casos/claudia_silva/test_step3.ts
  *
  * Variables de entorno requeridas:
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY  (sandbox)
@@ -20,10 +20,10 @@ dotenv.config();
 import * as fs from 'fs';
 import * as path from 'path';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { launchBrowser } from './browser';
-import { loginAndNavigateToStep1 } from '../automation/login';
-import { fillStep3, AcreditacionDoc } from '../automation/step3_acreedores';
-import { ReclassifiedCreditor } from './sentinel';
+import { launchBrowser } from '../../src/utils/browser';
+import { loginAndNavigateToStep1 } from '../../src/automation/login';
+import { fillStep3, AcreditacionDoc } from '../../src/automation/step3_acreedores';
+import { ReclassifiedCreditor } from '../../src/utils/sentinel';
 
 // ─── Cliente de prueba ────────────────────────────────────────────────────────
 
