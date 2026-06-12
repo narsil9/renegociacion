@@ -7,6 +7,7 @@ import {
   fetchAcreedoresCatalog,
   matchAcreedor,
   normalizeRut,
+  normalizeText,
   extractRutsFromText,
   findCatalogEntryByRut,
   AcreedorCatalogEntry,
@@ -14,7 +15,7 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 
-function extractDatesFromText(text: string): Date[] {
+export function extractDatesFromText(text: string): Date[] {
   const dates: Date[] = [];
   const lower = text.toLowerCase();
   
@@ -78,7 +79,7 @@ function extractDatesFromText(text: string): Date[] {
  * payment, account-opening date, etc.). Using Math.min (earliest) or Math.max
  * (latest) on all dates is unreliable — explicit label matching is always preferred.
  */
-function extractEmissionDateFromText(
+export function extractEmissionDateFromText(
   text: string,
   todayDate: Date
 ): { date: Date | null; confidence: 'high' | 'medium' | 'low' } {
@@ -273,12 +274,68 @@ export interface CognitiveAlert {
 
 import { AcreditacionDoc } from '../automation/step3_acreedores';
 
+// Local mirrors of sentinel interfaces — avoid circular import (sentinel → cognitive_orchestrator)
+interface SentinelReclassifiedCreditor {
+  institucion_cmf: string;
+  bank: string;
+  product_type: string;
+  delinquency_days: number;
+  total_credito_clp: number;
+  reason: string;
+  document_filename: string;
+}
+interface SentinelIdentified261Creditor {
+  bank: string;
+  product_type: string;
+  institucion_cmf: string;
+  total_credito_clp: number;
+  reason: string;
+  document_filename: string;
+}
+
 export interface OrchestrationResult {
   status: 'success' | 'error';
   reason?: string;
   documentMapping: CognitiveCreditorMapping[];
   alerts: CognitiveAlert[];
   mappedDocs?: AcreditacionDoc[];
+  technicalError?: boolean;
+}
+
+function extractJsonCandidate(contentText: string): string {
+  const jsonMatch = contentText.match(/<json>([\s\S]*?)<\/json>/i) || contentText.match(/```json([\s\S]*?)```/i);
+  const raw = jsonMatch ? jsonMatch[1].trim() : contentText.trim();
+  const firstBrace = raw.indexOf('{');
+  const lastBrace = raw.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return raw.substring(firstBrace, lastBrace + 1);
+  }
+  return raw;
+}
+
+function repairJsonCandidate(json: string): string {
+  return json
+    .replace(/^\uFEFF/, '')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/}\s*{/g, '},{')
+    .replace(/]\s*"/g, '],"')
+    .replace(/"\s*\n\s*"/g, '",\n"');
+}
+
+function parseOrchestrationJson(contentText: string): OrchestrationResult {
+  const candidate = extractJsonCandidate(contentText);
+  try {
+    return JSON.parse(candidate) as OrchestrationResult;
+  } catch (firstErr) {
+    const repaired = repairJsonCandidate(candidate);
+    try {
+      return JSON.parse(repaired) as OrchestrationResult;
+    } catch {
+      throw firstErr;
+    }
+  }
 }
 
 interface SimpleLogger {
@@ -298,7 +355,9 @@ export async function runCognitiveOrchestrator(
   client: ClientProfile,
   cmfLocalPath: string,
   supabase: SupabaseClient,
-  logger: SimpleLogger
+  logger: SimpleLogger,
+  sentinelReclassified?: SentinelReclassifiedCreditor[],
+  sentinelIdentified261?: SentinelIdentified261Creditor[]
 ): Promise<OrchestrationResult> {
   const log = (msg: string) => logger.log(`🧠 [Mente Pensante] ${msg}`);
   const logError = (msg: string, err?: any) => logger.error(`🧠 [Mente Pensante] ${msg}`, err);
@@ -551,6 +610,7 @@ export async function runCognitiveOrchestrator(
     }
 
     const certRuts = extractRutsFromText(certText);
+    const certNorm = normalizeText(certText);
     const assignedMatch = assignedInst ? matchAcreedor(assignedInst, catalog) : null;
     // Solo confiamos en el banco asignado cuando el nombre resuelve a UN único
     // acreedor del catálogo (status 'matched'); ambiguo/no_encontrado/texto libre
@@ -580,6 +640,32 @@ export async function runCognitiveOrchestrator(
     if (assignedRutNorm && detected && normalizeRut(detected.rut) !== assignedRutNorm) {
       result.rutMismatch = true;
       result.rutCheckTypeScript = `POSIBLE BANCO INCORRECTO: el certificado contiene el RUT ${result.rutEmisorDetectado} de "${detected.nombre}", y el RUT del banco asignado "${assignedInst}" (${assignedRutNorm}) NO aparece en el documento. Banco correcto probable según RUT: "${detected.nombre}".`;
+      return result;
+    }
+
+    // Caso 2b: no hay RUT de catálogo, pero el texto del certificado menciona
+    // explícitamente otro acreedor canónico distinto del asignado. Esto cubre
+    // certificados que omiten RUT, como Santander Consumer Finance Limitada.
+    const significantTokens = (value: string): string[] =>
+      normalizeText(value)
+        .split(/\s+/)
+        .filter((token) => token.length >= 4 && !['banco', 'chile', 'limitada', 'sociedad', 'anonima', 'financiera'].includes(token));
+
+    const issuerByName = catalog
+      .filter((entry) => {
+        if (!entry.nombre || assignedEntry?.id === entry.id) return false;
+        const entryNorm = normalizeText(entry.nombre_normalizado || entry.nombre);
+        if (entryNorm.length >= 10 && certNorm.includes(entryNorm)) return true;
+
+        const tokens = significantTokens(entry.nombre_normalizado || entry.nombre);
+        return tokens.length >= 2 && tokens.every((token) => certNorm.includes(token));
+      })
+      .sort((a, b) => normalizeText(b.nombre_normalizado || b.nombre).length - normalizeText(a.nombre_normalizado || a.nombre).length)[0];
+
+    if (assignedRutNorm && issuerByName) {
+      result.bancoSegunRut = issuerByName.nombre;
+      result.rutMismatch = true;
+      result.rutCheckTypeScript = `POSIBLE BANCO INCORRECTO POR NOMBRE: no se detectó RUT de catálogo, pero el certificado menciona explícitamente "${issuerByName.nombre}" y fue asignado a "${assignedInst}". Claude debe corroborar si el emisor real del documento corresponde a "${issuerByName.nombre}" y no al banco asignado.`;
       return result;
     }
 
@@ -638,10 +724,12 @@ export async function runCognitiveOrchestrator(
       const mostLikelyStr = mostLikelyDate ? mostLikelyDate.toISOString().split('T')[0] : null;
       const ageDays = mostLikelyDate ? getDaysDifference(todayDate, mostLikelyDate) : null;
       
-      // An age is valid only if it's <= 30 days and not null
-      const isValidAge = ageDays !== null && ageDays <= 30;
+      // Estados de cuenta are permanently exempt from the 30-day rule.
+      const isEstadoCuenta = doc.acreditacion_tipo === 'estado_cuenta';
+      // An age is valid if <= 30 days, OR if the document is an estado de cuenta (exempt).
+      const isValidAge = isEstadoCuenta || (ageDays !== null && ageDays <= 30);
       const isExpiredLocal = !isValidAge;
-      
+
       if (isExpiredLocal) {
         algunCertificadoExpirado = true;
       }
@@ -666,11 +754,13 @@ export async function runCognitiveOrchestrator(
         mostLikelyDate: mostLikelyStr,
         ageDays,
         antiguedadValida: isValidAge,
-        checkTypeScript: isValidAge
-          ? `Cumple (antigüedad <= 30 días, extracción: ${dateConfidence})`
-          : (ageDays !== null
-              ? `No cumple (${ageDays} días > 30, extracción: ${dateConfidence})`
-              : 'No cumple (no se detectó fecha de emisión)'),
+        checkTypeScript: isEstadoCuenta
+          ? `Exento de límite 30 días (estado de cuenta — puede tener cualquier antigüedad)`
+          : (isValidAge
+              ? `Cumple (antigüedad <= 30 días, extracción: ${dateConfidence})`
+              : (ageDays !== null
+                  ? `No cumple (${ageDays} días > 30, extracción: ${dateConfidence})`
+                  : 'No cumple (no se detectó fecha de emisión)')),
         institucionAsignada: doc.institucion_cmf,
         rutEmisorDetectado: rutCheck.rutEmisorDetectado,
         bancoSegunRut: rutCheck.bancoSegunRut,
@@ -681,10 +771,12 @@ export async function runCognitiveOrchestrator(
   }
 
   // 5c. Renegotiation requirements check
-  const totalOverdue90Days = cmfResult ? cmfResult.overdue90DaysTotal : 0;
-  const existenciaDeudasMorosas90Dias = totalOverdue90Days > 0;
-  const sumaObligaciones90DiasMayor80UF = totalOverdue90Days >= 3253000;
-  const cumpleRequisitosSesion = existenciaDeudasMorosas90Dias && sumaObligaciones90DiasMayor80UF;
+  // The 90-day requirement IS blocking (no creditors with 90+d mora → cannot proceed).
+  // The 80 UF threshold is informational ONLY — must never produce status: "error".
+  const totalCreditoOf90Plus = cmfResult ? cmfResult.totalCreditoOf90PlusCreditors : 0;
+  const qualifying90PlusCount = cmfResult ? cmfResult.qualifying90PlusCount : 0;
+  const cumpleRequisito90Dias = cmfResult ? cmfResult.meets90DaysRequirement : false;
+  const sumaObligaciones90DiasMayor80UF = totalCreditoOf90Plus >= 3253000;
 
   // 5d. CMF validation
   const cmfFechaEmision = cmfResult ? cmfResult.fechaEmision : null;
@@ -693,9 +785,18 @@ export async function runCognitiveOrchestrator(
 
   const todoDocumentoValidoTS = cmfAntiguedadValida && !algunCertificadoExpirado;
 
-  // 5e. Classify creditors
+  // 5e. Classify creditors (sentinel enrichment overrides CMF when available)
   const classifiedCreditors = cmfResult ? cmfResult.classifiedCreditors.map(c => {
-    const is260 = c.overdue90Days > 0;
+    const cmfIs260 = c.overdue90Days > 0;
+
+    // Sentinel override: if sentinel reclassified this creditor to Art. 260
+    const normInstC = c.institucion.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const sentinelRec = (sentinelReclassified || []).find(r => {
+      const normR = r.institucion_cmf.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return normR === normInstC || normR.includes(normInstC) || normInstC.includes(normR);
+    });
+
+    const is260 = cmfIs260 || !!sentinelRec;
     // BUG-07 FIX: cleanTipoCredito() in cmf_analyzer returns 'Tarjeta de crédito' and 'Línea de crédito'
     // as normalized values. The previous check used string literals that never matched.
     const isRevolvingCredit = c.tipoCredito === 'Tarjeta de crédito' || c.tipoCredito === 'Línea de crédito';
@@ -736,12 +837,28 @@ export async function runCognitiveOrchestrator(
   // 5f. Final local analysis payload package
   const localAnalysis = {
     todayReference: todayStr,
+    sentinelEnrichment: {
+      enabled: !!(
+        (sentinelReclassified && sentinelReclassified.length > 0) ||
+        (sentinelIdentified261 && sentinelIdentified261.length > 0)
+      ),
+      reclassifiedTo260: sentinelReclassified || [],
+      identified261: sentinelIdentified261 || [],
+      nota: 'Datos del Centinela (API Key #1). Tienen PRIORIDAD sobre la clasificación CMF para los acreedores mencionados. Úsalos para ajustar el documentMapping.'
+    },
     requisitosSesion: {
-      existenciaDeudasMorosas90Dias,
-      sumaObligaciones90Dias: totalOverdue90Days,
-      sumaObligaciones90DiasMayor80UF,
-      cumpleRequisitosSesion,
-      resultadoCheckTS: cumpleRequisitosSesion ? "CUMPLE REQUISITOS PARA NUEVA SESIÓN" : "NO CUMPLE REQUISITOS (Debe tener deudas morosas >= 90 días y suma de ellas >= 80 UF / $3.253.000)"
+      qualifying90PlusCount,
+      cumpleRequisito90Dias,
+      resultadoCheck90Dias: cumpleRequisito90Dias
+        ? `CUMPLE REQUISITO DE MORA (se detectaron ${qualifying90PlusCount} productos con mora de 90+ días, cumple el mínimo de 2)`
+        : `NO CUMPLE REQUISITO DE MORA (se detectaron ${qualifying90PlusCount} productos con mora de 90+ días, se requieren al menos 2) — esto SÍ puede impedir la sesión`,
+      alerta80UF: {
+        sumaTotalCreditoAcreedores90Dias: totalCreditoOf90Plus,
+        supera80UF: sumaObligaciones90DiasMayor80UF,
+        nota: sumaObligaciones90DiasMayor80UF
+          ? "Suma del total del crédito de acreedores con 90+d supera 80 UF — sin alerta"
+          : "Suma del total del crédito de acreedores con 90+d NO supera 80 UF — SOLO ALERTA INFORMATIVA. Esta condición NO debe cambiar 'status' a 'error' ni bloquear el Paso 3."
+      }
     },
     cmf: cmfResult ? {
       filename: path.basename(cmfLocalPath),
@@ -797,27 +914,40 @@ Tu misión es actuar como la SEGUNDA LÍNEA DE CONTROL (mente pensante), corrobo
 
 REGLAS DE AUDITORÍA QUE DEBES CORROBORAR RIGUROSAMENTE:
 1. **Doble Verificación de Antigüedad (Límite de 30 días)**:
-   - Debes re-verificar en el texto de los documentos (CMF y certificados) que NINGUNO tenga más de 30 días de antigüedad con respecto a Hoy (${todayStr}).
-   - Si la antigüedad de algún documento supera los 30 días, debes establecer obligatoriamente el campo 'status' como 'error', detallar el problema en 'reason' y emitir la alerta 'expired_cmf' o 'expired_certificate'.
+   - Debes re-verificar en el texto de los documentos (CMF y certificados de acreditación) que NINGUNO tenga más de 30 días de antigüedad con respecto a Hoy (${todayStr}).
+   - **EXCEPCIÓN — Estados de cuenta** (acreditacion_tipo: "estado_cuenta"): Los estados de cuenta están EXENTOS del límite de 30 días. Pueden tener cualquier antigüedad sin importar cuándo fueron emitidos. NO debes generar alerta de expiración para documentos de este tipo.
+   - Si la antigüedad de un documento NO exento supera los 30 días, debes establecer obligatoriamente el campo 'status' como 'error', detallar el problema en 'reason' y emitir la alerta 'expired_cmf' o 'expired_certificate'.
 
 2. **Doble Verificación de Deudas Art. 260**:
-   - Para las deudas clasificadas como Artículo 260 (morosidad >= 90 días en CMF): Corrobora en el CMF que realmente tengan mora mayor a 90 días.
+   - Para las deudas clasificadas como Artículo 260 (morosidad >= 91 días / mayor a 90 días en CMF): Corrobora en el CMF que realmente tengan mora de 91 días o más.
    - Identifica y asocia los nombres de archivo de los certificados correspondientes con los que se debe acreditar tanto Monto como Vencimiento.
-   - Re-verifica rigurosamente que las fechas de emisión de estos certificados no superen los 30 días respecto a Hoy (${todayStr}).
+   - Re-verifica rigurosamente que las fechas de emisión de estos certificados no superen los 30 días respecto a Hoy (${todayStr}). Recuerda: si el certificado tiene acreditacion_tipo "estado_cuenta", está exento de este límite.
 
 3. **Doble Verificación de Deudas Art. 261 (Clasificados como 12 y 1)**:
-   - Para las deudas clasificadas como Artículo 261 (morosidad < 90 días o al día en CMF):
+   - Para las deudas clasificadas como Artículo 261 (morosidad < 91 días o al día en CMF):
      - Reconoce si corresponden a créditos 12 (créditos ordinarios, consumo, comercial, etc.) o créditos 1 (tarjetas y líneas de crédito).
      - Corrobora que para estos solo se requiere acreditar Monto.
      - Identifica el archivo de certificado de monto correspondiente.
-     - Re-verifica que la fecha de emisión del certificado de monto no sea mayor a 30 días con respecto a Hoy (${todayStr}).
+     - Re-verifica que la fecha de emisión del certificado de monto no sea mayor a 30 días con respecto a Hoy (${todayStr}). Recuerda: si es acreditacion_tipo "estado_cuenta", está exento de este límite.
 
 4. **Validación de RUT y Mapeo**:
    - Asocia cada certificado al acreedor del CMF (ej. "Banco Estado", "PRESTO LIDER", "De Credito e Inversiones").
    - Corrobora que el RUT de la institución emisora en el certificado coincida razonablemente con el acreedor.
    - El análisis local de TypeScript ya hizo un PRE-CHEQUEO determinista de RUT por certificado (campo "rutCheckTypeScript" de cada certificado y el resumen "rutCheck" del payload). Cuando "rutMismatch" sea true, significa que el RUT que TypeScript encontró en el certificado pertenece a un banco DISTINTO ("bancoSegunRut") del que el abogado asignó ("institucionAsignada"). DEBES re-verificar esto leyendo el RUT del emisor en el documento: si confirmas que el RUT del certificado NO corresponde al banco asignado, establece "status" como "error" y emite una alerta "rut_mismatch" indicando el banco correcto según el RUT. Si TypeScript no pudo verificar (certificado imagen o catálogo no disponible), verifica el RUT tú mismo directamente en el documento.
 
-5. **Salida y Filenames**:
+5. **Datos del Centinela (si "sentinelEnrichment.enabled" es true)**:
+   Cuando el análisis TypeScript incluye datos del Centinela (API Key #1), úsalos como fuente autoritativa de clasificación:
+   - Acreedores en "reclassifiedTo260": tienen mora real ≥91d según documentos (aunque CMF muestre $0) → Art. 260 → mapea monto Y vencimiento en "documentMapping".
+   - Acreedores en "identified261": están al día o con mora <91d → Art. 261 → mapea solo monto en "documentMapping".
+   - Si un acreedor del Centinela no aparece en el CMF, inclúyelo igual en "documentMapping" usando el nombre "institucion_cmf" del Centinela.
+   - Estos datos tienen PRIORIDAD sobre la clasificación CMF cuando haya discrepancia.
+
+6. **Regla de 80 UF y Multiproducto — NO es bloqueante para la auditoría de documentos (Auditor Técnico)**:
+   - El campo "alerta80UF" y "cumpleRequisito90Dias" del análisis TypeScript son informativos para ti (aunque sí son evaluados por el orquestador general).
+   - "cumpleRequisito90Dias" indica si el cliente tiene al menos 2 productos en mora >= 91 días en el CMF.
+   - Si no se cumplen los 80 UF o el mínimo de 2 productos con mora >= 91 días, debes incluir una alerta de tipo "other" con el detalle, pero NUNCA establecer "status" como "error" por esta razón. La auditoría de documentos se enfoca en verificar que los archivos de acreditación provistos sean correctos y vigentes.
+
+7. **Salida y Filenames**:
    - Los valores de "monto_file" y "vencimiento_file" DEBEN ser el campo "filename" EXACTO tal como aparece en el array de certificados entregado (sin modificar capitalización ni extensión). Si no hay certificado para un campo, usa null.
    - Responde únicamente con un bloque JSON bien estructurado encerrado en las etiquetas XML <json>...</json>.
    - No agregues texto explicativo fuera de las etiquetas XML.
@@ -924,24 +1054,7 @@ Esquema JSON esperado:
     const respText = response.content.find(b => b.type === 'text');
     const contentText = respText?.type === 'text' ? respText.text : '';
 
-    // Extract JSON block from <json>...</json> tags
-    const jsonMatch = contentText.match(/<json>([\s\S]*?)<\/json>/i) || contentText.match(/```json([\s\S]*?)```/i);
-    const jsonStr = jsonMatch ? jsonMatch[1].trim() : contentText.trim();
-
-    let result: OrchestrationResult;
-    try {
-      result = JSON.parse(jsonStr) as OrchestrationResult;
-    } catch (parseErr: any) {
-      // Outermost braces JSON extraction fallback
-      const firstBrace = jsonStr.indexOf('{');
-      const lastBrace = jsonStr.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        const cleanedJson = jsonStr.substring(firstBrace, lastBrace + 1);
-        result = JSON.parse(cleanedJson) as OrchestrationResult;
-      } else {
-        throw parseErr;
-      }
-    }
+    const result = parseOrchestrationJson(contentText);
 
     // Bypass ONLY date-expiry alerts (expired_cmf / expired_certificate).
     // Structural alerts (missing_document, rut_mismatch, amount_mismatch) always block.
@@ -1026,12 +1139,13 @@ Esquema JSON esperado:
 
   } catch (err: any) {
     logError('Error al invocar o parsear la respuesta del orquestador de IA:', err);
-    return {
-      status: 'error',
-      reason: `Error en el procesamiento de IA: ${err.message || err}`,
-      documentMapping: [],
-      alerts: [{ type: 'other', message: `Fallo interno del orquestador de IA: ${err.message}` }],
-      mappedDocs: []
-    };
+	    return {
+	      status: 'error',
+	      reason: `Error en el procesamiento de IA: ${err.message || err}`,
+	      documentMapping: [],
+	      alerts: [{ type: 'other', message: `Fallo interno del orquestador de IA: ${err.message}` }],
+	      mappedDocs: [],
+	      technicalError: true
+	    };
   }
 }

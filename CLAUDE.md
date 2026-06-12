@@ -59,8 +59,18 @@ This repository contains the hybrid automation system for filling out the renego
 - Always wait for script stabilization (`page.waitForTimeout(3000)`) after navigating to a step to allow frontend event handlers to register before clicking delete or upload buttons.
 
 ### Step 3 — Acreedores Business Rules
-- **Obligaciones 260** (`#btnAgregarEmpresa` / `#btnAgregarPersona`): Only creditors where `overdue90Days > 0`. The sum of `overdue90Days` across all such creditors **must exceed 80 UF (~$3,253,000 CLP)**. `fillStep3` logs a warning if it doesn't.
-- **Otros Acreedores** (`#btnAgregarEmpresa2` / `#btnAgregarPersona2`): All creditors where `overdue90Days === 0`. Both sections share the same `#modalEmpresa` / `#modalPersona` modals — the distinction is which button opens them.
+- **Obligaciones 260** (`#btnAgregarEmpresa` / `#btnAgregarPersona`): Creditors where `overdue90Days > 0` **OR** reclassified by the Sentinel (`reclassifiedCreditors`).
+- **Otros Acreedores** (`#btnAgregarEmpresa2` / `#btnAgregarPersona2`): Creditors where `overdue90Days === 0` AND not reclassified. Both sections share the same modals — the distinction is which button opens them.
+- **`isOtros` invariant**: Always `creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor)`. This value is computed once and passed explicitly to `addEmpresaAcreedor`, `addPersonaAcreedor`, and `attachDocumentoAcreedor`. **Never recompute from `overdue90Days` alone inside those functions** — the CMF cut date can lag the bank documents by weeks, causing multi-million CLP gaps.
+- **Sentinel name matching**: Only institution name is used (no monto tolerance). CMF dates and bank document dates differ — the same loan can appear as $38.9M in CMF and $48.2M in the bank's report.
+
+### Step 3 — Requisito de sesión (Art. 260 / 80 UF)
+Para que el cliente pueda iniciar una sesión de renegociación deben cumplirse **dos condiciones simultáneas**:
+
+1. **Mínimo 2 productos con mora > 90 días (≥ 91 días)**: Al menos dos líneas de crédito distintas deben tener valor > 0 en la columna "90 o más días de atraso" del CMF. Los dos productos **pueden ser del mismo banco** (por ejemplo, un crédito de consumo y una tarjeta de crédito de Banco Estado).
+2. **Suma de `totalCredito` ≥ 80 UF (~$3.253.000 CLP)**: Se suman los campos `totalCredito` de esos productos (no el monto atrasado). Si el CMF no alcanza el umbral, se deben revisar documentos adicionales.
+
+Esta validación es **no bloqueante** en el flujo técnico (solo genera `⚠️ ADVERTENCIA`), pero el abogado debe confirmar que se cumplen ambas condiciones antes de presentar la solicitud. El código aún no implementa el chequeo de "mínimo 2 productos" — está pendiente. Ver `task.md`.
 
 ### Step 3 — Known Portal Blockers
 - **`#dlgImportante` blocking `#btnGuardarEmpresa`**: After saving a representante legal, the portal shows `#dlgImportante` which intercepts all pointer events. The fix is `dismissBlockingDialogs(page, log)`, called both after `#modalRepresentante` closes and immediately before clicking `#btnGuardarEmpresa`.
@@ -238,8 +248,8 @@ npm run worker
 # Compile TypeScript
 npm run build
 
-# Test Paso 3 directly (no job queue)
-npx ts-node -r dotenv/config src/utils/test_step3_direct.ts
+# Test Paso 3 hardcodeado (sin job queue ni créditos de API) — caso Claudia Silva
+BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config src/utils/test_step3_claudia.ts
 
 # 🧹 LIMPIEZA TOTAL del borrador en el portal (correr ANTES de re-testear el flujo real)
 # Borra archivos del Paso 2 y acreedores + CMF del Paso 3 de la solicitud. Login con ClaveÚnica.

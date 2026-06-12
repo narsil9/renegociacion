@@ -44,13 +44,24 @@ The verAcreedores page has two creditor tables:
 
 | Section | Button to open modal | Table ID | Condition |
 |---------|---------------------|----------|-----------|
-| Obligaciones 260 | `#btnAgregarEmpresa` / `#btnAgregarPersona` | `#tablaAcreedores` | `creditor.overdue90Days > 0` |
-| Otros Acreedores | `#btnAgregarEmpresa2` / `#btnAgregarPersona2` | `#tablaOtrosAcreedores` | `creditor.overdue90Days === 0` |
+| Obligaciones 260 | `#btnAgregarEmpresa` / `#btnAgregarPersona` | `#tablaAcreedores` | `overdue90Days > 0` **OR** reclassified by Sentinel |
+| Otros Acreedores | `#btnAgregarEmpresa2` / `#btnAgregarPersona2` | `#tablaOtrosAcreedores` | `overdue90Days === 0` AND not reclassified |
+
+**`isOtros` se calcula siempre como:**
+```typescript
+const isOtros = creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor);
+```
+Este valor se pasa explícitamente a `addEmpresaAcreedor`, `addPersonaAcreedor` y `attachDocumentoAcreedor`. **Nunca recalcular `isOtros` desde `overdue90Days` dentro de esas funciones** — el CMF puede mostrar $0 en mora aunque el Sentinel haya detectado 91+ días en los documentos.
 
 Both sections **share the same modals**: `#modalEmpresa` (empresa) and `#modalPersona` (persona natural). The distinction is only which button opens them.
 
-### Business Rule: 80 UF Validation
-`fillStep3` sums `overdue90Days` for all Obligaciones 260 creditors and warns if the total is below **80 UF (~$3,253,000 CLP)**. It does NOT block the run — just logs `⚠️ ADVERTENCIA`.
+### Business Rule: Requisito de sesión (2 productos + 80 UF)
+Para que el cliente califica para iniciar la sesión de renegociación deben cumplirse **ambas** condiciones:
+
+1. **Mínimo 2 productos con mora ≥ 91 días**: Al menos 2 líneas en el CMF con `overdue90Days > 0`. Los 2 productos pueden ser del **mismo banco** (ej. crédito consumo + tarjeta del mismo banco).
+2. **Suma de `totalCredito` de esos productos ≥ 80 UF (~$3.253.000 CLP)**: Se usa `totalCredito`, no el monto atrasado.
+
+`fillStep3` ya suma `totalCredito` correctamente y registra `⚠️ ADVERTENCIA` si no alcanza 80 UF. El chequeo de **mínimo 2 productos** aún no está implementado en código — está pendiente en `task.md`.
 
 ### Two-Phase Approach
 The portal only enables "Subir Documento" links once ALL creditors are in the table. The script therefore:
@@ -72,7 +83,18 @@ For each creditor from CMF:
   2. Fallback → matchAcreedor(name, catalog) → fuzzy name match with ALIASES
   3. If not_found or ambiguous → skip + add to report.skipped
 ```
-Alias map in `acreedor_matcher.ts`: `'presto lider'` → `'tarjeta lider'`, `'bci'` → `'banco de credito e inversiones'`, etc.
+Alias map en `acreedor_matcher.ts` (clave normalizada → nombre_normalizado del catálogo):
+```
+'presto lider'  → 'tarjeta lider'
+'presto'        → 'tarjeta lider'
+'tarjeta presto'→ 'tarjeta lider'
+'lider'         → 'tarjeta lider'
+'bci'           → 'banco de credito e inversiones'
+'santander'     → 'banco santander'
+'car ripley'    → 'car s a tarjeta ripley'   ← CMF llama "CAR - Ripley", catálogo: "CAR S.A. (Tarjeta Ripley)"
+'car'           → 'car s a tarjeta ripley'
+```
+**Por qué monto NO se usa en el matching del Sentinel**: El CMF corta datos con hasta 2-3 semanas de retraso respecto a los documentos del banco. El mismo acreedor puede aparecer con $38.9M en el CMF y $48.2M en el informe de crédito → diferencia de millones → `montoMatch` con tolerancia absoluta siempre fallará. Se usa solo `nameMatch` (contención de tokens normalizados).
 
 **RUT-from-text utilities (single source of truth, `acreedor_matcher.ts`)**:
 - `extractRutsFromText(text)` → normalized RUTs found in a document's text.
@@ -103,6 +125,58 @@ If `DRY_RUN !== 'false'`, after taking a screenshot the script:
 
 ---
 
+## Sentinel — Centinela de Carga (API Key #1)
+
+`src/utils/sentinel.ts` — pre-validación que corre **antes** del Orquestador Cognitivo (API Key #2) y antes de Playwright.
+
+### Propósito
+El CMF puede tener datos con retraso de 2-3 semanas. El Sentinel analiza los documentos bancarios para:
+1. **`reclassifiedCreditors`**: Detectar deudas que el CMF marca con $0 mora pero que los documentos prueban como ≥91 días → reclasificar de Art. 261 a Art. 260.
+2. **`identified261Creditors`**: Confirmar deudas que sí son Art. 261 (vigentes, sin mora).
+
+### Interfaces clave
+```typescript
+export interface ReclassifiedCreditor {
+  bank: string;
+  product_type: 'credito_consumo' | 'tarjeta_credito' | 'otro';
+  institucion_cmf: string;        // debe coincidir con nombre en CMF
+  delinquency_start_date: string; // YYYY-MM-DD primera cuota impaga
+  delinquency_days: number;
+  total_credito_clp: number;
+  new_classification: 'obligaciones_260';
+  reason: string;
+  document_filename: string;
+}
+
+export interface Identified261Creditor {
+  bank: string;
+  product_type: 'credito_consumo' | 'tarjeta_credito' | 'otro';
+  institucion_cmf: string;
+  total_credito_clp: number;
+  reason: string;
+  document_filename: string;
+}
+```
+
+### Activación
+- `ENABLE_SENTINEL=true` en `.env` → activo.
+- `BYPASS_DATE_CHECK=true` → salta alertas de fecha (no bloquea por docs vencidos).
+- Si el Sentinel bloquea (documentos deficientes), el worker registra una `automation_alert` y marca el job como `failed` **sin** continuar.
+
+### Caso real: Claudia Silva
+- CMF (corte 08/11/2024): Banco de Chile $0 mora, Ripley $479.941 mora (solo 66 días en esa fecha).
+- Al 03/12/2024: Banco de Chile Consumo = 91 días (Sentinel detecta desde Informe de Crédito).
+- Al 03/12/2024: CAR Ripley = 100 días (Sentinel detecta desde ECs Agosto-Noviembre).
+- Ambos pasan a `reclassifiedCreditors` → `fillStep3` los ingresa en `#tablaAcreedores` (Art. 260).
+
+### Test sin créditos de API
+```bash
+BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config src/utils/test_step3_claudia.ts
+```
+El script hardcodea los resultados de ambas APIs y ejecuta Playwright real. Ver `claudia_test_mapping.md` para los valores exactos.
+
+---
+
 ## Cognitive Orchestrator — Mente Pensante
 
 `src/utils/cognitive_orchestrator.ts` audita los certificados de acreditación usando Claude **antes** de que el Paso 3 los adjunte al portal. Se invoca con:
@@ -119,14 +193,25 @@ const result = await runCognitiveOrchestrator(client, cmfLocalPath, supabase, lo
   reason?: string,                      // solo si status === 'error'
   documentMapping: CognitiveCreditorMapping[], // por institución
   alerts: CognitiveAlert[],             // expired_cmf, expired_certificate, missing_document…
-  mappedDocs?: AcreditacionDoc[]        // listos para attachDocuments() en step3
+  mappedDocs?: AcreditacionDoc[],       // listos para fillStep3() como acreditacionDocs
+  technicalError?: boolean
 }
 ```
+
+### Firma actual (con datos del Sentinel)
+```typescript
+runCognitiveOrchestrator(
+  client, cmfLocalPath, supabase, logger,
+  sentinelReclassified?: SentinelReclassifiedCreditor[],
+  sentinelIdentified261?: SentinelIdentified261Creditor[]
+): Promise<OrchestrationResult>
+```
+El Orquestador recibe los datos del Sentinel como contexto para la IA — Claude actúa como segunda línea de control que corrobora lo que el TS ya calculó determinísticamente.
 
 ### Cuándo llamarlo
 - Antes de `fillStep3`, para validar documentos frescos (<30 días).
 - Si `result.status === 'error'`, abortar o alertar al supervisor; no continuar adjuntando.
-- Si `result.status === 'success'`, pasar `result.mappedDocs` a `attachDocuments()`.
+- Si `result.status === 'success'`, pasar `result.mappedDocs` a `fillStep3(..., acreditacionDocs, reclassifiedCreditors)`.
 
 ### Modelo y configuración
 - Modelo: `claude-sonnet-4-5-20250929` con `thinking: { type: 'enabled', budget_tokens: 2048 }`.
@@ -157,6 +242,8 @@ El orquestador arma un `localAnalysis` (pre-cálculo TS) y se lo pasa a Claude, 
 | `Comuna X no está en el listado` | `getRegionValue(entrada.comuna)` returns null | Add the missing commune to the `REGION_MAP` in `acreedor_matcher.ts` |
 | `Sesión expirada` error | Portal redirected to login mid-session | Re-run from login; check ClaveÚnica session duration |
 | Duplicate creditor rows after retry | Idempotency check missing | `isCreditorAlreadyInTable` must be called at start of each retry attempt |
+| Sentinel-reclassified creditor ends up in Otros | `isOtros` recomputed from `overdue90Days` inside add/attach functions | Pass `isOtros` as parameter; never recompute inside `addEmpresaAcreedor`, `addPersonaAcreedor`, `attachDocumentoAcreedor` |
+| CMF name "CAR - Ripley" not matched | Token-sequence match fails ("car ripley" ≠ "car s.a. tarjeta ripley") | Covered by ALIAS `'car ripley' → 'car s a tarjeta ripley'` in `acreedor_matcher.ts` |
 
 ---
 
@@ -173,7 +260,8 @@ src/utils/
   acreedor_matcher.ts          ← catalog lookup, normalizeRut, isValidRut, ALIASES
   cmf_analyzer.ts              ← extractCreditors, CmfCreditor.overdue90Days
   pdf_analyzer.ts              ← extractTextFromPdf, analyzeTaxCategory
-  cognitive_orchestrator.ts    ← runCognitiveOrchestrator (Mente Pensante / Claude AI)
+  sentinel.ts                  ← runSentinelCheck (API Key #1: pre-validación + reclasificación)
+  cognitive_orchestrator.ts    ← runCognitiveOrchestrator (API Key #2: Mente Pensante / Claude AI)
   date_helper.ts               ← getCurrentChileDate, getDaysDifference, parseDateString
   browser.ts                   ← launchBrowser, screenshotOnFailure
   alerts.ts                    ← createAlert, clearAlert

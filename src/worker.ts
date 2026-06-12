@@ -18,6 +18,7 @@ import { analyzeCmfPdf } from './utils/cmf_analyzer';
 import { createAlert, clearAlert } from './utils/alerts';
 import { cleanupDraft } from './automation/cleanup';
 import { runCognitiveOrchestrator } from './utils/cognitive_orchestrator';
+import { runSentinelCheck, ReclassifiedCreditor, Identified261Creditor } from './utils/sentinel';
 
 /**
  * BUG-08 FIX: Dedicated error class for cases that must not be retried and
@@ -148,6 +149,61 @@ async function processJob(job: any): Promise<void> {
     return;
   }
 
+  // --- RUN SENTINEL CHECK (API Key #1) ---
+  let _sentinelReclassified: ReclassifiedCreditor[] = [];
+  let _sentinelIdentified261: Identified261Creditor[] = [];
+  try {
+    const sentinelResult = await runSentinelCheck(client, supabase, logger);
+    if (sentinelResult.reclassifiedCreditors && sentinelResult.reclassifiedCreditors.length > 0) {
+      _sentinelReclassified = sentinelResult.reclassifiedCreditors;
+    }
+    if (sentinelResult.identified261Creditors && sentinelResult.identified261Creditors.length > 0) {
+      _sentinelIdentified261 = sentinelResult.identified261Creditors;
+    }
+    if (!sentinelResult.success) {
+      const errorMsg = `Centinela de Carga bloqueó el caso por documentos deficientes: ${sentinelResult.errors.join('; ')}`;
+      logger.error(errorMsg);
+
+      // Registrar alerta en la tabla de alertas
+      try {
+        await supabase.from('automation_alerts').insert({
+          job_id: job.id,
+          client_id: String(client.id),
+          step: job.step,
+          alert_type: 'blocked',
+          description: errorMsg,
+        });
+      } catch (alertErr: any) {
+        logger.error('⚠️ No se pudo registrar alerta de Centinela:', alertErr?.message || alertErr);
+      }
+
+      // Actualizar el job a fallido preventivamente
+      await supabase
+        .from(JOBS_TABLE)
+        .update({
+          status: 'failed',
+          error_log: logger.getBufferText() + `\n\n❌ ERROR CENTINELA (Carga de documentos): ${errorMsg}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.id);
+      
+      return;
+    }
+  } catch (sentinelErr: any) {
+    logger.error(`⚠️ Excepción en Centinela de Carga: ${sentinelErr.message || sentinelErr}`);
+    if (process.env.ENABLE_SENTINEL === 'true') {
+      await supabase
+        .from(JOBS_TABLE)
+        .update({
+          status: 'failed',
+          error_log: logger.getBufferText() + `\n\n❌ EXCEPCIÓN CENTINELA: ${sentinelErr.message || sentinelErr}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.id);
+      return;
+    }
+  }
+
   // Safety interlock: set DRY_RUN env dynamically for this job
   const originalDryRun = process.env.DRY_RUN;
   const maxAttempts = 3;
@@ -167,6 +223,7 @@ async function processJob(job: any): Promise<void> {
     let cmfLocalPath = '';
     let browserInstance: any = null;
     let mappedAcreditacionDocs: AcreditacionDoc[] = [];
+    let sentinelReclassified: ReclassifiedCreditor[] = [];
     // Si queda con motivo: el cliente califica pero los documentos del Paso 3 no
     // cumplen → en el flujo completo (step:0) se omite SOLO el Paso 3 y se guardan 1, 2 y 4.
     let skipStep3Reason: string | null = null;
@@ -224,67 +281,72 @@ async function processJob(job: any): Promise<void> {
         const cmfResult = await analyzeCmfPdf(cmfLocalPath, logger);
 
         // 3. Run AI Cognitive Orchestrator ("Mente Pensante")
-        logger.log('🧠 Ejecutando orquestador cognitivo de IA (Claude Sonnet 4.5) para auditar documentos y fechas...');
-        const orchResult = await runCognitiveOrchestrator(client, cmfLocalPath, supabase, logger);
+        logger.log('🧠 Ejecutando orquestador cognitivo de IA (Claude Sonnet 4.6) para auditar documentos y fechas...');
+        const orchResult = await runCognitiveOrchestrator(client, cmfLocalPath, supabase, logger, _sentinelReclassified, _sentinelIdentified261);
 
         if (orchResult.status === 'success' && orchResult.mappedDocs) {
           mappedAcreditacionDocs = orchResult.mappedDocs;
         }
 
-        // --- Decisión de validación ---
-        // (A) ELEGIBILIDAD de fondo (atraso 90+ días y monto >= 80 UF): si NO califica,
-        //     el caso es inválido de raíz → se BLOQUEA TODO (no se guarda ningún paso).
-        const noCalifica = !cmfResult.meets90DaysRequirement || !cmfResult.meetsAmountRequirement;
-        if (noCalifica) {
-          const detalle = `El cliente no cumple con los requisitos legales para la renegociación. Atraso 90+ días: ${cmfResult.meets90DaysRequirement ? 'Sí' : 'No'}. Monto 90+ días: $${(cmfResult.overdue90DaysTotal || 0).toLocaleString('es-CL')} (mínimo requerido: $${cmfResult.requiredAmountCLP.toLocaleString('es-CL')} / 80 UF).`;
-          logger.error(`❌ No califica para renegociación: ${detalle}`);
-          await cleanupPortalDraftBestEffort();
-          await supabase
-            .from(JOBS_TABLE)
-            .update({
-              status: 'failed',
-              error_log: logger.getBufferText() + `\n\n❌ ERROR DE VALIDACIÓN (no califica): ${detalle}`,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', job.id);
-          return;
+        // --- Decisión sobre el Paso 3 ---
+        // ERROR TÉCNICO del orquestador (API caída / JSON malformado de Claude): NO es un
+        // problema de requisitos del cliente. Suele ser TRANSITORIO (la salida del LLM varía),
+        // así que se LANZA para que el loop de intentos (maxAttempts) reintente la auditoría.
+        // Si agota los reintentos, el job se marca 'failed' en el bloque final (no se omite
+        // el Paso 3 a ciegas ni se guardan pasos con una auditoría que nunca se pudo correr).
+        if (orchResult.status === 'error' && orchResult.technicalError) {
+          const motivo = orchResult.reason || 'Error técnico del orquestador cognitivo.';
+          logger.error(`❌ Error técnico del orquestador del Paso 3 (reintentable): ${motivo}`);
+          throw new Error(`Error técnico del orquestador (reintentable): ${motivo}`);
         }
 
-        // (B) El cliente SÍ califica, pero los DOCUMENTOS del Paso 3 no pasan la auditoría
-        //     (vencidos / incompletos / RUT). En el flujo completo (step:0) se OMITE solo el
-        //     Paso 3 y se guardan 1, 2 y 4. En un job de Paso 3 individual, el job falla.
-        if (orchResult.status === 'error') {
-          const motivo = orchResult.reason || 'Los documentos de acreditación del Paso 3 no cumplen los requisitos.';
+        // El Paso 3 SOLO se completa si el cliente CALIFICA (atraso 90+ días) Y los DOCUMENTOS
+        // pasan la auditoría cognitiva. La regla de 80 UF genera solo una advertencia, no bloquea.
+        if (cmfResult.meets90DaysRequirement && !cmfResult.meetsAmountRequirement) {
+          logger.log(`⚠️  ADVERTENCIA: Suma del total del crédito de acreedores con 90+d ($${cmfResult.totalCreditoOf90PlusCreditors.toLocaleString('es-CL')}) no alcanza 80 UF ($${cmfResult.requiredAmountCLP.toLocaleString('es-CL')}). El flujo continúa; revisar documentos adicionales si aplica.`);
+        }
+
+        // Propagar reclasificaciones del sentinel al scope del intento actual
+        sentinelReclassified = _sentinelReclassified;
+        const totalQualifyingCount = (cmfResult.qualifying90PlusCount || 0) + (sentinelReclassified.length || 0);
+        const noCalifica = totalQualifyingCount < 2;
+        const docsInvalidos = orchResult.status === 'error';
+
+        if (noCalifica || docsInvalidos) {
+          const motivo = noCalifica
+            ? `El cliente no cumple los requisitos de fondo para la renegociación. No se detectó deuda con mora >= 90 días en el CMF.`
+            : (orchResult.reason || 'Los documentos de acreditación del Paso 3 no cumplen los requisitos.');
+
           if (job.step === 0) {
             skipStep3Reason = motivo;
-            logger.log(`⏭️  Paso 3 será OMITIDO (se guardarán Pasos 1, 2 y 4): ${motivo}`);
+            logger.log(`⏭️  Paso 3 NO se completará (se guardarán los Pasos 1, 2 y 4): ${motivo}`);
             try {
               const { error: insertErr } = await supabase.from('automation_alerts').insert({
                 job_id: job.id,
                 client_id: String(client.id),
                 step: 3,
                 alert_type: 'blocked',
-                description: `Paso 3 omitido (documentos no cumplen requisitos): ${motivo}`,
+                description: `Paso 3 omitido (no cumple requisitos): ${motivo}`,
               });
               if (insertErr) logger.error('⚠️ No se pudo registrar alerta de Paso 3 omitido:', insertErr.message);
             } catch (alertErr: any) {
               logger.error('⚠️ Excepción al registrar alerta de Paso 3 omitido:', alertErr?.message || alertErr);
             }
           } else {
-            logger.error(`❌ Documentos del Paso 3 inválidos: ${motivo}`);
+            logger.error(`❌ Paso 3 no se puede completar: ${motivo}`);
             await cleanupPortalDraftBestEffort();
             await supabase
               .from(JOBS_TABLE)
               .update({
                 status: 'failed',
-                error_log: logger.getBufferText() + `\n\n❌ ERROR DE VALIDACIÓN (documentos Paso 3): ${motivo}`,
+                error_log: logger.getBufferText() + `\n\n❌ ERROR DE VALIDACIÓN (Paso 3): ${motivo}`,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', job.id);
             return;
           }
         } else {
-          logger.log('✓ El cliente cumple los requisitos y los documentos del Paso 3 son válidos. Continuando con automatización...');
+          logger.log('✓ El cliente califica y los documentos del Paso 3 son válidos. Se completarán los 4 pasos.');
         }
       }
 
@@ -445,7 +507,7 @@ async function processJob(job: any): Promise<void> {
         logger.log(`→ Redireccionando a la URL del Paso 3: ${step3Url}`);
         await page.goto(step3Url, { waitUntil: 'domcontentloaded' });
 
-        await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs);
+        await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs, sentinelReclassified);
       } else if (job.step === 4) {
         logger.log('📝 Navegando e ingresando información de Paso 4...');
         

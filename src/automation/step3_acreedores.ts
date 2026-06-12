@@ -2,6 +2,7 @@ import { Page } from 'playwright';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { screenshotOnFailure } from '../utils/browser';
 import { extractCreditors, CmfCreditor } from '../utils/cmf_analyzer';
+import { ReclassifiedCreditor } from '../utils/sentinel';
 import {
   fetchAcreedoresCatalog,
   matchAcreedor,
@@ -48,7 +49,8 @@ export async function fillStep3(
   supabase: SupabaseClient,
   logger?: SimpleLogger,
   boletinComercialPath?: string,
-  acreditacionDocs?: AcreditacionDoc[]
+  acreditacionDocs?: AcreditacionDoc[],
+  reclassifiedCreditors?: ReclassifiedCreditor[]
 ): Promise<Step3Report> {
   const log = (msg: string) => {
     if (logger) {
@@ -149,9 +151,22 @@ export async function fillStep3(
 
     // --- 3c. Classify creditors + validate 80 UF requirement ----------------
     const UF_80_CLP = 3_253_000; // 80 UF ≈ $3,253,000 CLP
-    const obligaciones260 = creditors.filter((c) => c.overdue90Days > 0);
-    const otrosAcreedores = creditors.filter((c) => c.overdue90Days === 0);
-    const total90Days = obligaciones260.reduce((sum, c) => sum + c.overdue90Days, 0);
+    // Un acreedor es reclasificado a Art. 260 si el sentinel detectó mora ≥91d
+    // en sus documentos, aunque el CMF muestre $0 en la columna 90+d.
+    // Name-only matching: monto is deliberately excluded because the CMF cut date
+    // and the bank document date can differ by weeks, causing multi-million CLP gaps.
+    const isReclassifiedTo260 = (c: CmfCreditor): boolean => {
+      if (!reclassifiedCreditors || reclassifiedCreditors.length === 0) return false;
+      const normInst = normalizeText(c.institucion);
+      return reclassifiedCreditors.some(r => {
+        const normR = normalizeText(r.institucion_cmf);
+        return normInst.includes(normR) || normR.includes(normInst);
+      });
+    };
+
+    const obligaciones260 = creditors.filter((c) => c.overdue90Days > 0 || isReclassifiedTo260(c));
+    const otrosAcreedores = creditors.filter((c) => c.overdue90Days === 0 && !isReclassifiedTo260(c));
+    const total90Days = obligaciones260.reduce((sum, c) => sum + c.totalCredito, 0);
 
     log('→ Clasificación de acreedores:');
     log(`   📋 Obligaciones 260 (morosidad >90d): ${obligaciones260.length}`);
@@ -162,9 +177,9 @@ export async function fillStep3(
     otrosAcreedores.forEach((c) =>
       log(`      • ${c.institucion}: total=$${c.totalCredito.toLocaleString('es-CL')}`)
     );
-    log(`→ Total deuda 90+ días: $${total90Days.toLocaleString('es-CL')} (mín. $${UF_80_CLP.toLocaleString('es-CL')} / 80 UF)`);
+    log(`→ Suma total del crédito (acreedores con 90+d): $${total90Days.toLocaleString('es-CL')} (mín. $${UF_80_CLP.toLocaleString('es-CL')} / 80 UF)`);
     if (total90Days < UF_80_CLP) {
-      log(`⚠️  ADVERTENCIA: La deuda con morosidad >90d ($${total90Days.toLocaleString('es-CL')}) NO alcanza el mínimo de 80 UF. Verificar antes de presentar.`);
+      log(`⚠️  ADVERTENCIA: Suma del total del crédito con morosidad >90d ($${total90Days.toLocaleString('es-CL')}) no alcanza 80 UF. Flujo continúa; revisar documentos adicionales si aplica.`);
     } else {
       log('✓ Requisito 80 UF cumplido.');
     }
@@ -226,7 +241,7 @@ export async function fillStep3(
 
         entry = match.entry!;
       }
-      const isOtros = creditor.overdue90Days === 0;
+      const isOtros = creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor);
       try {
         await withRetry(
           async () => {
@@ -240,9 +255,9 @@ export async function fillStep3(
             await dismissBlockingDialogs(page, log).catch(() => {});
             const isPersona = entry.tipo?.toLowerCase().includes('persona') === true;
             if (isPersona) {
-              await addPersonaAcreedor(page, entry, creditor, log);
+              await addPersonaAcreedor(page, entry, creditor, log, isOtros);
             } else {
-              await addEmpresaAcreedor(page, entry, creditor, log);
+              await addEmpresaAcreedor(page, entry, creditor, log, isOtros);
             }
           },
           {
@@ -279,14 +294,14 @@ export async function fillStep3(
         for (const doc of creditorDocs) {
           if (!doc.local_path) continue;
 
-          const isOtros = creditor.overdue90Days === 0;
+          const isOtros = creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor);
           if (isOtros && doc.tipo_documento !== 22) {
             log(`   ℹ️ Omitiendo documento tipo ${doc.tipo_documento} para "${creditor.institucion}" porque es Otros Acreedores (morosidad <= 90 días).`);
             continue;
           }
 
           await withRetry(
-            () => attachDocumentoAcreedor(page, doc, creditor.totalCredito, creditor.overdue90Days, log),
+            () => attachDocumentoAcreedor(page, doc, creditor.totalCredito, isOtros, log),
             {
               attempts: 2,
               delayMs: 3000,
@@ -372,12 +387,11 @@ async function addEmpresaAcreedor(
   page: Page,
   entry: AcreedorCatalogEntry,
   creditor: CmfCreditor,
-  log: (m: string) => void
+  log: (m: string) => void,
+  isOtros: boolean
 ): Promise<void> {
   const rut = normalizeRut(entry.rut);
   if (!rut) throw new Error('El acreedor del catálogo no tiene RUT.');
-
-  const isOtros = creditor.overdue90Days === 0;
   const btnSelector = isOtros ? '#btnAgregarEmpresa2' : '#btnAgregarEmpresa';
   log(`→ Abriendo modal Empresa para "${entry.nombre}" (RUT ${rut}) [Otros: ${isOtros}]...`);
   await page.locator(btnSelector).click();
@@ -586,12 +600,11 @@ async function addPersonaAcreedor(
   page: Page,
   entry: AcreedorCatalogEntry,
   creditor: CmfCreditor,
-  log: (m: string) => void
+  log: (m: string) => void,
+  isOtros: boolean
 ): Promise<void> {
   const rut = normalizeRut(entry.rut);
   if (!rut) throw new Error('El acreedor del catálogo no tiene RUT.');
-
-  const isOtros = creditor.overdue90Days === 0;
   const btnSelector = isOtros ? '#btnAgregarPersona2' : '#btnAgregarPersona';
   log(`→ Abriendo modal Persona Natural para "${entry.nombre}" (RUT ${rut}) [Otros: ${isOtros}]...`);
   await page.locator(btnSelector).click();
@@ -760,14 +773,13 @@ async function attachDocumentoAcreedor(
   page: Page,
   doc: AcreditacionDoc,
   monto: number,
-  overdue90Days: number,
+  isOtros: boolean,
   log: (m: string) => void
 ): Promise<void> {
   if (!doc.local_path || !fs.existsSync(doc.local_path)) {
     throw new Error(`Archivo local no disponible: ${doc.local_path ?? '(sin ruta)'}`);
   }
 
-  const isOtros = overdue90Days === 0;
   const tableSelector = isOtros ? '#tablaOtrosAcreedores' : '#tablaAcreedores';
 
   log(`→ Adjuntando documento tipo ${doc.tipo_documento} de "${doc.institucion_cmf}" (Monto: $${monto.toLocaleString('es-CL')}, Otros: ${isOtros})...`);
