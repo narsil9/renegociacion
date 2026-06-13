@@ -1,9 +1,22 @@
 node_modules/
 dist/
 .env
+.DS_Store
+.vscode/
 outputs/*.png
 outputs/*.html
 outputs/*.pdf
 outputs/*.log
 outputs/*.txt
+outputs/acreditaciones_tmp/
+docs_paso3/
+documentos_descargados/
+scratch/
+informe_deudas_*.pdf
 src/automation/html_samples/
+
+# Carpetas de documentos de clientes (PDFs con datos personales)
+Abigail Cornejo Abarca*/
+JORGE ANDRES ROMERO*/
+casos/*/documentos/
+outputs/verify_tmp/

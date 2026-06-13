@@ -24,8 +24,10 @@ export interface CmfAnalysisResult {
   totalDebt: number;
   overdue90DaysTotal: number; // Total overdue debt in CMF summary (90+ days)
   directOverdue90Days: number; // Overdue debt in Deuda Directa (90+ days)
-  meets90DaysRequirement: boolean; // Has 90+ days of overdue debt
-  meetsAmountRequirement: boolean; // Overdue debt >= 80 UF (approx $3,253,000 CLP)
+  qualifying90PlusCount: number; // Cantidad de productos con morosidad >= 91 días (overdue90Days > 0)
+  meets90DaysRequirement: boolean; // Has 90+ days of overdue debt (requires >= 2 products)
+  totalCreditoOf90PlusCreditors: number; // Sum of totalCredito of creditors with overdue90Days > 0
+  meetsAmountRequirement: boolean; // totalCreditoOf90PlusCreditors >= 80 UF (alert only, non-blocking)
   ufValueCLP: number;
   requiredAmountCLP: number;
   fechaEmision: string | null;
@@ -219,9 +221,21 @@ function parseCreditorTable(
         line = line.replace(amountsRegex, '');
       }
 
-      const colA = line.substring(0, sliceAEnd).trim();
-      const colB = line.substring(sliceAEnd, sliceBEnd).trim();
-      const colC = line.substring(sliceBEnd).trim();
+      let colA: string, colB: string, colC: string;
+      if (hasDates) {
+        // New Ley 21.680 format: fixed-width columns (institution | type | date | amounts)
+        colA = line.substring(0, sliceAEnd).trim();
+        colB = line.substring(sliceAEnd, sliceBEnd).trim();
+        colC = line.substring(sliceBEnd).trim();
+      } else {
+        // Classic format: institution and type are separated by whitespace gaps; no date column.
+        // Use gap detection instead of fixed positions to avoid off-by-one errors across CMF layouts.
+        const stripped = line.replace(/^\s+/, '');
+        const gapMatch = stripped.match(/^(.+?)\s{2,}(.*)/);
+        colA = gapMatch ? gapMatch[1].trim() : stripped.trim();
+        colB = gapMatch ? gapMatch[2].trim() : '';
+        colC = '';
+      }
 
       if (colA) colAParts.push(colA);
       if (colB) colBParts.push(colB);
@@ -467,17 +481,21 @@ export async function analyzeCmfPdf(
   const requiredAmountCLP = 3253000;
   const ufValueCLP = 40662.5;
 
-  const meets90DaysRequirement = directOverdue90Days > 0 || overdue90DaysTotal > 0 || indirectOverdue90Days > 0;
-  
-  // Sum direct + indirect overdue 90+ days, fallback to Math.max(directOverdue90Days + indirectOverdue90Days, overdue90DaysTotal)
-  const sum90DaysOverdue = directOverdue90Days + indirectOverdue90Days;
-  const total90DaysOverdue = Math.max(sum90DaysOverdue, overdue90DaysTotal);
-  const meetsAmountRequirement = total90DaysOverdue >= requiredAmountCLP;
+  const qualifying90PlusCount = creditors.filter(c => c.overdue90Days > 0).length;
+  const meets90DaysRequirement = qualifying90PlusCount >= 2;
+
+  // 80 UF criterion: sum of totalCredito of creditors with overdue90Days > 0 (not the overdue amount itself).
+  // A creditor qualifies for Obligaciones 260 if any value > 0 appears in the "90+ días" column.
+  const totalCreditoOf90PlusCreditors = creditors
+    .filter(c => c.overdue90Days > 0)
+    .reduce((sum, c) => sum + c.totalCredito, 0);
+  const meetsAmountRequirement = totalCreditoOf90PlusCreditors >= requiredAmountCLP;
 
   log(`📊 Validación de Requisitos:`);
-  log(`   - ¿Tiene atraso >= 90 días?: ${meets90DaysRequirement ? 'SÍ' : 'NO'}`);
-  log(`   - Monto 90+ días: $${total90DaysOverdue.toLocaleString('es-CL')} (Requerido: >= $${requiredAmountCLP.toLocaleString('es-CL')} / 80 UF)`);
-  log(`   - ¿Cumple monto mínimo?: ${meetsAmountRequirement ? 'SÍ' : 'NO'}`);
+  log(`   - Cantidad de productos con morosidad 90+d: ${qualifying90PlusCount} (Requerido: >= 2)`);
+  log(`   - ¿Cumple requisito de morosidad (>= 2 productos)?: ${meets90DaysRequirement ? 'SÍ' : 'NO'}`);
+  log(`   - Suma total del crédito (acreedores con 90+d): $${totalCreditoOf90PlusCreditors.toLocaleString('es-CL')} (Requerido: >= $${requiredAmountCLP.toLocaleString('es-CL')} / 80 UF)`);
+  log(`   - ¿Cumple monto mínimo? (solo alerta, no bloqueante): ${meetsAmountRequirement ? 'SÍ' : 'NO'}`);
 
   return {
     rut,
@@ -485,7 +503,9 @@ export async function analyzeCmfPdf(
     totalDebt,
     overdue90DaysTotal,
     directOverdue90Days,
+    qualifying90PlusCount,
     meets90DaysRequirement,
+    totalCreditoOf90PlusCreditors,
     meetsAmountRequirement,
     ufValueCLP,
     requiredAmountCLP,

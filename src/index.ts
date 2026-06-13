@@ -120,9 +120,12 @@ async function main() {
     fs.writeFileSync(cmfLocalPath, Buffer.from(await cmfBlob.arrayBuffer()));
     
     const cmfResult = await analyzeCmfPdf(cmfLocalPath);
-    if (!cmfResult.meets90DaysRequirement || !cmfResult.meetsAmountRequirement) {
-      console.error(`❌ Error: El cliente no cumple los requisitos del CMF. Mora 90+: ${cmfResult.meets90DaysRequirement}, Monto: $${cmfResult.directOverdue90Days}`);
+    if (!cmfResult.meets90DaysRequirement) {
+      console.error(`❌ Error: El cliente no tiene deuda con mora >= 90 días según el CMF.`);
       process.exit(1);
+    }
+    if (!cmfResult.meetsAmountRequirement) {
+      console.warn(`⚠️  ADVERTENCIA: Suma del total del crédito de acreedores con 90+d ($${cmfResult.totalCreditoOf90PlusCreditors.toLocaleString('es-CL')}) no alcanza 80 UF. Revisar documentos adicionales si aplica. Continuando de todas formas.`);
     }
     console.log('✓ CMF validado correctamente.');
 

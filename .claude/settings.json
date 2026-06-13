@@ -12,7 +12,8 @@
       "Bash(find *)",
       "Bash(rm *)",
       "Skill(renegociacion-automation)",
-      "Skill(renegociacion-automation:*)"
+      "Skill(renegociacion-automation:*)",
+      "Bash(pdftotext \"/Users/patomartini/Desktop/renegociacion/JORGE ANDRES ROMERO MANUGUIAN/cmf_15.842.968-3.pdf\" -)"
     ]
   },
   "hooks": {
