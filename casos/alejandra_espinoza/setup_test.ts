@@ -3,11 +3,17 @@
  * y sube su CMF al bucket de Storage.
  *
  * Estrategia multi-cliente:
- *   - Cada cliente real usa su propio RUT como identificador único en la BD.
- *   - El portal (Superir) siempre se abre con las credenciales de Pato Martini (.env),
- *     porque CLAVE_UNICA_RUT y CLAVE_UNICA_PASSWORD son del perfil de prueba.
+ *   - Cada cliente real usa su propio RUT como identificador único en la BD (18.738.680-2).
+ *   - El portal (Superir) se abre con las credenciales de Pato Martini (.env),
+ *     porque CLAVE_UNICA_RUT y CLAVE_UNICA_PASSWORD son del perfil de prueba disponible.
  *   - La fila en clients y los client_documents quedan completamente separados
- *     del perfil de Claudia Silva por client_id (UUID distinto).
+ *     del perfil de Patricio Martini y de Claudia Silva por client_id (UUID distinto).
+ *
+ * Documentos de Alejandra (Art. 260): CAT ex-Cencosud + CMR Falabella.
+ * Mora visible directamente en CMF → no requiere reclasificación Sentinel.
+ *
+ * ⚠️ Carpeta tributaria: NO disponible. Obtener de SII antes de probar Steps 1→4 completos.
+ *    Para probar solo Step 3: corré test_step3.ts con BYPASS_DATE_CHECK=true.
  *
  * Uso: npx ts-node -r dotenv/config casos/alejandra_espinoza/setup_test.ts
  */
@@ -28,7 +34,6 @@ const supabase = createClient(
 const BUCKET = 'documentos';
 const STORAGE_PREFIX = 'pato_alejandra';
 
-// RUT real de Alejandra → identificador único de su fila en la BD sandbox
 const ALEJANDRA_RUT = '18.738.680-2';
 const DOCS_DIR = path.resolve(__dirname, 'documentos');
 
@@ -37,11 +42,7 @@ const FILES = {
     local: path.join(DOCS_DIR, 'informe_deudas_18738680-2 (5).pdf'),
     storagePath: `${STORAGE_PREFIX}/informe_cmf.pdf`,
   },
-  // Carpeta tributaria: agregar aquí cuando esté disponible
-  // tributaria: {
-  //   local: path.join(DOCS_DIR, 'Sii', 'Carpeta Tributaria', '...pdf'),
-  //   storagePath: `${STORAGE_PREFIX}/carpeta_tributaria.pdf`,
-  // },
+  // carpeta_tributaria: no disponible. Agregar aquí cuando el abogado la proporcione.
 };
 
 async function uploadFile(localPath: string, storagePath: string, label: string): Promise<void> {
@@ -57,10 +58,9 @@ async function uploadFile(localPath: string, storagePath: string, label: string)
 }
 
 async function run() {
-  console.log('🔧 Setup test Alejandra Espinoza (perfil de portal: Pato Martini)\n');
+  console.log('🔧 Setup test Alejandra Espinoza (credenciales de portal: Pato Martini)\n');
 
-  // 1. Upsert fila de Alejandra en clients
-  // ON CONFLICT en rut → actualiza si ya existía
+  // 1. Upsert fila de Alejandra en clients (conflict en rut → actualiza si ya existía)
   console.log(`⏳ Creando/actualizando fila en clients para RUT ${ALEJANDRA_RUT}...`);
   const { data: upserted, error: upsertErr } = await supabase
     .from('clients')
@@ -68,10 +68,9 @@ async function run() {
       {
         rut: ALEJANDRA_RUT,
         name: 'Alejandra Belén Espinoza Díaz',
+        // Credenciales del portal: se usa el perfil de Pato Martini para poder probar
         clave_unica_rut: process.env.CLAVE_UNICA_RUT ?? '21917363-6',
         clave_unica_password: process.env.CLAVE_UNICA_PASSWORD ?? '',
-        // Datos personales: completar cuando se configure el portal Step 1
-        // nacionalidad, fecha_nacimiento, estado_civil, etc.
       },
       { onConflict: 'rut' }
     )
@@ -85,7 +84,7 @@ async function run() {
   const clientId = upserted.id;
   console.log(`✓ Cliente: ${upserted.name} (id: ${clientId})`);
 
-  // 2. Subir CMF
+  // 2. Subir CMF de Alejandra
   console.log('\n⏳ Subiendo CMF de Alejandra...');
   await uploadFile(FILES.cmf.local, FILES.cmf.storagePath, 'CMF Alejandra');
 
@@ -118,21 +117,23 @@ async function run() {
     process.exit(1);
   }
   if (deleted && deleted.length > 0) {
-    console.log(`✓ ${deleted.length} registro(s) eliminado(s) de client_documents.`);
+    console.log(`✓ ${deleted.length} registro(s) eliminado(s) de client_documents:`);
+    deleted.forEach((d: { filename?: string; id: string }) => console.log(`   • ${d.filename ?? d.id}`));
   } else {
     console.log('✓ No había registros previos en client_documents.');
   }
 
   // 5. Resumen final
   console.log('\n📋 Estado final:');
-  console.log(`  client_id:         ${clientId}`);
-  console.log(`  rut BD:            ${ALEJANDRA_RUT}`);
-  console.log(`  clave_unica_rut:   ${process.env.CLAVE_UNICA_RUT} (Pato — portal de prueba)`);
-  console.log(`  informe_cmf_path:  ${FILES.cmf.storagePath}`);
-  console.log(`  storage_prefix:    ${STORAGE_PREFIX}/`);
-  console.log(`  client_documents:  vacío (listo para upload_documents.ts)\n`);
-  console.log('🎉 Listo. Ahora corré upload_documents.ts para cargar los certificados.');
-  console.log(`   Guardá el client_id: ${clientId}`);
+  console.log(`  client_id:               ${clientId}`);
+  console.log(`  rut BD:                  ${ALEJANDRA_RUT}`);
+  console.log(`  clave_unica_rut:         ${process.env.CLAVE_UNICA_RUT} (Pato — portal de prueba)`);
+  console.log(`  informe_cmf_path:        ${FILES.cmf.storagePath}`);
+  console.log(`  carpeta_tributaria_path: ⚠️  null (obtener de SII)`);
+  console.log(`  storage_prefix:          ${STORAGE_PREFIX}/`);
+  console.log(`  client_documents:        vacío (listo para upload_documents.ts)\n`);
+  console.log('🎉 Listo. Ahora corré upload_documents.ts para registrar los certificados.');
+  console.log(`   CLIENT_ID="${clientId}"`);
 }
 
 run().catch((err) => {

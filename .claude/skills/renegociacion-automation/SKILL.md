@@ -55,6 +55,14 @@ Este valor se pasa explícitamente a `addEmpresaAcreedor`, `addPersonaAcreedor` 
 
 Both sections **share the same modals**: `#modalEmpresa` (empresa) and `#modalPersona` (persona natural). The distinction is only which button opens them.
 
+### Monto y vencimiento "según el documento" (override del CMF)
+`addEmpresaAcreedor`/`addPersonaAcreedor` reciben `fechaVencimientoOverride?` (dd/mm/yyyy). El monto se ingresa desde `creditor.totalCredito`, que puede ser el **monto efectivo** (del documento) en vez del CMF:
+- Reclasificados → `total_credito_clp` + `delinquency_start_date` (del Sentinel).
+- No-CMF → `total_credito_clp` + `delinquency_start_date` (solo 260).
+- 260 directos del CMF → `cmfDocumentOverrides` (param de `fillStep3`; hoy solo el test lo provee).
+- **Regla de oro del monto efectivo**: si el monto del documento sobrescribe al del CMF, se construye un `creditorEff = { ...creditor, totalCredito: montoEfectivo }` y se usa ese en `isCreditorAlreadyInTable` Y en la adjunción (`attachDocumentoAcreedor`). Ambos matchean por monto: si la fila se crea con el monto del documento pero el attach busca el del CMF, **no encuentra la fila**.
+- `toPortalDate(YYYY-MM-DD | dd/mm/yyyy)` convierte al formato del portal; si no reconoce el formato, el caller cae al placeholder `dateDaysAgo(90)`. 261 no requiere vencimiento real (usa placeholder).
+
 ### Business Rule: Requisito de sesión (2 productos + 80 UF)
 Para que el cliente califica para iniciar la sesión de renegociación deben cumplirse **ambas** condiciones:
 
@@ -66,7 +74,10 @@ Para que el cliente califica para iniciar la sesión de renegociación deben cum
 ### Two-Phase Approach
 The portal only enables "Subir Documento" links once ALL creditors are in the table. The script therefore:
 1. **Phase 1** — Add all creditors (both Obligaciones 260 and Otros Acreedores).
+   - **1a** — CMF creditors (loop over `creditors`).
+   - **1a-bis** — NON-CMF creditors (`additionalCreditors` del Sentinel). Se sintetiza un `CmfCreditor` (las funciones del portal solo leen `totalCredito`), se resuelve el catálogo con `matchAcreedor(institucion_cmf)`, y se agrega con `isOtros = categoria_articulo === 261`. Cada uno se loguea como "ACREEDOR NO-CMF (requiere confirmación abogado)".
 2. **Phase 2** — Attach acreditación documents for each creditor.
+   - **Matching por `filename` para NO-CMF**: cada acreedor NO-CMF asocia su documento por `AcreditacionDoc.filename === additionalCreditor.document_filename` (NO por institución). Los acreedores del CMF **excluyen** los filenames reservados a NO-CMF (`reservedNonCmfFilenames`). Esto evita que productos del mismo banco se crucen el certificado (ej. el CPF de las tarjetas vs. el `consultaCredito` del consumo, todos "Banco de Chile"). **Requiere que el orquestador pueble `AcreditacionDoc.filename`.**
 
 ### Known Portal Blockers
 1. **`#dlgImportante` blocks `#btnGuardarEmpresa`**: After saving a representante legal (`#guardarRep`), the portal shows `#dlgImportante` on top of `#modalEmpresa`, intercepting all pointer events.
@@ -156,7 +167,29 @@ export interface Identified261Creditor {
   reason: string;
   document_filename: string;
 }
+
+// Acreedor que NO está en el CMF pero debe declararse (TGR, cajas, fintechs, tarjetas).
+// Detección: pre-pase determinista (diff doc−CMF, `issuerInCmf`) + Claude confirma/extrae.
+export interface AdditionalCreditor {
+  bank: string;
+  institucion_cmf: string;
+  product_type: 'credito_consumo' | 'tarjeta_credito' | 'tgr' | 'caja_compensacion' | 'otro';
+  categoria_articulo: 260 | 261;
+  total_credito_clp: number;
+  delinquency_start_date?: string;   // solo si 260
+  delinquency_days?: number;          // solo si 260
+  reason: string;
+  document_filename: string;
+  needs_lawyer_confirmation: boolean; // siempre true en esta fase
+}
+
+// Fecha clave determinista (sin Claude), no bloqueante.
+export interface FechaClave {
+  tipo: 'expiracion_cmf' | 'expiracion_certificado' | 'cruce_261_a_260';
+  referencia: string; fecha: string; diasRestantes: number; detalle: string;
+}
 ```
+`SentinelResult` ahora incluye `additionalCreditors?: AdditionalCreditor[]` y `fechasClave?: FechaClave[]`. Ver [Step 3 — Acreedores NO-CMF en CLAUDE.md] para el flujo completo worker → orquestador → fillStep3.
 
 ### Activación
 - `ENABLE_SENTINEL=true` en `.env` → activo.
