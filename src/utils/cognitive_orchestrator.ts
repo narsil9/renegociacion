@@ -292,6 +292,15 @@ interface SentinelIdentified261Creditor {
   reason: string;
   document_filename: string;
 }
+interface SentinelAdditionalCreditor {
+  bank: string;
+  institucion_cmf: string;
+  product_type: string;
+  categoria_articulo: 260 | 261;
+  total_credito_clp: number;
+  reason: string;
+  document_filename: string;
+}
 
 export interface OrchestrationResult {
   status: 'success' | 'error';
@@ -357,7 +366,8 @@ export async function runCognitiveOrchestrator(
   supabase: SupabaseClient,
   logger: SimpleLogger,
   sentinelReclassified?: SentinelReclassifiedCreditor[],
-  sentinelIdentified261?: SentinelIdentified261Creditor[]
+  sentinelIdentified261?: SentinelIdentified261Creditor[],
+  sentinelAdditional?: SentinelAdditionalCreditor[]
 ): Promise<OrchestrationResult> {
   const log = (msg: string) => logger.log(`🧠 [Mente Pensante] ${msg}`);
   const logError = (msg: string, err?: any) => logger.error(`🧠 [Mente Pensante] ${msg}`, err);
@@ -1097,7 +1107,8 @@ Esquema JSON esperado:
               institucion_cmf: inst,
               tipo_documento: 22,
               storage_path: doc.storage_path,
-              local_path: doc.local_path
+              local_path: doc.local_path,
+              filename: doc.filename
             });
           } else {
             log(`⚠️ monto_file "${mapping.monto_file}" de Claude no coincide con ningún filename en client_documents para "${inst}". Certificado de monto NO adjuntado.`);
@@ -1114,12 +1125,35 @@ Esquema JSON esperado:
               institucion_cmf: inst,
               tipo_documento: 23,
               storage_path: doc.storage_path,
-              local_path: doc.local_path
+              local_path: doc.local_path,
+              filename: doc.filename
             });
           } else {
             log(`⚠️ vencimiento_file "${vencFile}" de Claude no coincide con ningún filename en client_documents para "${inst}". Certificado de vencimiento NO adjuntado.`);
           }
         }
+      }
+    }
+
+    // Acreedores NO-CMF (del Centinela): generar su AcreditacionDoc desde client_documents.
+    // El documentMapping de Claude solo cubre acreedores del CMF, así que estos se agregan aparte.
+    // 261 → solo monto (tipo 22). 260 → monto+vencimiento en un solo doc (tipo 24).
+    if (result.status === 'success' && sentinelAdditional && sentinelAdditional.length > 0) {
+      for (const ac of sentinelAdditional) {
+        const wanted = ac.document_filename?.toLowerCase();
+        const doc = wanted ? documents.find(d => d.filename.toLowerCase() === wanted) : undefined;
+        if (!doc) {
+          log(`⚠️ Acreedor NO-CMF "${ac.bank}": documento "${ac.document_filename}" no está en client_documents. Se ingresará el acreedor pero SIN su certificado de monto.`);
+          continue;
+        }
+        mappedDocs.push({
+          institucion_cmf: ac.institucion_cmf,
+          tipo_documento: ac.categoria_articulo === 260 ? 24 : 22,
+          storage_path: doc.storage_path,
+          local_path: doc.local_path,
+          filename: doc.filename
+        });
+        log(`📎 Acreedor NO-CMF "${ac.bank}" (Art. ${ac.categoria_articulo}): documento "${doc.filename}" mapeado para adjuntar.`);
       }
     }
 

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { extractTextFromPdf } from './pdf_analyzer';
-import { getCurrentChileDate, getDaysDifference } from './date_helper';
+import { getCurrentChileDate, getDaysDifference, parseDateString } from './date_helper';
 import { analyzeCmfPdf } from './cmf_analyzer';
 import {
   fetchAcreedoresCatalog,
@@ -37,11 +37,42 @@ export interface Identified261Creditor {
   document_filename: string;
 }
 
+/**
+ * Acreedor que NO aparece en el Informe CMF pero que igual debe declararse en
+ * el Paso 3 (Art. 261 obliga a declarar todos los pasivos): TGR, cajas de
+ * compensación, fintechs (Mercado Pago, Tenpo), tarjetas no reportadas, etc.
+ * Detectado por reconciliación (diff documentos − CMF): TypeScript marca los
+ * candidatos y Claude confirma/extrae los campos.
+ */
+export interface AdditionalCreditor {
+  bank: string;
+  institucion_cmf: string;              // nombre para matchear contra acreedores_canonicos
+  product_type: 'credito_consumo' | 'tarjeta_credito' | 'tgr' | 'caja_compensacion' | 'otro';
+  categoria_articulo: 260 | 261;
+  total_credito_clp: number;
+  delinquency_start_date?: string;      // YYYY-MM-DD, solo si es 260
+  delinquency_days?: number;            // solo si es 260
+  reason: string;                       // por qué no está en el CMF y por qué se declara
+  document_filename: string;
+  needs_lawyer_confirmation: boolean;   // flag — siempre true en esta fase
+}
+
+/** Fecha clave calculada determinísticamente (sin Claude) para alertar al abogado. */
+export interface FechaClave {
+  tipo: 'expiracion_cmf' | 'expiracion_certificado' | 'cruce_261_a_260';
+  referencia: string;        // nombre del documento o acreedor
+  fecha: string;             // YYYY-MM-DD
+  diasRestantes: number;     // negativo si ya pasó
+  detalle: string;
+}
+
 export interface SentinelResult {
   success: boolean;
   errors: string[];
   reclassifiedCreditors?: ReclassifiedCreditor[];
   identified261Creditors?: Identified261Creditor[];
+  additionalCreditors?: AdditionalCreditor[];
+  fechasClave?: FechaClave[];
   details: {
     meets90DaysRequirement: boolean;
     meetsAmountRequirement: boolean;
@@ -367,6 +398,79 @@ export async function runSentinelCheck(
 
     const requiredCertificatesPresent = classifiedCreditors.every(c => c.cumpleAcreditacion);
 
+    // --- Pre-pase determinista de reconciliación NO-CMF (diff documentos − CMF) ---
+    // TS marca candidatos; Claude confirma/extrae. Match por RUT del emisor primero,
+    // luego por nombre de institución (bidireccional). El caso "mismo banco, producto
+    // distinto" (ej. tarjeta vs consumo de Banco de Chile) lo resuelve Claude.
+    const cmfRutSet = new Set<string>();
+    const cmfNameNorms: string[] = [];
+    for (const c of cmfResult.creditors) {
+      cmfNameNorms.push(normalizeText(c.institucion));
+      const m = matchAcreedor(c.institucion, catalog);
+      if (m.status === 'matched' && m.entry?.rut) {
+        const r = normalizeRut(m.entry.rut);
+        if (r) cmfRutSet.add(r);
+      }
+    }
+
+    const nonCmfReconciliation = documents.map(doc => {
+      const docText = doc.textContent || '';
+      const docRuts = doc.isImageDoc ? [] : extractRutsFromText(docText);
+      const detected = findCatalogEntryByRut(docRuts, catalog, clientRutForCerts);
+      const issuerRutNorm = detected?.rut ? normalizeRut(detected.rut) : null;
+      const issuerName = detected?.nombre ?? doc.institucion_cmf ?? null;
+      const assignedNorm = doc.institucion_cmf ? normalizeText(doc.institucion_cmf) : '';
+      const issuerNorm = issuerName ? normalizeText(issuerName) : '';
+      const nameInCmf = cmfNameNorms.some(n =>
+        (!!assignedNorm && (n.includes(assignedNorm) || assignedNorm.includes(n))) ||
+        (!!issuerNorm && (n.includes(issuerNorm) || issuerNorm.includes(n)))
+      );
+      const rutInCmf = issuerRutNorm ? cmfRutSet.has(issuerRutNorm) : false;
+      const issuerInCmf = nameInCmf || rutInCmf;
+      return {
+        filename: doc.filename,
+        institucion_cmf_asignada: doc.institucion_cmf,
+        rutEmisorDetectado: issuerRutNorm,
+        bancoSegunRut: detected?.nombre ?? null,
+        issuerInCmf,
+        isImageDoc: !!doc.isImageDoc,
+        acreditacion_tipo: doc.acreditacion_tipo,
+        instruccion: issuerInCmf
+          ? 'El emisor SÍ aparece en el CMF. Solo es acreedor NO-CMF si representa un PRODUCTO DISTINTO no listado en el CMF para esa institución (ej. una tarjeta cuando el CMF solo tiene un crédito de consumo del mismo banco). Si solo respalda una línea que ya está en el CMF, NO lo agregues a additionalCreditors.'
+          : 'El emisor NO aparece en el CMF. Candidato fuerte a acreedor NO-CMF (ej. TGR, caja de compensación, fintech). Confirma que es una deuda real a declarar (NO un documento que dice "no tiene deuda") antes de agregarlo.'
+      };
+    });
+
+    // --- Fechas clave deterministas (sin Claude): expiración CMF/certificados ---
+    const fechasClave: FechaClave[] = [];
+    const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
+    const fmt = (d: Date) => d.toISOString().split('T')[0];
+
+    const cmfEmis = cmfResult.fechaEmision ? parseDateString(cmfResult.fechaEmision) : null;
+    if (cmfEmis) {
+      const exp = addDays(cmfEmis, 30);
+      fechasClave.push({
+        tipo: 'expiracion_cmf',
+        referencia: 'Informe CMF',
+        fecha: fmt(exp),
+        diasRestantes: getDaysDifference(exp, todayDate),
+        detalle: `CMF emitido ${cmfResult.fechaEmision}; vence a los 30 días.`,
+      });
+    }
+    for (const ca of certificateAnalyses) {
+      if (ca.isImageDoc || ca.isStatement || !ca.mostLikelyDate) continue;
+      const emis = parseDateString(ca.mostLikelyDate);
+      if (!emis) continue;
+      const exp = addDays(emis, 30);
+      fechasClave.push({
+        tipo: 'expiracion_certificado',
+        referencia: ca.filename,
+        fecha: fmt(exp),
+        diasRestantes: getDaysDifference(exp, todayDate),
+        detalle: `Certificado emitido ${ca.mostLikelyDate}; vence a los 30 días.`,
+      });
+    }
+
     const localAnalysis = {
       todayReference: todayStr,
       cmf: {
@@ -396,6 +500,7 @@ export async function runSentinelCheck(
         : [],
       creditors: classifiedCreditors,
       certificates: certificateAnalyses,
+      nonCmfReconciliation,
       documentsAgeValid,
       requiredCertificatesPresent
     };
@@ -484,6 +589,22 @@ Para CADA documento adjunto cuyo acreedor NO fue reclasificado a Art. 260, anali
 Esta información permite al Orquestador Cognitivo (API Key #2) mapear correctamente los documentos de los Otros Acreedores (Art. 261).
 
 ---
+**REGLA 8 — Acreedores NO-CMF (reconciliación documentos − CMF)**
+Algunas deudas reales NO aparecen en el Informe CMF pero IGUAL deben declararse en el Paso 3 (Art. 261 obliga a declarar todos los pasivos): deudas con TGR (Tesorería General de la República), cajas de compensación, fintechs (Mercado Pago, Tenpo), tarjetas no reportadas, deudas castigadas, etc. Omitir un pasivo invalida el escrito; declararlo dos veces también es un error grave.
+
+El pre-análisis TypeScript te entrega "nonCmfReconciliation": una fila por documento con el flag determinista "issuerInCmf" (¿el emisor aparece en el CMF?) y una "instruccion". Tu trabajo:
+
+1. Para cada documento, decide si representa un acreedor NO-CMF a declarar:
+   - **issuerInCmf = false** → el emisor no está en el CMF (ej. TGR, caja, fintech). Es candidato fuerte. Confírmalo leyendo el documento: ¿prueba una deuda real? Si el documento dice explícitamente que NO existe deuda (ej. "DEUDA TGR ... NO TIENE"), NO lo agregues.
+   - **issuerInCmf = true** → el emisor SÍ está en el CMF. Solo agrégalo si el documento prueba un PRODUCTO DISTINTO que NO está representado por ninguna línea del CMF de esa institución (ej. el CMF tiene solo el crédito de consumo de Banco de Chile, pero el documento es de una tarjeta de crédito de Banco de Chile con cupo propio). Si el documento solo respalda una deuda que YA está en el CMF, NO lo agregues (sería duplicado).
+
+2. Para cada acreedor NO-CMF confirmado, clasifícalo:
+   - Si tiene mora ≥91 días (calculada con las reglas A/B de la Regla 2) → categoria_articulo = 260, e incluye delinquency_start_date y delinquency_days.
+   - Si está al día o con mora <91 días → categoria_articulo = 261 (acredita solo monto).
+
+3. Devuélvelos en "additionalCreditors". NO los repitas en reclassifiedCreditors ni identified261Creditors (esos son SOLO para acreedores que ya están en el CMF). additionalCreditors es exclusivamente para los que NO están en el CMF.
+
+---
 **IMPORTANTE:** Si los documentos demuestran que los requisitos se cumplen aunque el CMF no lo refleje, el resultado puede ser "success": true con reclassifiedCreditors no vacío.
 
 Responde ÚNICAMENTE con un bloque JSON encerrado en <json>...</json>. Nada de texto fuera de esas etiquetas.
@@ -514,6 +635,18 @@ Esquema JSON esperado:
       "total_credito_clp": 65864,
       "reason": "Estado de cuenta Oct 2024: cargo automático de $14.210 liquidó mora vencida. Deuda vigente al día sin mora ≥91d.",
       "document_filename": "Banco de Chile Tarjeta Mastercard EC Octubre 2024.pdf"
+    }
+  ],
+  "additionalCreditors": [
+    {
+      "bank": "Banco de Chile",
+      "institucion_cmf": "Banco de Chile",
+      "product_type": "tarjeta_credito",
+      "categoria_articulo": 261,
+      "total_credito_clp": 517442,
+      "reason": "CPF de portabilidad: tarjeta Visa Platinium con cupo propio, NO listada en el CMF (el CMF solo trae el crédito de consumo de Banco de Chile). Sin morosidad → Art. 261.",
+      "document_filename": "CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf",
+      "needs_lawyer_confirmation": true
     }
   ],
   "details": {
@@ -590,11 +723,40 @@ Esquema JSON esperado:
     }
 
     const raw = JSON.parse(jsonMatch[1].trim());
+    // Garantizar el flag de confirmación en cada acreedor no-CMF (fase actual: siempre true).
+    const additionalCreditors: AdditionalCreditor[] = (raw.additionalCreditors || []).map((a: any) => ({
+      ...a,
+      needs_lawyer_confirmation: true,
+    }));
+
+    // Fecha clave: cruce 261 → 260 (mora alcanza 91 días). Solo futuros (útiles para el abogado).
+    const crossoverSources: { ref: string; start?: string }[] = [
+      ...(raw.reclassifiedCreditors || []).map((r: any) => ({ ref: r.bank, start: r.delinquency_start_date })),
+      ...additionalCreditors.map((a) => ({ ref: a.bank, start: a.delinquency_start_date })),
+    ];
+    for (const src of crossoverSources) {
+      if (!src.start) continue;
+      const start = parseDateString(src.start);
+      if (!start) continue;
+      const cross = addDays(start, 91);
+      const dias = getDaysDifference(cross, todayDate);
+      if (dias < 0) continue; // ya cruzó (ya habilita Art. 260)
+      fechasClave.push({
+        tipo: 'cruce_261_a_260',
+        referencia: src.ref,
+        fecha: fmt(cross),
+        diasRestantes: dias,
+        detalle: `Mora iniciada ${src.start}; alcanza 91 días (habilita Art. 260) en esta fecha.`,
+      });
+    }
+
     const result: SentinelResult = {
       success: raw.success,
       errors: raw.errors || [],
       reclassifiedCreditors: raw.reclassifiedCreditors || [],
       identified261Creditors: raw.identified261Creditors || [],
+      additionalCreditors,
+      fechasClave,
       details: raw.details,
     };
 
@@ -610,6 +772,19 @@ Esquema JSON esperado:
       result.identified261Creditors.forEach(r =>
         log(`   - ${r.bank} (${r.product_type}): $${r.total_credito_clp.toLocaleString('es-CL')} — ${r.reason}`)
       );
+    }
+    if (result.additionalCreditors && result.additionalCreditors.length > 0) {
+      log(`📋 ${result.additionalCreditors.length} acreedor(es) NO-CMF detectado(s) (requieren confirmación del abogado):`);
+      result.additionalCreditors.forEach(a =>
+        log(`   - ${a.bank} (${a.product_type}) [Art. ${a.categoria_articulo}]: $${a.total_credito_clp.toLocaleString('es-CL')} — ${a.reason}`)
+      );
+    }
+    if (result.fechasClave && result.fechasClave.length > 0) {
+      log(`🗓️  Fechas clave (no bloqueante):`);
+      result.fechasClave.forEach(f => {
+        const estado = f.diasRestantes < 0 ? `VENCIDO hace ${Math.abs(f.diasRestantes)}d` : `en ${f.diasRestantes}d`;
+        log(`   - [${f.tipo}] ${f.referencia}: ${f.fecha} (${estado}) — ${f.detalle}`);
+      });
     }
     return result;
 

@@ -4,6 +4,7 @@ import { fillStep1, ClientData } from './step1_personal';
 import { fillStep2 } from './step2_declaraciones';
 import { fillStep3, AcreditacionDoc } from './step3_acreedores';
 import { fillStep4 } from './step4_apoderado';
+import { ReclassifiedCreditor, AdditionalCreditor } from '../utils/sentinel';
 
 interface SimpleLogger {
   log(msg: string): void;
@@ -28,6 +29,8 @@ export async function fillAllSteps(
   // Se usa cuando el cliente SÍ califica pero los documentos de acreditación no cumplen
   // los requisitos: se guarda lo correcto y no se guarda el Paso 3.
   skipStep3Reason: string | null = null,
+  reclassifiedCreditors?: ReclassifiedCreditor[],
+  additionalCreditors?: AdditionalCreditor[],
 ): Promise<void> {
   const log = (msg: string) => {
     if (logger) {
@@ -76,7 +79,7 @@ export async function fillAllSteps(
     } else {
       log('→ Ya redirigido a la página de Paso 3.');
     }
-    await fillStep3(page, cmfLocalPath, supabase, logger, undefined, acreditacionDocs);
+    await fillStep3(page, cmfLocalPath, supabase, logger, undefined, acreditacionDocs, reclassifiedCreditors, additionalCreditors);
     log('✓ Paso 3 completado.');
   }
 
