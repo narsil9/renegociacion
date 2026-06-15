@@ -34,33 +34,7 @@
 - [x] **Deuda técnica resuelta — limpiar utils de prueba** — ~50 scripts de diagnóstico en `src/utils/` (inspect_*, check_*, test_*, migrate_*, scan_*, etc.) cubiertos por patrones en `.gitignore`. El árbol queda limpio sin eliminar los archivos.
 - [x] **Confirmación E2E Paso 3 Alejandra (2026-06-15)** — Segunda ejecución `test_step3.ts` ✅ 5/5 acreedores, 0 saltados: BdCh consumo $3.125.486 (261), CAT $11.275.392/05-09-2025 (260), CMR $1.781.499/25-08-2025 (260), Visa Platinium $517.442 NO-CMF (261), Visa Entel $1.407.530 NO-CMF (261). Matching por filename perfecto. DRY_RUN limpió. **Caso Alejandra CERRADO.**
 
----
-
-## En Curso — Caso Claudia Silva (cliente sin mora en CMF, con estados de cuenta)
-
-El caso de Claudia representa el flujo donde el CMF no muestra mora ≥ 91 días, pero los documentos adicionales (estados de cuenta) sí la prueban. Este flujo aún no está implementado y es el siguiente paso.
-
-### Paso 1 — Subir estados de cuenta de Claudia al perfil de prueba
-- [ ] **Obtener archivos de estados de cuenta de Claudia** — el abogado debe proporcionar los PDFs de tarjeta de crédito y/o crédito de consumo que prueban mora ≥ 91 días.
-- [ ] **Subirlos a Supabase Storage** bajo el prefijo `patricio_martini/` (bucket `documentos`), con nombres descriptivos (ej. `estado_cuenta_tarjeta.pdf`, `estado_cuenta_consumo.pdf`).
-- [ ] **Registrarlos en `client_documents`** con `client_id = a9ddf715-3bdf-4377-8cb3-2d467089227d`, `acreditacion_tipo = 'estado_cuenta'`, `institucion_cmf` = nombre del banco correspondiente.
-
-### Paso 2 — Agregar lógica de reclasificación al Centinela (`sentinel.ts`)
-El sentinel ya descarga los estados de cuenta y los envía a Claude, pero el system prompt no incluye el algoritmo para calcular mora desde ellos ni devuelve reclasificaciones. Hay que:
-- [ ] **Actualizar el system prompt de `sentinel.ts`** — incorporar el algoritmo de `API1_instructions.md`: detectar mora desde estados de cuenta (pago realizado < mínimo para tarjetas; reconstrucción hacia atrás de cuotas para crédito de consumo). Indicar a Claude que si detecta mora ≥ 91 días en un estado de cuenta, debe declarar ese acreedor como reclasificado a `obligaciones_260` aunque el CMF muestre 0.
-- [ ] **Ampliar `SentinelResult`** — agregar campo `reclassifiedCreditors: ReclassifiedCreditor[]` con la lista de acreedores que cambian de `otros_acreedores` → `obligaciones_260` por análisis de estados de cuenta, incluyendo la fecha de inicio de mora calculada y los días.
-- [ ] **Actualizar el pre-análisis TypeScript en `sentinel.ts`** — para estados de cuenta (`acreditacion_tipo = 'estado_cuenta'`), agregar en `localAnalysis` un flag explícito: "este documento requiere que Claude calcule la mora desde el historial de pagos".
-
-### Paso 3 — Aplicar reclasificación en el worker antes del Step 3
-Cuando el sentinel devuelve `reclassifiedCreditors` no vacío, el worker debe informarle al Step 3 cuáles acreedores cambian de categoría:
-- [ ] **`worker.ts`**: después de `runSentinelCheck`, si `result.reclassifiedCreditors.length > 0`, guardar la lista en una variable y pasarla a `fillStep3`.
-- [ ] **`step3_acreedores.ts`**: recibir un parámetro opcional `reclassifiedCreditors`. Al clasificar acreedores de la CMF, si un acreedor figura en `reclassifiedCreditors`, forzar su categoría a `obligaciones_260` (independiente de lo que diga el CMF).
-
-### Paso 4 — Probar con `ENABLE_SENTINEL=true` y `BYPASS_DATE_CHECK=true`
-- [ ] **Ejecutar sentinel aislado** primero: `npx ts-node -r dotenv/config src/utils/test_sentinel_claudia.ts` (script de prueba que llama solo a `runSentinelCheck` e imprime el resultado).
-- [ ] **Verificar output JSON del sentinel**: ¿detecta mora ≥ 91 días en los estados de cuenta? ¿Reclasifica correctamente?
-- [ ] **Ejecutar E2E completo** (paso 0) con `ENABLE_SENTINEL=true BYPASS_DATE_CHECK=true` y el perfil de Claudia.
-- [ ] **Verificar en el portal** que los acreedores reclasificados queden en Obligaciones 260 y los no reclasificados en Otros Acreedores.
+- [x] **Prueba E2E Paso 3 — Claudia Silva (2026-06-15)** — `test_step3.ts` ✅ 2/2 acreedores: BdCh Consumo $48.236.275/03-09-2024 (reclasificado 261→260 por Sentinel) y CAR Ripley $1.218.565/25-08-2024 (reclasificado 261→260). Monto y fecha tomados del documento. DRY_RUN limpió. **Caso Claudia CERRADO.**
 
 ---
 
@@ -76,6 +50,7 @@ Cuando el sentinel devuelve `reclassifiedCreditors` no vacío, el worker debe in
 - [ ] **Verificar categoría tributaria de Patricio Martini** — En E2E 2026-06-09 la categoría fue `ninguna`. Confirmar si es real o PDF escaneado.
 
 ### Arquitectura — Mejoras futuras
+- [ ] **Sentinel automático: detección de reclasificación desde estados de cuenta** — Implementar en `sentinel.ts` el algoritmo de `API1_instructions.md` para que Claude detecte mora ≥ 91d desde ECs sin hardcodear. Ampliar `SentinelResult.reclassifiedCreditors`. Caso de prueba: Claudia Silva (BdCh Consumo 91d, CAR Ripley 100d). Hoy el test_step3.ts de Claudia ya simula este resultado hardcodeado; el robot funciona pero requiere que el abogado calcule la mora manualmente.
 - [ ] **Dashboard integration para API Key #1** — Actualmente el sentinel solo corre en el worker. Próximo paso: exponer el análisis del sentinel como respuesta inmediata en `/api/subir-caso` (POST) para que el abogado reciba el diagnóstico en el Dashboard en el momento de la carga, antes de encolar el job.
 - [ ] **(Opcional) Veto determinista fase 2** — Bloquear fallos estructurales inequívocos aunque Claude diga `success`. No implementado por riesgo de falsos positivos.
 - [x] **Implementar no-CMF creditors (núcleo)** — TGR, Tenpo, fintechs, tarjetas, deudas castigadas. Construido como pase de reconciliación en el Centinela (ver Completadas). `fillStep3` ya ingresa acreedores no-CMF además de los del CMF.
