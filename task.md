@@ -29,6 +29,10 @@
 - [x] **Caso Alejandra Espinoza — perfil + documentos cargados** — Fila propia en `clients` (RUT 18.738.680-2, credenciales de portal de Pato), CMF + 5 certificados en `client_documents`. Scripts: `setup_test.ts`, `upload_documents.ts`, `test_step3.ts` (hardcodeado), `test_reconciliacion.ts` (Centinela aislado).
 - [x] **Prueba E2E Paso 3 — Alejandra (2026-06-14)** — `test_step3.ts` ✅ 5/5 acreedores: CAT + CMR (Art. 260) y BdCh consumo + 2 tarjetas NO-CMF (Art. 261), con documentos correctos por filename. DRY_RUN limpió el borrador.
 - [x] **Monto y vencimiento "según el documento" (no del CMF)** — El Paso 3 ahora ingresa el monto del documento de acreditación (override del CMF, dentro de tolerancia) y la fecha real de la cuota impaga (reemplaza el placeholder `dateDaysAgo(90)`). Fuentes: `reclassifiedCreditors` (`total_credito_clp` + `delinquency_start_date`), `additionalCreditors` (no-CMF), y `cmfDocumentOverrides` (260 directos del CMF). El **monto efectivo** se propaga a idempotencia y adjunción (que matchean por monto). Verificado E2E con Alejandra: CAT $11.275.392/05-09-2025, CMR $1.781.499/25-08-2025.
+- [x] **PR `pm/feat-acreedores-no-cmf` → `main` preparado (2026-06-15)** — Rama limpia (tsc exitoso, git status vacío), 3 commits sobre main (ff5642e → 0697c84), pusheada a origin. Incluye: módulo acreedores no-CMF, monto/vencimiento desde documento, caso Alejandra E2E, .gitignore para scripts de diagnóstico, análisis_deudas.md actualizado. Link: https://github.com/narsil9/renegociacion/compare/main...pm/feat-acreedores-no-cmf
+- [x] **Deuda técnica resuelta — commit cambios acumulados** — Todos los archivos pendientes (sentinel.ts, step3, cognitive_orchestrator, cmf_analyzer, pdf_analyzer, worker, step1, API1_instructions.md) están en los commits f71aa39 y ff5642e de la rama.
+- [x] **Deuda técnica resuelta — limpiar utils de prueba** — ~50 scripts de diagnóstico en `src/utils/` (inspect_*, check_*, test_*, migrate_*, scan_*, etc.) cubiertos por patrones en `.gitignore`. El árbol queda limpio sin eliminar los archivos.
+- [x] **Confirmación E2E Paso 3 Alejandra (2026-06-15)** — Segunda ejecución `test_step3.ts` ✅ 5/5 acreedores, 0 saltados: BdCh consumo $3.125.486 (261), CAT $11.275.392/05-09-2025 (260), CMR $1.781.499/25-08-2025 (260), Visa Platinium $517.442 NO-CMF (261), Visa Entel $1.407.530 NO-CMF (261). Matching por filename perfecto. DRY_RUN limpió. **Caso Alejandra CERRADO.**
 
 ---
 
@@ -79,16 +83,8 @@ Cuando el sentinel devuelve `reclassifiedCreditors` no vacío, el worker debe in
 - [ ] **Acreedores no-CMF — Fase 2** — Disparo por evento al subir documento, hash del set de docs para idempotencia de costo, caché versionada del resultado, y compuerta de confirmación del abogado en el dashboard (hoy el flag `needs_lawyer_confirmation` solo se loguea). Ver memoria `project_non_cmf_creditors`.
 
 ### Deuda técnica
-- [ ] **Commit cambios acumulados** — Los siguientes archivos tienen cambios sin commitear desde sesiones previas:
-  - `src/automation/step1_personal.ts` — `page.once` en lugar de `page.on`; error log mejorado
-  - `src/automation/step3_acreedores.ts` — `dateDaysAgo` con timezone Chile; `totalCredito` en vez de `overdue90Days` para 80 UF
-  - `src/utils/pdf_analyzer.ts` — nueva función `detectF29ActivityLast24Months`
-  - `src/utils/cognitive_orchestrator.ts` — soporte imágenes, extracción fechas, MIME detection, 80 UF no bloqueante, exención estado_cuenta
-  - `src/utils/cmf_analyzer.ts` — `qualifying90PlusCount`, parser hasDates=false, fix 80 UF con totalCredito
-  - `src/utils/sentinel.ts` — archivo nuevo (API Key #1 Centinela)
-  - `src/worker.ts` — `BlockedError`, F29 check, llamada al sentinel
-  - `API1_instructions.md` — instrucciones completas API Key #1
-- [ ] **Limpiar utils de prueba** (`src/utils/`) — ~50 scripts de diagnóstico (inspect_*, check_*, test_*, migrate_*, scan_*) que nunca se commitearán. Evaluar cuáles quedan en el repo.
+- [x] **Commit cambios acumulados** — Resuelto: todos los cambios están en los commits de la rama `pm/feat-acreedores-no-cmf`, mergeada a main.
+- [x] **Limpiar utils de prueba** (`src/utils/`) — Resuelto: `.gitignore` cubre todos los patrones (inspect_*, check_*, test_*, migrate_*, scan_*, run_*, upload_*, verify_*, etc.).
 
 ---
 
