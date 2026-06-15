@@ -23,11 +23,16 @@ Para estas obligaciones es obligatorio acreditar tanto el **Monto total** de la 
 * **Monto a Declarar:** **$11.275.392 CLP**
   * *Composición:* Saldo Facturado Nacional (**$2.102.241 CLP**) + Cupo Utilizado Súper Avance/Reestructuración (**$9.173.151 CLP**).
   * *Nota de Sanidad CMF:* La CMF reporta un total de **$11.228.194 CLP**, lo cual coincide con una diferencia mínima de $47.198 CLP por desfase de intereses al cierre.
-* **Fecha de Vencimiento (Mora):** **05/09/2025** (122 días de mora al 05/01/2026)
+* **Fecha de Vencimiento (Mora):** **04/09/2025** (123 días de mora al 05/01/2026)
 * **Soporte de Acreditación:**
-  * **Documento para acreditar MONTO:** **`Diciembre_2025_EECC.pdf`** (Estado de cuenta de Diciembre 2025 que refleja un monto total facturado de $2.102.241 y un cupo utilizado de súper avances/reestructuración de $9.173.151, totalizando $11.275.392).
-  * **Documento para acreditar VENCIMIENTO:** **`Agosto_2025_EECC.pdf`** (Estado de cuenta de Agosto 2025 que acredita que la fecha límite de pago fue el **05/09/2025** y que quedó impaga al registrar una morosidad por el monto mínimo de $298.666).
-  * *Explicación de continuidad:* La cadena ininterrumpida de estados de cuenta (Julio a Diciembre) prueba la persistencia de la mora. El estado de Diciembre confirma que el saldo de Noviembre ($1.643.771) no se pagó.
+  * **Regla de Acreditación:** Para acreditar tanto el Monto como el Vencimiento mediante estados de cuenta (EECC), es **obligatorio adjuntar los últimos cuatro (4) estados de cuenta consecutivos**.
+  * **Estados de Cuenta a presentar (últimos 4):**
+    1. **`Diciembre_2025_EECC.pdf`** (Acredita el monto total actual de **$11.275.392 CLP**).
+    2. **`Noviembre_2025_EECC.pdf`**
+    3. **`Octubre_2025_EECC.pdf`**
+    4. **`Septiembre_2025_EECC.pdf`**
+    *(Alternativamente se puede adjuntar el archivo consolidado `ilovepdf_merged - 2026-01-12T150611.849.pdf` que contiene estos meses).*
+  * **Documento para acreditar VENCIMIENTO:** **`Agosto_2025_EECC.pdf`** (Se adjunta adicionalmente para acreditar de manera fehaciente que la fecha de vencimiento impaga original más antigua fue el **04/09/2025**, la cual dio inicio a la mora de más de 91 días).
 
 ### 2. Tarjeta de Crédito Mastercard — CMR Falabella
 * **Tipo de Deuda en Portal:** Tarjeta de Crédito (Categoría 1)
@@ -35,8 +40,13 @@ Para estas obligaciones es obligatorio acreditar tanto el **Monto total** de la 
   * *Nota de Sanidad CMF:* La CMF reporta un total de **$1.758.145 CLP**, coincidiendo plenamente con el desfase de facturación.
 * **Fecha de Vencimiento (Mora):** **25/08/2025** (133 días de mora al 05/01/2026)
 * **Soporte de Acreditación:**
-  * **Documento para acreditar MONTO:** **`Diciembre_2025_CMR.pdf`** (Estado de cuenta de Diciembre 2025 que acredita un cupo utilizado en pesos por **$1.781.499**).
-  * **Documento para acreditar VENCIMIENTO:** **`Diciembre_2025_CMR.pdf`** (Acredita el vencimiento del **25/08/2025** a través de la sección oficial de "Aviso de Cobranza" que declara la mora de la cuota del 25-agosto por $20.896. Esto compensa técnicamente el hecho de que el archivo `Agosto_2025_CMR.pdf` entregado sea un duplicado del de Noviembre).
+  * **Regla de Acreditación:** Para acreditar tanto el Monto como el Vencimiento mediante estados de cuenta (EECC), es **obligatorio adjuntar los últimos cuatro (4) estados de cuenta consecutivos**.
+  * **Estados de Cuenta a presentar (últimos 4):**
+    1. **`Diciembre_2025_CMR.pdf`** (Acredita el monto total de **$1.781.499 CLP** y además acredita el vencimiento original del **25/08/2025** en su sección oficial de "Aviso de Cobranza").
+    2. **`Noviembre_2025_CMR.pdf`**
+    3. **`Octubre_2025_CMR.pdf`**
+    4. **`Septiembre_2025_CMR.pdf`**
+    *(Alternativamente se puede adjuntar el archivo consolidado `ilovepdf_merged - 2026-01-12T151151.541.pdf` que contiene la secuencia de estados de cuenta).*
 
 ---
 
@@ -126,3 +136,39 @@ Para las obligaciones vigentes (al día o con mora inferior a 91 días), la ley 
 4. **Bienes y Domicilios:**
    * La clienta posee **derechos de copropiedad (25%)** sobre la propiedad familiar de Puente Alto (Pasaje Once N° 0695). Se registra una interdicción judicial vigente sobre su co-propietaria Carolina Espinoza.
    * Su dirección habitacional y de facturación activa es **Promoncaes 1371, Renca**, coincidiendo con la dirección de facturación de sus deudas y la dirección del vehículo familiar Kia.
+
+---
+
+## VIII. Resumen de Documentos a Utilizar para Acreditación (Monto y Vencimiento)
+
+Para postular al procedimiento ante el portal de la Superintendencia (Superir), se deben utilizar específicamente los siguientes documentos para la acreditación:
+
+### 1. Deudas del Artículo 260 (Requieren acreditar Monto y Vencimiento)
+> [!IMPORTANT]
+> Para acreditar obligaciones del Art. 260 mediante estados de cuenta (EECC), la normativa exige adjuntar los **últimos cuatro (4) estados de cuenta consecutivos** para probar la continuidad de la obligación y la morosidad.
+
+* **CAT (ex Cencosud) - Tarjeta de Crédito Mastercard:**
+  * **Documentos para acreditar Monto y Continuidad (Últimos 4 EECC):**
+    1. `Diciembre_2025_EECC.pdf` (Refleja saldo total facturado de $2.102.241 + cupo súper avance de $9.173.151 = **$11.275.392 CLP**).
+    2. `Noviembre_2025_EECC.pdf`
+    3. `Octubre_2025_EECC.pdf`
+    4. `Septiembre_2025_EECC.pdf`
+    *(Nota: Se puede adjuntar el archivo unificado `ilovepdf_merged - 2026-01-12T150611.849.pdf` que consolida la secuencia).*
+  * **Documento de Vencimiento de cuota impaga más antigua:** `Agosto_2025_EECC.pdf` (Demuestra de manera fehaciente que el vencimiento original impago ocurrió el **04/09/2025**).
+* **CMR Falabella - Tarjeta de Crédito Mastercard:**
+  * **Documentos para acreditar Monto y Continuidad (Últimos 4 EECC):**
+    1. `Diciembre_2025_CMR.pdf` (Acredita saldo total de **$1.781.499 CLP** y además acredita la fecha de vencimiento impaga del **25/08/2025** mediante su sección oficial de "Aviso de Cobranza").
+    2. `Noviembre_2025_CMR.pdf`
+    3. `Octubre_2025_CMR.pdf`
+    4. `Septiembre_2025_CMR.pdf`
+    *(Nota: Se puede adjuntar el archivo unificado `ilovepdf_merged - 2026-01-12T151151.541.pdf` que consolida la secuencia).*
+
+### 2. Deudas del Artículo 261 (Sólo requieren certificar/acreditar Monto)
+* **Banco de Chile - Crédito de Consumo:**
+  * **Documento para certificar Monto:** `consultaCredito DE CONSUMO.pdf` (Consulta oficial que acredita saldo total vigente de **$3.125.486 CLP**).
+* **Banco de Chile - Tarjeta Visa Platinium:**
+  * **Documento para certificar Monto:** `CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf` (Certificado de Liquidación de Portabilidad del 06/01/2026, el cual certifica una deuda total de **$517.442 CLP**).
+  * *(Alternativa válida: Estado de cuenta `Estado_Cuenta CHILE PLATINIUM.pdf`)*.
+* **Banco de Chile - Tarjeta Visa Entel:**
+  * **Documento para certificar Monto:** `CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf` (Certificado de Liquidación de Portabilidad del 06/01/2026, el cual certifica una deuda total de **$1.407.530 CLP**).
+  * *(Alternativa válida: Estado de cuenta `Estado_Cuenta CHILE ENTEL VISA.pdf`)*.

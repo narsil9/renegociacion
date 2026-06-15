@@ -2,7 +2,7 @@ import { Page } from 'playwright';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { screenshotOnFailure } from '../utils/browser';
 import { extractCreditors, CmfCreditor } from '../utils/cmf_analyzer';
-import { ReclassifiedCreditor } from '../utils/sentinel';
+import { ReclassifiedCreditor, AdditionalCreditor } from '../utils/sentinel';
 import {
   fetchAcreedoresCatalog,
   matchAcreedor,
@@ -23,6 +23,10 @@ export interface AcreditacionDoc {
   tipo_documento: 22 | 23 | 24;
   storage_path: string;
   local_path?: string;
+  // Nombre legible del client_document. Necesario para asociar correctamente el
+  // documento a un acreedor NO-CMF cuando hay varios productos del mismo banco
+  // (ej. el CPF de las tarjetas BdCh vs. el consultaCredito del consumo BdCh).
+  filename?: string;
 }
 
 interface SimpleLogger {
@@ -33,6 +37,30 @@ interface SimpleLogger {
 export interface Step3Report {
   added: { institucion: string; nombreCatalogo: string; monto: number }[];
   skipped: { institucion: string; reason: string }[];
+}
+
+/**
+ * Override de monto y/o fecha de vencimiento "según el documento de acreditación"
+ * para un acreedor del CMF (los reclasificados y no-CMF ya traen estos datos en
+ * sus propias estructuras). El monto del documento es más actual que el del CMF;
+ * la fecha de vencimiento real reemplaza el placeholder `dateDaysAgo(90)`.
+ * En producción lo puebla el Orquestador (pendiente de extraer los valores);
+ * en los tests se provee hardcodeado.
+ */
+export interface CmfDocumentOverride {
+  institucion_cmf: string;
+  monto_clp?: number;
+  fecha_vencimiento?: string; // YYYY-MM-DD o dd/mm/yyyy
+}
+
+/** Convierte una fecha YYYY-MM-DD (o dd/mm/yyyy) al formato dd/mm/yyyy del portal. */
+function toPortalDate(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) return trimmed;
+  return undefined; // formato no reconocido → caller usa fallback
 }
 
 const MAX = { nombre: 70, direccion: 100, email: 100, telefono: 20, monto: 12 };
@@ -50,7 +78,9 @@ export async function fillStep3(
   logger?: SimpleLogger,
   boletinComercialPath?: string,
   acreditacionDocs?: AcreditacionDoc[],
-  reclassifiedCreditors?: ReclassifiedCreditor[]
+  reclassifiedCreditors?: ReclassifiedCreditor[],
+  additionalCreditors?: AdditionalCreditor[],
+  cmfDocumentOverrides?: CmfDocumentOverride[]
 ): Promise<Step3Report> {
   const log = (msg: string) => {
     if (logger) {
@@ -155,12 +185,22 @@ export async function fillStep3(
     // en sus documentos, aunque el CMF muestre $0 en la columna 90+d.
     // Name-only matching: monto is deliberately excluded because the CMF cut date
     // and the bank document date can differ by weeks, causing multi-million CLP gaps.
-    const isReclassifiedTo260 = (c: CmfCreditor): boolean => {
-      if (!reclassifiedCreditors || reclassifiedCreditors.length === 0) return false;
+    const getReclassifiedMatch = (c: CmfCreditor): ReclassifiedCreditor | undefined => {
+      if (!reclassifiedCreditors || reclassifiedCreditors.length === 0) return undefined;
       const normInst = normalizeText(c.institucion);
-      return reclassifiedCreditors.some(r => {
+      return reclassifiedCreditors.find(r => {
         const normR = normalizeText(r.institucion_cmf);
         return normInst.includes(normR) || normR.includes(normInst);
+      });
+    };
+    const isReclassifiedTo260 = (c: CmfCreditor): boolean => !!getReclassifiedMatch(c);
+
+    const getCmfOverride = (c: CmfCreditor): CmfDocumentOverride | undefined => {
+      if (!cmfDocumentOverrides || cmfDocumentOverrides.length === 0) return undefined;
+      const normInst = normalizeText(c.institucion);
+      return cmfDocumentOverrides.find(o => {
+        const normO = normalizeText(o.institucion_cmf);
+        return normInst.includes(normO) || normO.includes(normInst);
       });
     };
 
@@ -189,7 +229,7 @@ export async function fillStep3(
     // Creditors with overdue90Days === 0 → Otros Acreedores (#btnAgregarEmpresa2)
     // The portal only enables "Subir Documento" buttons once ALL creditors are
     // present in the table. We add all first, then attach documents separately.
-    const addedDocs: { entry: AcreedorCatalogEntry; creditor: CmfCreditor }[] = [];
+    const addedDocs: { entry: AcreedorCatalogEntry; creditor: CmfCreditor; nonCmfDocFilename?: string }[] = [];
 
     // Extract client's RUT from the CMF to ignore it when scanning certificates
     let clientRutClean: string | null = null;
@@ -242,11 +282,30 @@ export async function fillStep3(
         entry = match.entry!;
       }
       const isOtros = creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor);
+
+      // Monto y vencimiento "según el documento de acreditación" (más actuales que el CMF):
+      // los reclasificados traen sus propios datos; los 260 directos del CMF se
+      // sobrescriben vía cmfDocumentOverrides. El monto efectivo se propaga a la
+      // idempotencia y a la adjunción de documentos (que matchean por monto).
+      const rec = getReclassifiedMatch(creditor);
+      const cmfOv = getCmfOverride(creditor);
+      const montoEfectivo =
+        rec?.total_credito_clp && rec.total_credito_clp > 0 ? rec.total_credito_clp :
+        cmfOv?.monto_clp && cmfOv.monto_clp > 0 ? cmfOv.monto_clp :
+        creditor.totalCredito;
+      const fechaVenc = toPortalDate(rec?.delinquency_start_date) ?? toPortalDate(cmfOv?.fecha_vencimiento);
+      const creditorEff: CmfCreditor =
+        montoEfectivo !== creditor.totalCredito ? { ...creditor, totalCredito: montoEfectivo } : creditor;
+      if (montoEfectivo !== creditor.totalCredito) {
+        log(`   💰 Monto según documento: $${montoEfectivo.toLocaleString('es-CL')} (CMF: $${creditor.totalCredito.toLocaleString('es-CL')}).`);
+      }
+      if (fechaVenc) log(`   📅 Vencimiento según documento: ${fechaVenc}.`);
+
       try {
         await withRetry(
           async () => {
             // Idempotency: if already in table (from a previous attempt), skip the add.
-            if (await isCreditorAlreadyInTable(page, creditor.totalCredito, isOtros)) {
+            if (await isCreditorAlreadyInTable(page, creditorEff.totalCredito, isOtros)) {
               log(`   ℹ️ "${entry.nombre}" ya existe en la tabla — omitiendo add.`);
               return;
             }
@@ -255,9 +314,9 @@ export async function fillStep3(
             await dismissBlockingDialogs(page, log).catch(() => {});
             const isPersona = entry.tipo?.toLowerCase().includes('persona') === true;
             if (isPersona) {
-              await addPersonaAcreedor(page, entry, creditor, log, isOtros);
+              await addPersonaAcreedor(page, entry, creditorEff, log, isOtros, fechaVenc);
             } else {
-              await addEmpresaAcreedor(page, entry, creditor, log, isOtros);
+              await addEmpresaAcreedor(page, entry, creditorEff, log, isOtros, fechaVenc);
             }
           },
           {
@@ -273,10 +332,10 @@ export async function fillStep3(
         report.added.push({
           institucion: creditor.institucion,
           nombreCatalogo: entry.nombre,
-          monto: creditor.totalCredito,
+          monto: creditorEff.totalCredito,
         });
-        log(`✓ Acreedor agregado: ${entry.nombre} ($${creditor.totalCredito.toLocaleString('es-CL')}).`);
-        addedDocs.push({ entry, creditor });
+        log(`✓ Acreedor agregado: ${entry.nombre} ($${creditorEff.totalCredito.toLocaleString('es-CL')}).`);
+        addedDocs.push({ entry, creditor: creditorEff });
       } catch (err) {
         const reason = `Error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
         logError(`✗ Falló agregar "${creditor.institucion}" (${entry.nombre}).`, err);
@@ -285,12 +344,100 @@ export async function fillStep3(
       }
     }
 
+    // --- 4a-bis. Add NON-CMF creditors (Phase 1, continued) -----------------
+    // Acreedores detectados por el Centinela que NO están en el CMF pero igual
+    // deben declararse (Art. 261 — TGR, cajas, fintechs, tarjetas no reportadas).
+    // Se agregan con las MISMAS funciones que los del CMF. isOtros sale del
+    // artículo que decidió el Centinela. Requieren confirmación del abogado (flag).
+    if (additionalCreditors && additionalCreditors.length > 0) {
+      log(`→ Acreedores NO-CMF detectados por el Centinela: ${additionalCreditors.length} (requieren confirmación del abogado).`);
+      for (const ac of additionalCreditors) {
+        const match = matchAcreedor(ac.institucion_cmf, catalog);
+        if (match.status !== 'matched' || !match.entry) {
+          const reason = match.status === 'ambiguous'
+            ? `NO-CMF: múltiples candidatos en el catálogo para "${ac.institucion_cmf}".`
+            : `NO-CMF: "${ac.institucion_cmf}" no existe en acreedores_canonicos (sin RUT para el portal).`;
+          log(`⏭️  Saltando acreedor NO-CMF "${ac.bank}": ${reason}`);
+          report.skipped.push({ institucion: ac.bank, reason });
+          continue;
+        }
+        const entry = match.entry;
+        const isOtros = ac.categoria_articulo === 261;
+        // Vencimiento real desde el documento (solo aplica a 260; 261 no acredita vencimiento).
+        const fechaVenc = ac.categoria_articulo === 260 ? toPortalDate(ac.delinquency_start_date) : undefined;
+        // CmfCreditor sintético: monto = total del documento (ya es el monto a declarar).
+        const synthCreditor: CmfCreditor = {
+          institucion: ac.institucion_cmf,
+          tipoCredito: ac.product_type,
+          totalCredito: ac.total_credito_clp,
+          vigente: ac.categoria_articulo === 261 ? ac.total_credito_clp : 0,
+          overdue30to59: 0,
+          overdue60to89: 0,
+          overdue90Days: ac.categoria_articulo === 260 ? ac.total_credito_clp : 0,
+          esIndirecta: false,
+        };
+        try {
+          await withRetry(
+            async () => {
+              if (await isCreditorAlreadyInTable(page, synthCreditor.totalCredito, isOtros)) {
+                log(`   ℹ️ NO-CMF "${entry.nombre}" ya existe en la tabla — omitiendo add.`);
+                return;
+              }
+              await ensureOnAcreedoresPage(page, log);
+              await dismissOpenModal(page).catch(() => {});
+              await dismissBlockingDialogs(page, log).catch(() => {});
+              const isPersona = entry.tipo?.toLowerCase().includes('persona') === true;
+              log(`🆕 ACREEDOR NO-CMF (Art. ${ac.categoria_articulo}, requiere confirmación abogado): ${entry.nombre} ($${synthCreditor.totalCredito.toLocaleString('es-CL')}) — ${ac.reason}`);
+              if (isPersona) {
+                await addPersonaAcreedor(page, entry, synthCreditor, log, isOtros, fechaVenc);
+              } else {
+                await addEmpresaAcreedor(page, entry, synthCreditor, log, isOtros, fechaVenc);
+              }
+            },
+            {
+              attempts: 3,
+              delayMs: 4000,
+              onRetry: (attempt, err) =>
+                log(`⚠️ Reintento ${attempt}/2 para NO-CMF "${entry.nombre}": ${err.message.substring(0, 120)}`),
+            }
+          );
+          report.added.push({
+            institucion: `${ac.bank} (NO-CMF)`,
+            nombreCatalogo: entry.nombre,
+            monto: synthCreditor.totalCredito,
+          });
+          log(`✓ Acreedor NO-CMF agregado: ${entry.nombre} ($${synthCreditor.totalCredito.toLocaleString('es-CL')}).`);
+          addedDocs.push({ entry, creditor: synthCreditor, nonCmfDocFilename: ac.document_filename });
+        } catch (err) {
+          const reason = `NO-CMF: error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
+          logError(`✗ Falló agregar acreedor NO-CMF "${ac.bank}" (${entry.nombre}).`, err);
+          report.skipped.push({ institucion: ac.bank, reason });
+          await dismissOpenModal(page).catch(() => {});
+        }
+      }
+    }
+
     // --- 4b. Attach acreditacion documents (Phase 2) ------------------------
     // Run only after ALL creditors are in the table (portal enables the button then).
     if (docs.length > 0 && addedDocs.length > 0) {
       log('→ Adjuntando certificados de acreditación...');
-      for (const { entry, creditor } of addedDocs) {
-        const creditorDocs = findAcreditacionDocs(creditor.institucion, docs);
+      // Documentos reservados a acreedores NO-CMF: se asocian por filename, no por
+      // institución, para no cruzarlos con otros productos del mismo banco que sí
+      // están en el CMF (ej. el CPF de las tarjetas vs. el consultaCredito del consumo).
+      const reservedNonCmfFilenames = new Set(
+        (additionalCreditors ?? []).map((a) => a.document_filename).filter(Boolean)
+      );
+      for (const { entry, creditor, nonCmfDocFilename } of addedDocs) {
+        // NO-CMF → matchear el documento exacto por filename.
+        // CMF    → matchear por institución, excluyendo los reservados a NO-CMF.
+        const creditorDocs = nonCmfDocFilename
+          ? docs.filter((d) => d.filename === nonCmfDocFilename)
+          : findAcreditacionDocs(creditor.institucion, docs).filter(
+              (d) => !d.filename || !reservedNonCmfFilenames.has(d.filename)
+            );
+        if (nonCmfDocFilename && creditorDocs.length === 0) {
+          log(`   ⚠️ Acreedor NO-CMF "${entry.nombre}": no se encontró el documento "${nonCmfDocFilename}" en los mappedDocs (¿el orquestador pobló filename?). No se adjunta.`);
+        }
         for (const doc of creditorDocs) {
           if (!doc.local_path) continue;
 
@@ -388,7 +535,8 @@ async function addEmpresaAcreedor(
   entry: AcreedorCatalogEntry,
   creditor: CmfCreditor,
   log: (m: string) => void,
-  isOtros: boolean
+  isOtros: boolean,
+  fechaVencimientoOverride?: string
 ): Promise<void> {
   const rut = normalizeRut(entry.rut);
   if (!rut) throw new Error('El acreedor del catálogo no tiene RUT.');
@@ -446,8 +594,9 @@ async function addEmpresaAcreedor(
   // Debt amount = "Total del crédito" from the CMF.
   await locByName(page, 'empresaAcreedor.deudaMonto').fill(truncate(String(creditor.totalCredito), MAX.monto));
 
-  // Vencimiento — obligatorio. Intentamos 3 métodos en cascada.
-  const dateStr = dateDaysAgo(90);
+  // Vencimiento — obligatorio. Usa la fecha real del documento si está disponible,
+  // si no, el placeholder de 90 días. Intentamos 3 métodos en cascada.
+  const dateStr = fechaVencimientoOverride ?? dateDaysAgo(90);
   await fillDateField(page, '#empresaAcreedorFchCuotaImpaga', dateStr, log);
 
   // Dismiss any overlay dialog blocking clicks (e.g. #dlgImportante after rep modal closes)
@@ -601,7 +750,8 @@ async function addPersonaAcreedor(
   entry: AcreedorCatalogEntry,
   creditor: CmfCreditor,
   log: (m: string) => void,
-  isOtros: boolean
+  isOtros: boolean,
+  fechaVencimientoOverride?: string
 ): Promise<void> {
   const rut = normalizeRut(entry.rut);
   if (!rut) throw new Error('El acreedor del catálogo no tiene RUT.');
@@ -647,7 +797,7 @@ async function addPersonaAcreedor(
 
   await locByName(page, 'personaAcreedor.deudaMonto').fill(truncate(String(creditor.totalCredito), MAX.monto));
   // Vencimiento — obligatorio en el modal real.
-  await clearAndFill(page, '#personaFechaCuotaImpaga', dateDaysAgo(90));
+  await clearAndFill(page, '#personaFechaCuotaImpaga', fechaVencimientoOverride ?? dateDaysAgo(90));
 
   await page.locator('#btnGuardarPersona').click();
   await page.locator('#modalPersona').waitFor({ state: 'hidden', timeout: 20000 });

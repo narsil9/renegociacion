@@ -64,6 +64,21 @@ This repository contains the hybrid automation system for filling out the renego
 - **`isOtros` invariant**: Always `creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor)`. This value is computed once and passed explicitly to `addEmpresaAcreedor`, `addPersonaAcreedor`, and `attachDocumentoAcreedor`. **Never recompute from `overdue90Days` alone inside those functions** — the CMF cut date can lag the bank documents by weeks, causing multi-million CLP gaps.
 - **Sentinel name matching**: Only institution name is used (no monto tolerance). CMF dates and bank document dates differ — the same loan can appear as $38.9M in CMF and $48.2M in the bank's report.
 
+### Step 3 — Acreedores NO-CMF (reconciliación)
+Algunas deudas reales NO aparecen en el Informe CMF pero igual deben declararse (Art. 261 obliga a declarar todos los pasivos): TGR, cajas de compensación, fintechs (Mercado Pago, Tenpo), tarjetas no reportadas, deudas castigadas. El **Centinela** (`sentinel.ts`) las detecta vía **reconciliación documentos − CMF**:
+- **Pre-pase determinista (TS)**: por cada documento, `extractRutsFromText` + match contra los acreedores del CMF (por RUT primero, luego por nombre). Marca `issuerInCmf` en `nonCmfReconciliation` (parte de `localAnalysis`).
+- **Claude (API #1) confirma/extrae**: decide qué documento es un acreedor NO-CMF a declarar y lo clasifica 260/261. El caso "mismo banco, producto distinto" (tarjeta BdCh vs. consumo BdCh) lo resuelve Claude, no el pre-pase. Devuelve `additionalCreditors[]` (interfaz `AdditionalCreditor`, con `needs_lawyer_confirmation: true`).
+- **Flujo**: `worker.ts` captura `_sentinelAdditional` → `runCognitiveOrchestrator(..., sentinelAdditional)` genera los `AcreditacionDoc` de los no-CMF (261→tipo 22, 260→tipo 24) → `fillStep3(..., additionalCreditors)` los ingresa tras la Fase 1 (`isOtros = categoria_articulo === 261`).
+- **Matching documento↔acreedor por `filename`**: los acreedores NO-CMF asocian su certificado por `AcreditacionDoc.filename` exacto (no por institución), y los del CMF **excluyen** los filenames reservados a NO-CMF. Esto evita el cruce cuando hay varios productos del mismo banco. **El orquestador debe poblar `AcreditacionDoc.filename`** (lo hace) para que el match funcione en producción.
+- **Fechas clave** (`FechaClave[]` en `SentinelResult`, determinista, no bloqueante): expiración CMF/certificados (+30d) y cruce 261→260 (+91d).
+
+### Step 3 — Monto y vencimiento "según el documento" (no del CMF)
+El Paso 3 ingresa el **monto del documento de acreditación** (más actual que el CMF, dentro de la tolerancia de $300–500k) y la **fecha real de la cuota impaga** (en vez del placeholder `dateDaysAgo(90)`). Fuentes por tipo de acreedor:
+- **Reclasificados** (`reclassifiedCreditors`): `total_credito_clp` + `delinquency_start_date`. Funciona en producción (el worker ya los pasa).
+- **No-CMF** (`additionalCreditors`): `total_credito_clp` + `delinquency_start_date` (solo 260). Funciona en producción.
+- **260 directos del CMF** (ej. CAT/CMR): vía `cmfDocumentOverrides?: CmfDocumentOverride[]` (param de `fillStep3`). **Hoy solo lo provee el test**; en producción el Orquestador debe extraer monto+fecha y poblarlo (pendiente, ver `task.md`).
+- **Monto efectivo**: cuando el monto del documento sobrescribe al del CMF, ese valor se propaga a `isCreditorAlreadyInTable` y a `attachDocumentoAcreedor` (que matchean por monto). **Nunca usar `creditor.totalCredito` del CMF directamente si hay override** — la fila quedaría con un monto y el attach buscaría otro.
+
 ### Step 3 — Requisito de sesión (Art. 260 / 80 UF)
 Para que el cliente pueda iniciar una sesión de renegociación deben cumplirse **dos condiciones simultáneas**:
 
@@ -250,6 +265,16 @@ npm run build
 
 # Test Paso 3 hardcodeado (sin job queue ni créditos de API) — caso Claudia Silva
 BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/claudia_silva/test_step3.ts
+
+# Test Paso 3 hardcodeado — caso Alejandra Espinoza (incluye acreedores NO-CMF: 2 tarjetas BdCh)
+BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_step3.ts
+
+# Test del Centinela aislado (DETECCIÓN no-CMF) — GASTA créditos de Claude (API #1)
+ENABLE_SENTINEL=true BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_reconciliacion.ts
+
+# Setup de un caso nuevo (perfil + CMF) y carga de certificados a client_documents
+npx ts-node -r dotenv/config casos/alejandra_espinoza/setup_test.ts
+npx ts-node -r dotenv/config casos/alejandra_espinoza/upload_documents.ts
 
 # 🧹 LIMPIEZA TOTAL del borrador en el portal (correr ANTES de re-testear el flujo real)
 # Borra archivos del Paso 2 y acreedores + CMF del Paso 3 de la solicitud. Login con ClaveÚnica.

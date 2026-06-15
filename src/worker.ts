@@ -18,7 +18,7 @@ import { analyzeCmfPdf } from './utils/cmf_analyzer';
 import { createAlert, clearAlert } from './utils/alerts';
 import { cleanupDraft } from './automation/cleanup';
 import { runCognitiveOrchestrator } from './utils/cognitive_orchestrator';
-import { runSentinelCheck, ReclassifiedCreditor, Identified261Creditor } from './utils/sentinel';
+import { runSentinelCheck, ReclassifiedCreditor, Identified261Creditor, AdditionalCreditor } from './utils/sentinel';
 
 /**
  * BUG-08 FIX: Dedicated error class for cases that must not be retried and
@@ -152,6 +152,7 @@ async function processJob(job: any): Promise<void> {
   // --- RUN SENTINEL CHECK (API Key #1) ---
   let _sentinelReclassified: ReclassifiedCreditor[] = [];
   let _sentinelIdentified261: Identified261Creditor[] = [];
+  let _sentinelAdditional: AdditionalCreditor[] = [];
   try {
     const sentinelResult = await runSentinelCheck(client, supabase, logger);
     if (sentinelResult.reclassifiedCreditors && sentinelResult.reclassifiedCreditors.length > 0) {
@@ -159,6 +160,9 @@ async function processJob(job: any): Promise<void> {
     }
     if (sentinelResult.identified261Creditors && sentinelResult.identified261Creditors.length > 0) {
       _sentinelIdentified261 = sentinelResult.identified261Creditors;
+    }
+    if (sentinelResult.additionalCreditors && sentinelResult.additionalCreditors.length > 0) {
+      _sentinelAdditional = sentinelResult.additionalCreditors;
     }
     if (!sentinelResult.success) {
       const errorMsg = `Centinela de Carga bloqueó el caso por documentos deficientes: ${sentinelResult.errors.join('; ')}`;
@@ -224,6 +228,7 @@ async function processJob(job: any): Promise<void> {
     let browserInstance: any = null;
     let mappedAcreditacionDocs: AcreditacionDoc[] = [];
     let sentinelReclassified: ReclassifiedCreditor[] = [];
+    let sentinelAdditional: AdditionalCreditor[] = [];
     // Si queda con motivo: el cliente califica pero los documentos del Paso 3 no
     // cumplen → en el flujo completo (step:0) se omite SOLO el Paso 3 y se guardan 1, 2 y 4.
     let skipStep3Reason: string | null = null;
@@ -282,7 +287,7 @@ async function processJob(job: any): Promise<void> {
 
         // 3. Run AI Cognitive Orchestrator ("Mente Pensante")
         logger.log('🧠 Ejecutando orquestador cognitivo de IA (Claude Sonnet 4.6) para auditar documentos y fechas...');
-        const orchResult = await runCognitiveOrchestrator(client, cmfLocalPath, supabase, logger, _sentinelReclassified, _sentinelIdentified261);
+        const orchResult = await runCognitiveOrchestrator(client, cmfLocalPath, supabase, logger, _sentinelReclassified, _sentinelIdentified261, _sentinelAdditional);
 
         if (orchResult.status === 'success' && orchResult.mappedDocs) {
           mappedAcreditacionDocs = orchResult.mappedDocs;
@@ -308,6 +313,7 @@ async function processJob(job: any): Promise<void> {
 
         // Propagar reclasificaciones del sentinel al scope del intento actual
         sentinelReclassified = _sentinelReclassified;
+        sentinelAdditional = _sentinelAdditional;
         const totalQualifyingCount = (cmfResult.qualifying90PlusCount || 0) + (sentinelReclassified.length || 0);
         const noCalifica = totalQualifyingCount < 2;
         const docsInvalidos = orchResult.status === 'error';
@@ -507,7 +513,7 @@ async function processJob(job: any): Promise<void> {
         logger.log(`→ Redireccionando a la URL del Paso 3: ${step3Url}`);
         await page.goto(step3Url, { waitUntil: 'domcontentloaded' });
 
-        await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs, sentinelReclassified);
+        await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs, sentinelReclassified, sentinelAdditional);
       } else if (job.step === 4) {
         logger.log('📝 Navegando e ingresando información de Paso 4...');
         
@@ -582,7 +588,9 @@ async function processJob(job: any): Promise<void> {
           supabase,
           mappedAcreditacionDocs,
           logger,
-          skipStep3Reason
+          skipStep3Reason,
+          sentinelReclassified,
+          sentinelAdditional
         );
       }
 
