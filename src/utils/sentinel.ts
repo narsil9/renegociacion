@@ -69,6 +69,7 @@ export interface FechaClave {
 export interface SentinelResult {
   success: boolean;
   errors: string[];
+  technicalError?: boolean; // true = API/red/código; false/undefined = semántico (docs deficientes)
   reclassifiedCreditors?: ReclassifiedCreditor[];
   identified261Creditors?: Identified261Creditor[];
   additionalCreditors?: AdditionalCreditor[];
@@ -792,6 +793,7 @@ Esquema JSON esperado:
     logError('Error en verificación del Centinela:', err);
     return {
       success: false,
+      technicalError: true,
       errors: [`Error interno durante la validación del Centinela: ${err.message || err}`],
       details: {
         meets90DaysRequirement: false,

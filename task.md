@@ -29,73 +29,131 @@
 - [x] **Caso Alejandra Espinoza — perfil + documentos cargados** — Fila propia en `clients` (RUT 18.738.680-2, credenciales de portal de Pato), CMF + 5 certificados en `client_documents`. Scripts: `setup_test.ts`, `upload_documents.ts`, `test_step3.ts` (hardcodeado), `test_reconciliacion.ts` (Centinela aislado).
 - [x] **Prueba E2E Paso 3 — Alejandra (2026-06-14)** — `test_step3.ts` ✅ 5/5 acreedores: CAT + CMR (Art. 260) y BdCh consumo + 2 tarjetas NO-CMF (Art. 261), con documentos correctos por filename. DRY_RUN limpió el borrador.
 - [x] **Monto y vencimiento "según el documento" (no del CMF)** — El Paso 3 ahora ingresa el monto del documento de acreditación (override del CMF, dentro de tolerancia) y la fecha real de la cuota impaga (reemplaza el placeholder `dateDaysAgo(90)`). Fuentes: `reclassifiedCreditors` (`total_credito_clp` + `delinquency_start_date`), `additionalCreditors` (no-CMF), y `cmfDocumentOverrides` (260 directos del CMF). El **monto efectivo** se propaga a idempotencia y adjunción (que matchean por monto). Verificado E2E con Alejandra: CAT $11.275.392/05-09-2025, CMR $1.781.499/25-08-2025.
+- [x] **PR `pm/feat-acreedores-no-cmf` → `main` preparado (2026-06-15)** — Rama limpia (tsc exitoso, git status vacío), 3 commits sobre main (ff5642e → 0697c84), pusheada a origin. Incluye: módulo acreedores no-CMF, monto/vencimiento desde documento, caso Alejandra E2E, .gitignore para scripts de diagnóstico, análisis_deudas.md actualizado. Link: https://github.com/narsil9/renegociacion/compare/main...pm/feat-acreedores-no-cmf
+- [x] **Deuda técnica resuelta — commit cambios acumulados** — Todos los archivos pendientes (sentinel.ts, step3, cognitive_orchestrator, cmf_analyzer, pdf_analyzer, worker, step1, API1_instructions.md) están en los commits f71aa39 y ff5642e de la rama.
+- [x] **Deuda técnica resuelta — limpiar utils de prueba** — ~50 scripts de diagnóstico en `src/utils/` (inspect_*, check_*, test_*, migrate_*, scan_*, etc.) cubiertos por patrones en `.gitignore`. El árbol queda limpio sin eliminar los archivos.
+- [x] **Confirmación E2E Paso 3 Alejandra (2026-06-15)** — Segunda ejecución `test_step3.ts` ✅ 5/5 acreedores, 0 saltados: BdCh consumo $3.125.486 (261), CAT $11.275.392/05-09-2025 (260), CMR $1.781.499/25-08-2025 (260), Visa Platinium $517.442 NO-CMF (261), Visa Entel $1.407.530 NO-CMF (261). Matching por filename perfecto. DRY_RUN limpió. **Caso Alejandra CERRADO.**
+
+- [x] **Prueba E2E Paso 3 — Claudia Silva (2026-06-15)** — `test_step3.ts` ✅ 2/2 acreedores: BdCh Consumo $48.236.275/03-09-2024 (reclasificado 261→260 por Sentinel) y CAR Ripley $1.218.565/25-08-2024 (reclasificado 261→260). Monto y fecha tomados del documento. DRY_RUN limpió. **Caso Claudia CERRADO.**
+
+- [x] **Prueba E2E Paso 3 — Betzy Lee (2026-06-15)** — ✅ 5/5: BdCh consumo $18.191.754 reclasificado (261→260) + BdCh tarjeta $3.716.235 NO-CMF Art.260 + 3 Art.261 (CAT, CMR, PRESTO). Patrón validado: mismo banco, producto fuera del CMF → `additionalCreditors`. `reservedNonCmfFilenames` evita cruce de docs. **Caso Betzy CERRADO.**
+
+- [x] **Prueba E2E Paso 3 — Yoselyn Reyes (2026-06-15)** — ✅ 8/8: 4 Art.260 del CMF (BancoEstado, BCI, CAR Ripley, CMR) + 1 Art.261 (Coopeuch) + 3 NO-CMF Art.261 (CCAF Los Andes). Lección: "Caja Los Andes" en docs = "CCAF Los Andes" en catálogo (RUT 81826800-9). cmfDocumentOverrides con 4 entradas. **Caso Yoselyn CERRADO.**
+
+- [x] **Prueba E2E Paso 3 — Susana Matamala (2026-06-15)** — ✅ 4/4: CMF consolida 3 ops BdCh en 1 fila ($11.601.044) → EEDD_7616.pdf certifica $13.304.962 (c/intereses). CMR, CAT, CAR Ripley. Sin Sentinel. CT usa la de Pato Martini (pendiente SII). **Caso Susana CERRADO.**
+
+- [x] **Prueba E2E Paso 3 — María Paz Bravo (2026-06-15)** — ✅ 5/5: CMR ($9.763.965/05-08-2025) + Itaú ($5.134.284/25-08-2025, 3 productos en 1 fila CMF) + BancoEstado×2 (Vivienda $71.189.175 + Línea $1.031.582, 1 doc cubre ambas filas) + Coopeuch $16.905.601. Catálogo BANCO ITAU corregido (RUT 97023000-9, comuna Las Condes). **Caso María Paz CERRADO.**
+
+- [x] **Fix `getReclassifiedMatch` tiebreaker (2026-06-15)** — Cuando el Sentinel reclasifica múltiples productos del mismo banco (ej. BdCh consumo + BdCh tarjeta), el `find` original siempre devolvía el primero. Ahora usa `filter` + `reduce` por `totalCredito` más cercano como desempate. Validado: la brecha entre productos (millones) siempre supera la brecha CMF/doc ($300–500k).
+
+- [x] **Análisis de deudas Jaime Cartes, Noelia Lorca, Nicolás Bascuñán y William Montero — generados por Codex/Gemini (2026-06-15)** — Los cuatro `analisis_deudas.md` fueron producidos por agentes externos (Codex / Gemini) usando la skill `/analisis-deudas-renegociacion`. Claude los leyó y asimiló en esta sesión. Resumen: Jaime y Noelia **bloqueados** tributariamente (ver Pendientes). Nicolás y William tienen análisis completos y están listos para crear sus scripts de prueba.
 
 ---
 
-## En Curso — Caso Claudia Silva (cliente sin mora en CMF, con estados de cuenta)
+## En Curso — Arquitectura Multi-Agente (Pasos 2 y 3)
 
-El caso de Claudia representa el flujo donde el CMF no muestra mora ≥ 91 días, pero los documentos adicionales (estados de cuenta) sí la prueban. Este flujo aún no está implementado y es el siguiente paso.
+Objetivo: reemplazar los valores hardcodeados de `test_step3.ts` y el análisis manual de docs por agentes Claude que extraen datos, con TS que valida antes de pasarlos a Playwright. En producción los docs deben tener ≤30 días (excepción: estados de cuenta). En pruebas: `BYPASS_DATE_CHECK=true`.
 
-### Paso 1 — Subir estados de cuenta de Claudia al perfil de prueba
-- [ ] **Obtener archivos de estados de cuenta de Claudia** — el abogado debe proporcionar los PDFs de tarjeta de crédito y/o crédito de consumo que prueban mora ≥ 91 días.
-- [ ] **Subirlos a Supabase Storage** bajo el prefijo `patricio_martini/` (bucket `documentos`), con nombres descriptivos (ej. `estado_cuenta_tarjeta.pdf`, `estado_cuenta_consumo.pdf`).
-- [ ] **Registrarlos en `client_documents`** con `client_id = a9ddf715-3bdf-4377-8cb3-2d467089227d`, `acreditacion_tipo = 'estado_cuenta'`, `institucion_cmf` = nombre del banco correspondiente.
+### Flujo objetivo
 
-### Paso 2 — Agregar lógica de reclasificación al Centinela (`sentinel.ts`)
-El sentinel ya descarga los estados de cuenta y los envía a Claude, pero el system prompt no incluye el algoritmo para calcular mora desde ellos ni devuelve reclasificaciones. Hay que:
-- [ ] **Actualizar el system prompt de `sentinel.ts`** — incorporar el algoritmo de `API1_instructions.md`: detectar mora desde estados de cuenta (pago realizado < mínimo para tarjetas; reconstrucción hacia atrás de cuotas para crédito de consumo). Indicar a Claude que si detecta mora ≥ 91 días en un estado de cuenta, debe declarar ese acreedor como reclasificado a `obligaciones_260` aunque el CMF muestre 0.
-- [ ] **Ampliar `SentinelResult`** — agregar campo `reclassifiedCreditors: ReclassifiedCreditor[]` con la lista de acreedores que cambian de `otros_acreedores` → `obligaciones_260` por análisis de estados de cuenta, incluyendo la fecha de inicio de mora calculada y los días.
-- [ ] **Actualizar el pre-análisis TypeScript en `sentinel.ts`** — para estados de cuenta (`acreditacion_tipo = 'estado_cuenta'`), agregar en `localAnalysis` un flag explícito: "este documento requiere que Claude calcule la mora desde el historial de pagos".
+```
+Docs (CMF + certs + carpeta tributaria)
+  ├── TS: parse CMF (cmf_analyzer.ts, gratis/determinista) → agent_runs
+  ├── Agente Tributario → categoria + F29 → agent_runs       [Step 2]
+  ├── Agente Centinela  → reclasif + no-CMF + montos/fechas → agent_runs  [Step 3]
+  └── Agente Mapeador   → lee JSONs de agent_runs → step3_config → agent_runs  [Step 3]
+        ↓
+  TS Validator (regla 30d, RUT, 2 prods, 80 UF, vencimientos 260)
+        ↓
+  Playwright Step 2 / Step 3
+```
 
-### Paso 3 — Aplicar reclasificación en el worker antes del Step 3
-Cuando el sentinel devuelve `reclassifiedCreditors` no vacío, el worker debe informarle al Step 3 cuáles acreedores cambian de categoría:
-- [ ] **`worker.ts`**: después de `runSentinelCheck`, si `result.reclassifiedCreditors.length > 0`, guardar la lista en una variable y pasarla a `fillStep3`.
-- [ ] **`step3_acreedores.ts`**: recibir un parámetro opcional `reclassifiedCreditors`. Al clasificar acreedores de la CMF, si un acreedor figura en `reclassifiedCreditors`, forzar su categoría a `obligaciones_260` (independiente de lo que diga el CMF).
+### Infraestructura base
+- [x] **Tabla `agent_runs` en Supabase** — `supabase/schema_agent_runs.sql` creado y ejecutado en SQL Editor (2026-06-16). `src/agents/agent_runs.ts` con CRUD tipado.
+- [x] **Interfaces TypeScript de output** — `TributarioOutput`, `CmfParseOutput`, `CentinelaOutput`, `MapeadorOutput` + `AgentRunRow<T>` en `src/agents/types.ts`.
+- [x] **TS Validator (`src/agents/validator.ts`)** — Type guards por output, regla 30d (bypasseable), ≥2 productos, ≥80 UF (advertencia), Art.260 con fecha, filenames únicos por institución, needsLawyerReview propagado. `mergeResults` + `logValidationResult` helpers.
 
-### Paso 4 — Probar con `ENABLE_SENTINEL=true` y `BYPASS_DATE_CHECK=true`
-- [ ] **Ejecutar sentinel aislado** primero: `npx ts-node -r dotenv/config src/utils/test_sentinel_claudia.ts` (script de prueba que llama solo a `runSentinelCheck` e imprime el resultado).
-- [ ] **Verificar output JSON del sentinel**: ¿detecta mora ≥ 91 días en los estados de cuenta? ¿Reclasifica correctamente?
-- [ ] **Ejecutar E2E completo** (paso 0) con `ENABLE_SENTINEL=true BYPASS_DATE_CHECK=true` y el perfil de Claudia.
-- [ ] **Verificar en el portal** que los acreedores reclasificados queden en Obligaciones 260 y los no reclasificados en Otros Acreedores.
+### Agente Tributario (Step 2)
+- [x] **`src/agents/tributario_agent.ts`** — Estrategia dual: texto→determinista / escaneado→Claude Opus 4.8 con documento base64. Idempotencia por SHA-256. Valida con `validateTributarioOutput` antes de `completeRun`. F29 con actividad → `needsLawyerReview = true`.
+- [x] **Conectar al worker** — `worker.ts` llama a `runTributarioAgent` en step 2 y step 0. Eliminados `analyzeTaxCategory` y `detectF29ActivityLast24Months` del worker. `BlockedError` y alerta en `automation_alerts` preservados.
 
----
+### Agente Centinela (Step 3)
+- [x] **`src/agents/centinela_agent.ts`** — Wrapper de `sentinel.ts` con idempotencia SHA-256, agent_runs (step=3), `validateCentinelaOutput` antes de completeRun, conversión `SentinelResult→CentinelaOutput`. `ENABLE_SENTINEL=false` → bypass sin escribir a agent_runs. `CentinelaBlockedError` para bloqueos semánticos. `cmfDocumentOverrides` vacío (TODO próxima iteración).
+- [x] **Worker conectado al centinela_agent** — `runSentinelCheck` eliminado del worker. Centinela se corre dentro del bloque `step===3|0` después del CMF descargado. `orchResult`, `fillStep3` y `fillAllSteps` consumen `centinelaOutput.*`.
+- [x] **Fix `technicalError` en sentinel.ts** — Campo `technicalError?: boolean` en `SentinelResult`; catch externo lo marca `true`. `centinela_agent.ts` distingue: técnico → throw Error genérico (reintentable), semántico → `CentinelaBlockedError` (bloquea caso). Antes, API caída o créditos agotados bloqueaban el caso permanentemente.
+- [ ] **Probar con Alejandra** — `test_centinela_agent.ts` listo en `casos/alejandra_espinoza/`. Bloqueado por créditos API agotados. Recargar en console.anthropic.com y correr: `ENABLE_SENTINEL=true BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_centinela_agent.ts`
 
-## Pendientes (post-Claudia)
+### Agente Mapeador (Step 3)
+- [x] **`src/agents/mapeador_agent.ts`** — Wrapper de `cognitive_orchestrator.ts` con idempotencia (hash = centinela run ID), agent_runs (step=3), conversión `OrchestrationResult→MapeadorOutput`. Errores técnicos → failRun+throw (retry). Errores semánticos (missing_document, rut_mismatch) → completeRun con needsLawyerReview. `mapeadorHasBlockers()` helper para el worker.
+- [x] **Worker conectado al mapeador_agent** — `runCognitiveOrchestrator` eliminado del worker. Worker llama `runMapeadorAgent` y usa `mapeadorHasBlockers` para decidir si bloquea el Paso 3.
+- [ ] **`cmfDocumentOverrides` desde el Centinela** — El Centinela ya extrae monto/fecha de cada cert; el Mapeador los recibe como parte del JSON. Pendiente de implementar en `centinela_agent.ts`.
 
-### Técnico / Robot
-- [ ] **Orquestador: extraer monto + fecha de vencimiento por acreedor del documento** — Para que los 260 directos del CMF (ej. CAT/CMR de Alejandra) obtengan en PRODUCCIÓN su monto/fecha reales, el orquestador debe extraerlos y poblar `cmfDocumentOverrides` (hoy solo lo provee el test hardcodeado). Los reclasificados y no-CMF ya funcionan en producción (datos del Sentinel). Requiere ampliar prompt/schema del orquestador + créditos para probar.
-- [ ] **Probar el camino NO-CMF Art. 260 (acreedor fuera del CMF EN MORA ≥91d)** — Solo se probó el no-CMF Art. 261 (al día, ej. tarjetas de Alejandra). Falta validar un acreedor no-CMF **moroso** (ej. deuda con TGR/Tesorería, caja de compensación, o tarjeta de casa comercial impaga 91+ días). **Esperar a un cliente real que presente este caso** (ninguno actual lo tiene: las no-CMF de Alejandra están al día y su TGR dice "NO TIENE"). El código ya debería soportarlo (`isOtros = categoria_articulo === 261` → un 260 va a Obligaciones 260; fecha real desde `delinquency_start_date`; orquestador genera tipo 24 monto+vencimiento), pero ese camino NUNCA se ejecutó. Al probar, verificar: (1) el acreedor cae en **Obligaciones 260** (`#tablaAcreedores`), no en Otros; (2) `attachDocumentoAcreedor` sube bien un **tipo 24** (un solo documento que acredita monto Y vencimiento — distinto de los 260 del CMF que usan tipo 22 + 23 separados); (3) la fecha real de la cuota impaga se ingresa correctamente. Si no hay cliente disponible, fabricar un caso de prueba simulando una deuda no-CMF morosa con su documento.
-- [ ] **Run mecánico completo de Patricio con `BYPASS_DATE_CHECK=true`** — Probar 1→4 con documentos vencidos para verificar flujo mecánico. Resolver `missing_document` de PRESTO LIDER (cert "Deuda Castigada" sin fecha de vencimiento).
-- [ ] **Run real 1→4 con documentos frescos (<30 días)** — CMF + certs actuales. Ver memoria `project_expired_test_fixtures`.
-- [ ] **ClaveÚnica de Miled** — `Miled12345` es inválida. Pendiente clave real para reintentar.
-- [ ] **Prueba con cliente de Primera Categoría** — Verificar `BlockedError` + F29 check funciona cuando el cliente SÍ tiene actividad F29 en los últimos 24 meses.
-- [ ] **Verificar categoría tributaria de Patricio Martini** — En E2E 2026-06-09 la categoría fue `ninguna`. Confirmar si es real o PDF escaneado.
-
-### Arquitectura — Mejoras futuras
-- [ ] **Dashboard integration para API Key #1** — Actualmente el sentinel solo corre en el worker. Próximo paso: exponer el análisis del sentinel como respuesta inmediata en `/api/subir-caso` (POST) para que el abogado reciba el diagnóstico en el Dashboard en el momento de la carga, antes de encolar el job.
-- [ ] **(Opcional) Veto determinista fase 2** — Bloquear fallos estructurales inequívocos aunque Claude diga `success`. No implementado por riesgo de falsos positivos.
-- [x] **Implementar no-CMF creditors (núcleo)** — TGR, Tenpo, fintechs, tarjetas, deudas castigadas. Construido como pase de reconciliación en el Centinela (ver Completadas). `fillStep3` ya ingresa acreedores no-CMF además de los del CMF.
-- [ ] **Probar detección no-CMF con créditos** — Correr `test_reconciliacion.ts` con `ENABLE_SENTINEL=true` para validar que Claude detecta solo las 2 tarjetas de Alejandra (sin inventar TGR, sin duplicar el consumo BdCh). El tramo Sentinel→Orquestador está implementado pero NO ejecutado (requiere API Key con créditos).
-- [ ] **Acreedores no-CMF — Fase 2** — Disparo por evento al subir documento, hash del set de docs para idempotencia de costo, caché versionada del resultado, y compuerta de confirmación del abogado en el dashboard (hoy el flag `needs_lawyer_confirmation` solo se loguea). Ver memoria `project_non_cmf_creditors`.
-
-### Deuda técnica
-- [ ] **Commit cambios acumulados** — Los siguientes archivos tienen cambios sin commitear desde sesiones previas:
-  - `src/automation/step1_personal.ts` — `page.once` en lugar de `page.on`; error log mejorado
-  - `src/automation/step3_acreedores.ts` — `dateDaysAgo` con timezone Chile; `totalCredito` en vez de `overdue90Days` para 80 UF
-  - `src/utils/pdf_analyzer.ts` — nueva función `detectF29ActivityLast24Months`
-  - `src/utils/cognitive_orchestrator.ts` — soporte imágenes, extracción fechas, MIME detection, 80 UF no bloqueante, exención estado_cuenta
-  - `src/utils/cmf_analyzer.ts` — `qualifying90PlusCount`, parser hasDates=false, fix 80 UF con totalCredito
-  - `src/utils/sentinel.ts` — archivo nuevo (API Key #1 Centinela)
-  - `src/worker.ts` — `BlockedError`, F29 check, llamada al sentinel
-  - `API1_instructions.md` — instrucciones completas API Key #1
-- [ ] **Limpiar utils de prueba** (`src/utils/`) — ~50 scripts de diagnóstico (inspect_*, check_*, test_*, migrate_*, scan_*) que nunca se commitearán. Evaluar cuáles quedan en el repo.
+### Conexión al flujo real
+- [ ] **Worker orquesta la cadena** — `worker.ts` corre secuencialmente: CMF parser → Centinela (espera `cmf` completed) → Mapeador (espera `centinela` completed) → Playwright. Si un paso falla, los siguientes no corren.
+- [ ] **`input_hash` para idempotencia** — Hash del set de PDFs. Si los docs no cambiaron y el run anterior completó, reusar output (no gastar créditos).
+- [ ] **Gate del abogado** — Si `needs_lawyer_review = true` en cualquier agente, pausar antes de Playwright y notificar en dashboard.
 
 ---
 
-## Resumen de la arquitectura de API Keys
+## Pendientes — Casos
 
-| Momento | Quién actúa | Qué hace |
-|---|---|---|
-| Carga de documentos (Dashboard) | TypeScript + API Key #1 (Sentinel) | Valida antigüedad, mora ≥ 91d (CMF + estados de cuenta), ≥ 2 productos, ≥ 80 UF, reclasifica acreedores. Bloquea si falla. |
-| Antes del Paso 3 (Worker) | TypeScript + API Key #2 (Cognitive Orchestrator) | Re-corrobora antigüedad, RUT, mapeo certificado → acreedor, presencia monto/vencimiento. Devuelve `mappedDocs` para Playwright. |
-| Paso 3 (Playwright) | Playwright | Ejecuta la entrada de datos en el portal usando `mappedDocs` y la clasificación reclasificada. |
+- [ ] **Jaime Cartes (RUT 17.596.599-8)** — **BLOQUEADO** hasta **13/07/2026** (boletas honorarios). Certs Santander TC + Tenpo desactualizados (monto <80 UF). Sin scripts.
+- [ ] **Noelia Lorca (RUT 15.121.553-K)** — **BLOQUEADA** hasta ~**dic/2026**. Docs incompletos (La Araucana, Forum, TGR). Sin scripts.
+- [ ] **Irene Arévalo (RUT 16.143.425-6)** — **BLOQUEADA** doble hasta ~**oct/2027**. Scripts listos, no ejecutar.
+
+---
+
+## Pendientes — Técnico (pre-agentes)
+
+- [x] **Probar camino NO-CMF Art.260** — ✅ Validado con TGR de William Montero (2026-06-16).
+- [ ] **Run mecánico completo Patricio (BYPASS_DATE_CHECK=true)** — Pasos 1→4. Pendiente: `missing_document` PRESTO LIDER.
+- [ ] **Run real 1→4 con docs frescos** — Requiere CMF + certs <30 días.
+- [ ] **ClaveÚnica de Miled** — `Miled12345` inválida.
+- [ ] **Prueba cliente Primera Categoría** — Verificar `BlockedError` + F29 con actividad real.
+- [ ] **Verificar categoría tributaria Patricio** — `ninguna` en E2E jun/2026. ¿Real o PDF escaneado?
+
+---
+
+## Completadas (sesiones anteriores)
+
+- [x] **CMF Analyzer** — normalización diacríticos, extracción `overdue90DaysTotal`, mapeo columnas dinámico, validación 80 UF
+- [x] **Alerts** — `createAlert`/`clearAlert` con `clientsTable`, formato `credential_error`
+- [x] **Login** — `CredentialError` tipada, selectores exactos, fallback error genérico
+- [x] **Worker** — `instanceof CredentialError`, `alertType` por `.code`
+- [x] **Steps 2 y 4** — URL check antes de `waitForSelector`, `logger?.error()` en catch
+- [x] **Step 3 Playwright** — `:not(.hidden)` en CMF, timeouts extendidos, estabilización post-cleanup
+- [x] **Datos sandbox** — tabla `client_documents` migrada, registros Patricio Martini
+- [x] **Cognitive Orchestrator (API Key #2)** — soporte imágenes, extracción fechas, MIME detection, pre-chequeo RUT determinista, exención estados de cuenta
+- [x] **F29 Activity Check** — `detectF29ActivityLast24Months` + `BlockedError`
+- [x] **`dateDaysAgo` timezone** — usa `America/Santiago`
+- [x] **Prueba E2E Pasos 1→4 Patricio Martini** — ✅ 4/4 (2026-06-09)
+- [x] **Dashboard "Carga de Documentos"** — vista `/subir-caso` + `/api/subir-caso`. Fix cap acreedores.
+- [x] **Pre-chequeo RUT determinista** — `extractRutsFromText`/`findCatalogEntryByRut`/`computeRutCheck`
+- [x] **Sentinel (API Key #1) — base construida** — `sentinel.ts` integrado en worker. `ENABLE_SENTINEL=true`.
+- [x] **`qualifying90PlusCount`** + **80 UF usa `totalCredito`** corregidos
+- [x] **Módulo no-CMF (núcleo)** — reconciliación doc−CMF, `AdditionalCreditor`, `FechaClave[]`, match por filename
+- [x] **Fix `getReclassifiedMatch` tiebreaker** — filter + reduce por `totalCredito` más cercano
+- [x] **Monto y vencimiento "según el documento"** — override CMF, `cmfDocumentOverrides`, monto efectivo propagado
+- [x] **Fix all_steps propagación** — `reclassifiedCreditors` + `additionalCreditors` a `fillStep3`
+- [x] **E2E Step 3 — Alejandra Espinoza** — ✅ 5/5 (2026-06-14 y 2026-06-15). CAT+CMR 260, BdCh consumo+2 tarjetas NO-CMF 261.
+- [x] **E2E Step 3 — Claudia Silva** — ✅ 2/2 (2026-06-15). BdCh Consumo+CAR Ripley reclasif. 260.
+- [x] **E2E Step 3 — Betzy Lee** — ✅ 5/5 (2026-06-15). BdCh reclasif.+tarjeta NO-CMF 260, 3×261.
+- [x] **E2E Step 3 — Yoselyn Reyes** — ✅ 8/8 (2026-06-15). CCAF Los Andes NO-CMF.
+- [x] **E2E Step 3 — Susana Matamala** — ✅ 4/4 (2026-06-15). CMF consolida 3 ops BdCh en 1 fila.
+- [x] **E2E Step 3 — María Paz Bravo** — ✅ 5/5 (2026-06-15). Itaú RUT corregido.
+- [x] **E2E Step 3 — Nicolás Bascuñán** — ✅ 10/10 (2026-06-16). 2×CCAF+2×Muni NO-CMF.
+- [x] **E2E Step 3 — William Montero** — ✅ 11/11 (2026-06-16). TGR NO-CMF Art.260 real.
+- [x] **Commit rama `pm/feat-acreedores-no-cmf`** + **`.gitignore` utils prueba** — resueltos.
+
+---
+
+## Arquitectura de agentes (objetivo producción)
+
+| Momento | Agente | Input | Output → Supabase |
+|---|---|---|---|
+| Step 2 | **Agente Tributario** | carpeta_tributaria.pdf | `{ categoria, f29_meses }` |
+| Step 3 (TS) | **CMF Parser** | informe_cmf.pdf | `CmfCreditor[]` (determinista) |
+| Step 3 | **Agente Centinela** | CMF JSON + certs PDFs | `{ reclasificados, no-CMF, overrides, fechas_emision }` |
+| Step 3 | **Agente Mapeador** | JSONs de agent_runs | `{ mappedDocs[], step3_config }` |
+| Step 3 | **TS Validator** | MapeadorOutput | Bloquea si regla 30d / RUT / monto falla |
+| Steps 2+3 | **Playwright** | step3_config + categoria | Llena portal Superir |

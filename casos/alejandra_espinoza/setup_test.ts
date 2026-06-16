@@ -39,7 +39,7 @@ const DOCS_DIR = path.resolve(__dirname, 'documentos');
 
 const FILES = {
   cmf: {
-    local: path.join(DOCS_DIR, 'informe_deudas_18738680-2 (5).pdf'),
+    local: path.join(DOCS_DIR, '02_Informe_CMF', 'informe_deudas_18738680-2 (5).pdf'),
     storagePath: `${STORAGE_PREFIX}/informe_cmf.pdf`,
   },
   // carpeta_tributaria: no disponible. Agregar aquí cuando el abogado la proporcione.

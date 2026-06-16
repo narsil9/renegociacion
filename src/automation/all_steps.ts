@@ -2,7 +2,7 @@ import { Page } from 'playwright';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { fillStep1, ClientData } from './step1_personal';
 import { fillStep2 } from './step2_declaraciones';
-import { fillStep3, AcreditacionDoc } from './step3_acreedores';
+import { fillStep3, AcreditacionDoc, CmfDocumentOverride } from './step3_acreedores';
 import { fillStep4 } from './step4_apoderado';
 import { ReclassifiedCreditor, AdditionalCreditor } from '../utils/sentinel';
 
@@ -31,6 +31,7 @@ export async function fillAllSteps(
   skipStep3Reason: string | null = null,
   reclassifiedCreditors?: ReclassifiedCreditor[],
   additionalCreditors?: AdditionalCreditor[],
+  cmfDocumentOverrides?: CmfDocumentOverride[]
 ): Promise<void> {
   const log = (msg: string) => {
     if (logger) {
@@ -79,7 +80,7 @@ export async function fillAllSteps(
     } else {
       log('→ Ya redirigido a la página de Paso 3.');
     }
-    await fillStep3(page, cmfLocalPath, supabase, logger, undefined, acreditacionDocs, reclassifiedCreditors, additionalCreditors);
+    await fillStep3(page, cmfLocalPath, supabase, logger, undefined, acreditacionDocs, reclassifiedCreditors, additionalCreditors, cmfDocumentOverrides);
     log('✓ Paso 3 completado.');
   }
 

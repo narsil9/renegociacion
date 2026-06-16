@@ -264,6 +264,7 @@ const ALIASES: Record<string, string> = {
   'lider': 'tarjeta lider',
   'bci': 'banco de credito e inversiones',
   'santander': 'banco santander',
+  'santander chile': 'banco santander', // CMF escribe "Santander-Chile" (banco) → distinto de "Santander Consumer"
   'car ripley': 'car s a tarjeta ripley',
   'car': 'car s a tarjeta ripley',
 };

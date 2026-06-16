@@ -183,15 +183,31 @@ export async function fillStep3(
     const UF_80_CLP = 3_253_000; // 80 UF ≈ $3,253,000 CLP
     // Un acreedor es reclasificado a Art. 260 si el sentinel detectó mora ≥91d
     // en sus documentos, aunque el CMF muestre $0 en la columna 90+d.
-    // Name-only matching: monto is deliberately excluded because the CMF cut date
-    // and the bank document date can differ by weeks, causing multi-million CLP gaps.
+    // Name-only matching as primary key. When the same institution has multiple
+    // reclassified products (e.g. BdCh consumo + BdCh tarjeta both reclassified),
+    // use closest totalCredito as tiebreaker — the inter-product gap ($M range) is
+    // always larger than the CMF/doc date gap ($300-500k), so this is unambiguous.
     const getReclassifiedMatch = (c: CmfCreditor): ReclassifiedCreditor | undefined => {
       if (!reclassifiedCreditors || reclassifiedCreditors.length === 0) return undefined;
       const normInst = normalizeText(c.institucion);
-      return reclassifiedCreditors.find(r => {
+      const matches = reclassifiedCreditors.filter(r => {
         const normR = normalizeText(r.institucion_cmf);
         return normInst.includes(normR) || normR.includes(normInst);
       });
+      if (matches.length === 0) return undefined;
+      // Always pick closest monto (tiebreaker for multiple matches, guard for single).
+      const best = matches.reduce((b, r) =>
+        Math.abs(r.total_credito_clp - c.totalCredito) < Math.abs(b.total_credito_clp - c.totalCredito)
+          ? r : b
+      );
+      // Guard: reject if monto gap exceeds 30% of the larger value. This prevents
+      // a reclassified consumo ($14.8M) from matching a different product of the
+      // same bank, e.g. a vivienda/hipotecaria ($90M).
+      const larger = Math.max(best.total_credito_clp, c.totalCredito);
+      if (larger > 0 && Math.abs(best.total_credito_clp - c.totalCredito) / larger > 0.30) {
+        return undefined;
+      }
+      return best;
     };
     const isReclassifiedTo260 = (c: CmfCreditor): boolean => !!getReclassifiedMatch(c);
 
@@ -928,6 +944,18 @@ async function attachDocumentoAcreedor(
 ): Promise<void> {
   if (!doc.local_path || !fs.existsSync(doc.local_path)) {
     throw new Error(`Archivo local no disponible: ${doc.local_path ?? '(sin ruta)'}`);
+  }
+
+  // El portal de la Superir solo acepta PDF, JPG y JPEG. Otros formatos (PNG, etc.)
+  // se rechazan en el cliente y dejan el botón "Guardar" deshabilitado → timeout
+  // críptico. Fallar acá con un mensaje claro y accionable.
+  const ext = path.extname(doc.local_path).toLowerCase();
+  const ACCEPTED = ['.pdf', '.jpg', '.jpeg'];
+  if (!ACCEPTED.includes(ext)) {
+    throw new Error(
+      `Formato "${ext}" no soportado por el portal para "${doc.institucion_cmf}" ` +
+      `(${path.basename(doc.local_path)}). Solo PDF/JPG/JPEG. Convertir el archivo (ej. PNG → JPG) antes de adjuntar.`
+    );
   }
 
   const tableSelector = isOtros ? '#tablaOtrosAcreedores' : '#tablaAcreedores';

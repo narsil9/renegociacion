@@ -82,7 +82,7 @@ const DOCS_TO_UPLOAD = [
   // ── Art. 261: Banco de Chile Tarjetas (Platinium + Entel) ────────────────
   // Un solo Certificado de Liquidación de Portabilidad acredita ambas tarjetas.
   {
-    local: path.join(DOCS_DIR, 'CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf'),
+    local: path.join(CHILE_DIR, 'CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf'),
     storagePath: `${STORAGE_PREFIX}/chile_certificado_liquidacion.pdf`,
     filename: 'CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf',
     institucion_cmf: 'Banco de Chile',
