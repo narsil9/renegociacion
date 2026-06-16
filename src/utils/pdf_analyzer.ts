@@ -16,6 +16,24 @@ export interface F29ActivityResult {
   summary: string;
 }
 
+export interface ContribucionProperty {
+  /** Rol catastral, ej. "BD 20", "DP 1009" */
+  rol: string;
+  /** Comuna, ej. "Ñuñoa" */
+  comuna: string;
+  /** Destino/tipo de propiedad, ej. "Bodega / Almacenaje" */
+  destino: string;
+  /** Línea original del PDF para debugging */
+  lineaOriginal: string;
+}
+
+export interface ContribucionesDeudaResult {
+  /** Propiedades con Condición=AFECTO y Cuotas vencidas=SI → deuda por contribuciones */
+  propiedadesMorosas: ContribucionProperty[];
+  /** Descripción concisa para log/alerta */
+  summary: string;
+}
+
 interface SimpleLogger {
   log(msg: string): void;
 }
@@ -280,4 +298,89 @@ export async function detectF29ActivityLast24Months(
     activeMonths,
     summary
   };
+}
+
+/**
+ * Detecta propiedades con cuotas de contribuciones (Impuesto Territorial) vencidas
+ * en la sección "Propiedades y Bienes Raíces" de la Carpeta Tributaria.
+ *
+ * Regla: Condición = AFECTO Y Cuotas vencidas por pagar = SI.
+ * El monto NO está en la CT — requiere Certificado de Deuda TGR por separado.
+ *
+ * Usa pdftotext -layout para preservar la alineación columnar de la tabla.
+ */
+export async function detectContribucionesDeuda(
+  pdfPath: string,
+  logger?: SimpleLogger
+): Promise<ContribucionesDeudaResult> {
+  const log = (msg: string) => {
+    if (logger) logger.log(msg);
+    else console.log(msg);
+  };
+
+  log(`🏠 Detectando deudas por contribuciones en: ${pdfPath}...`);
+
+  const text = await extractTextFromPdfLayout(pdfPath);
+  const propSectionIdx = text.search(/propiedades\s+y\s+bienes\s+ra[íi]ces/i);
+
+  if (propSectionIdx === -1) {
+    log('ℹ️ No se encontró sección "Propiedades y Bienes Raíces" en la CT.');
+    return { propiedadesMorosas: [], summary: 'Sin sección de propiedades en la CT.' };
+  }
+
+  const afterSection = text.substring(propSectionIdx);
+  const endIdx = afterSection.search(
+    /boletas?\s+de\s+honorarios|formulario\s+2[29]|declaracion[ea]s?\s+de\s+(iva|renta)/i
+  );
+  const propSection = endIdx !== -1 ? afterSection.substring(0, endIdx) : afterSection;
+
+  log(`🔍 Sección de propiedades (${propSection.length} chars) encontrada.`);
+
+  const propiedadesMorosas: ContribucionProperty[] = [];
+
+  for (const line of propSection.split('\n')) {
+    const upper = line.toUpperCase();
+
+    // Columns end with: [Cuotas_vencidas] [Cuotas_vigentes] [Condición]
+    // Match only when vencidas=SI AND condición=AFECTO.
+    // "NO SI AFECTO" (vencidas=NO, vigentes=SI) must NOT match — the pattern
+    // requires SI in the vencidas position: SI (SI|NO) AFECTO.
+    if (!/\bSI\b\s+(?:SI|NO)\s+AFECTO\b/.test(upper)) continue;
+
+    // Skip header rows that repeat the column labels
+    if (/CUOTAS|CONDICI[OÓ]N|AVA[LÚ]/.test(upper)) continue;
+
+    // Rol catastral: 1-3 uppercase letters + space + 1-6 digits (e.g. "BD 20", "DP 1009")
+    const rolMatch = line.match(/\b([A-ZÁÉÍÓÚ]{1,3})\s+(\d{1,6})\b/);
+    const rol = rolMatch ? `${rolMatch[1]} ${rolMatch[2]}` : 'Desconocido';
+
+    // Comuna: first non-whitespace word(s) at the start of the line
+    const comunaMatch = line.match(/^\s*([A-Za-záéíóúñÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]*?)\s{2,}/);
+    const comuna = comunaMatch ? comunaMatch[1].trim() : 'Desconocida';
+
+    // Destino: try keyword match first; fall back to Rol-prefix mapping (BD→Bodega, etc.)
+    const destinoKeyword = line.match(
+      /\b(Habitacional|Casa\s+Habitaci[oó]n|Bodega(?:\s*\/\s*Almacenaje)?|Comercial|Industrial|Sitio|Terreno|Oficina|Local\s+Comercial|Edificio|Departamento|Agr[íi]cola)\b/i
+    );
+    const ROL_PREFIX_DESTINO: Record<string, string> = {
+      BD: 'Bodega / Almacenaje', DP: 'Departamento', LC: 'Local Comercial',
+      OF: 'Oficina', GA: 'Garage', ST: 'Sitio', HB: 'Habitacional', CA: 'Casa',
+    };
+    const destino = destinoKeyword
+      ? destinoKeyword[1].trim()
+      : (rolMatch ? ROL_PREFIX_DESTINO[rolMatch[1]] ?? 'Desconocido' : 'Desconocido');
+
+    propiedadesMorosas.push({ rol, comuna, destino, lineaOriginal: line.trim() });
+    log(`⚠️ Contribuciones morosas: Rol ${rol} — ${destino} (${comuna})`);
+  }
+
+  const summary = propiedadesMorosas.length > 0
+    ? `${propiedadesMorosas.length} propiedad(es) con contribuciones morosas (AFECTO + cuotas vencidas): ` +
+      `${propiedadesMorosas.map(p => `Rol ${p.rol} [${p.destino}]`).join(', ')}. ` +
+      'Requiere Certificado de Deuda TGR para declarar.'
+    : 'Sin deudas por contribuciones detectadas.';
+
+  log(`📊 ${summary}`);
+
+  return { propiedadesMorosas, summary };
 }

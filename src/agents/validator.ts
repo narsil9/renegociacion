@@ -55,7 +55,8 @@ export function isTributarioOutput(v: unknown): v is TributarioOutput {
   return (
     typeof o.categoria === 'string' &&
     ['primera', 'segunda', 'ninguna'].includes(o.categoria) &&
-    Array.isArray(o.f29_meses_con_actividad)
+    Array.isArray(o.f29_meses_con_actividad) &&
+    (o.contribuciones_deuda === undefined || Array.isArray(o.contribuciones_deuda))
   );
 }
 
@@ -123,6 +124,15 @@ export function validateTributarioOutput(output: TributarioOutput): ValidationRe
     warnings.push(
       `Primera categoría con actividad F29 en ${output.f29_meses_con_actividad.length} mes(es): ` +
       output.f29_meses_con_actividad.join(', ')
+    );
+  }
+
+  if (output.contribuciones_deuda && output.contribuciones_deuda.length > 0) {
+    needsLawyerReview = true;
+    warnings.push(
+      `${output.contribuciones_deuda.length} propiedad(es) con contribuciones morosas ` +
+      `(${output.contribuciones_deuda.map(p => `Rol ${p.rol}`).join(', ')}). ` +
+      'Requiere Certificado de Deuda TGR — declarar como acreedor no-CMF.'
     );
   }
 

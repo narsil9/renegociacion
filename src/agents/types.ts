@@ -21,13 +21,19 @@ export type { CognitiveAlert } from '../utils/cognitive_orchestrator';
 
 // ---------------------------------------------------------------------------
 // TributarioOutput — Step 2
-// Extracts: tax category + F29 activity months.
+// Extracts: tax category + F29 activity months + contribuciones morosas.
 // Replaces: analyzeTaxCategory + detectF29ActivityLast24Months for scanned PDFs.
 // ---------------------------------------------------------------------------
 export interface TributarioOutput {
   categoria: 'primera' | 'segunda' | 'ninguna';
   /** Months with F29 economic activity in YYYY-MM format, e.g. ['2024-01', '2024-02']. */
   f29_meses_con_actividad: string[];
+  /**
+   * Properties with overdue contribuciones (Condición=AFECTO + Cuotas vencidas=SI).
+   * Amount is NOT in the CT — requires a Certificado de Deuda TGR.
+   * Absent / empty array → no overdue contribuciones detected.
+   */
+  contribuciones_deuda?: import('../utils/pdf_analyzer').ContribucionProperty[];
 }
 
 // ---------------------------------------------------------------------------

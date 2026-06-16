@@ -76,6 +76,7 @@ Docs (CMF + certs + carpeta tributaria)
 ### Agente Tributario (Step 2)
 - [x] **`src/agents/tributario_agent.ts`** — Estrategia dual: texto→determinista / escaneado→Claude Opus 4.8 con documento base64. Idempotencia por SHA-256. Valida con `validateTributarioOutput` antes de `completeRun`. F29 con actividad → `needsLawyerReview = true`.
 - [x] **Conectar al worker** — `worker.ts` llama a `runTributarioAgent` en step 2 y step 0. Eliminados `analyzeTaxCategory` y `detectF29ActivityLast24Months` del worker. `BlockedError` y alerta en `automation_alerts` preservados.
+- [x] **`detectContribucionesDeuda` (2026-06-16)** — Detección determinista de deudas por contribuciones (Impuesto Territorial) en la CT. Sección "Propiedades y Bienes Raíces", regla AFECTO+vencidas=SI. `ContribucionProperty[]` en `TributarioOutput.contribuciones_deuda`. Validator → `needsLawyerReview=true`. Validado con CT Jorge Romero: Rol BD 20 (Bodega/Almacenaje). ⚠️ Re-testear con CT de nuevo formato 2025+.
 
 ### Agente Centinela (Step 3)
 - [x] **`src/agents/centinela_agent.ts`** — Wrapper de `sentinel.ts` con idempotencia SHA-256, agent_runs (step=3), `validateCentinelaOutput` antes de completeRun, conversión `SentinelResult→CentinelaOutput`. `ENABLE_SENTINEL=false` → bypass sin escribir a agent_runs. `CentinelaBlockedError` para bloqueos semánticos. `cmfDocumentOverrides` vacío (TODO próxima iteración).

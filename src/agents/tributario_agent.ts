@@ -24,6 +24,7 @@ import { validateTributarioOutput, isTributarioOutput, logValidationResult } fro
 import {
   analyzeTaxCategory,
   detectF29ActivityLast24Months,
+  detectContribucionesDeuda,
   extractTextFromPdf,
 } from '../utils/pdf_analyzer';
 
@@ -83,7 +84,7 @@ async function extractViaVision(
 
 Analiza esta Carpeta Tributaria del SII (Servicio de Impuestos Internos de Chile).
 
-**Extrae exactamente dos datos:**
+**Extrae exactamente tres datos:**
 
 1. **Categoría Tributaria del contribuyente**:
    - Busca la etiqueta "Categoría Tributaria:" en la sección "Datos del Contribuyente".
@@ -98,11 +99,20 @@ Analiza esta Carpeta Tributaria del SII (Servicio de Impuestos Internos de Chile
    - Devuelve los meses en formato YYYY-MM, del más reciente al más antiguo.
    - Si no hay sección F29 o no hay actividad → lista vacía.
 
+3. **Propiedades con contribuciones (Impuesto Territorial) vencidas**:
+   - Busca la sección "Propiedades y Bienes Raíces".
+   - Para cada fila de la tabla, verifica: Condición = AFECTO **Y** Cuotas vencidas por pagar = SI.
+   - Si ambas condiciones se cumplen, incluye la propiedad con: rol (ej. "BD 20"), comuna (ej. "Ñuñoa"), destino (ej. "Bodega / Almacenaje").
+   - Si no hay propiedades morosas o no existe la sección → lista vacía.
+
 **RESPONDE ÚNICAMENTE con este bloque JSON entre etiquetas <json>:**
 <json>
 {
-  "categoria": "primera",
-  "f29_meses_con_actividad": ["2024-03", "2024-02"]
+  "categoria": "segunda",
+  "f29_meses_con_actividad": [],
+  "contribuciones_deuda": [
+    { "rol": "BD 20", "comuna": "Ñuñoa", "destino": "Bodega / Almacenaje", "lineaOriginal": "" }
+  ]
 }
 </json>
 
@@ -201,7 +211,12 @@ export async function runTributarioAgent(
         const f29 = await detectF29ActivityLast24Months(tributariaPdfPath, logger);
         f29Meses = f29.activeMonths;
       }
-      output = { categoria, f29_meses_con_actividad: f29Meses };
+      const contribuciones = await detectContribucionesDeuda(tributariaPdfPath, logger);
+      output = {
+        categoria,
+        f29_meses_con_actividad: f29Meses,
+        contribuciones_deuda: contribuciones.propiedadesMorosas,
+      };
     }
 
     // Validar antes de persistir

@@ -80,6 +80,14 @@ El Paso 3 ingresa el **monto del documento de acreditación** (más actual que e
 - **260 directos del CMF** (ej. CAT/CMR): vía `cmfDocumentOverrides?: CmfDocumentOverride[]` (param de `fillStep3`). **Hoy solo lo provee el test**; en producción el Orquestador debe extraer monto+fecha y poblarlo (pendiente, ver `task.md`).
 - **Monto efectivo**: cuando el monto del documento sobrescribe al del CMF, ese valor se propaga a `isCreditorAlreadyInTable` y a `attachDocumentoAcreedor` (que matchean por monto). **Nunca usar `creditor.totalCredito` del CMF directamente si hay override** — la fila quedaría con un monto y el attach buscaría otro.
 
+### Agente Tributario — Contribuciones (Impuesto Territorial)
+- **Función**: `detectContribucionesDeuda(pdfPath, logger)` en `src/utils/pdf_analyzer.ts`. Usa `pdftotext -layout` para preservar columnas.
+- **Regla**: sección "Propiedades y Bienes Raíces" de la CT → filas con `Condición = AFECTO` **Y** `Cuotas vencidas por pagar = SI` → contribuciones morosas.
+- **Destino**: si la keyword no aparece en la línea (multi-línea en PDF), infiere del prefijo del Rol (BD→Bodega/Almacenaje, DP→Departamento, LC→Local Comercial, etc.).
+- **Output**: `TributarioOutput.contribuciones_deuda?: ContribucionProperty[]`. Si hay propiedades morosas, `validateTributarioOutput` emite `needsLawyerReview = true`.
+- **Monto**: el monto **NO** está en la CT — el abogado debe obtener el Certificado de Deuda TGR y cargarlo como acreedor no-CMF (similar a William Montero).
+- ⚠️ **Validado con CT de formato 2024** (Jorge Romero). Re-testear con CT de nuevo formato 2025+ cuando aparezca el primer caso.
+
 ### Step 3 — Requisito de sesión (Art. 260 / 80 UF)
 Para que el cliente pueda iniciar una sesión de renegociación deben cumplirse **dos condiciones simultáneas**:
 
