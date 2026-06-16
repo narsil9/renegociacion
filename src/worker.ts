@@ -13,12 +13,13 @@ import { fillStep3, AcreditacionDoc } from './automation/step3_acreedores';
 import { fillStep4 } from './automation/step4_apoderado';
 import { fillAllSteps } from './automation/all_steps';
 import { getOptimizedPdfPath } from './utils/pdf_optimizer';
-import { analyzeTaxCategory, detectF29ActivityLast24Months } from './utils/pdf_analyzer';
+import { runTributarioAgent } from './agents/tributario_agent';
 import { analyzeCmfPdf } from './utils/cmf_analyzer';
 import { createAlert, clearAlert } from './utils/alerts';
 import { cleanupDraft } from './automation/cleanup';
-import { runCognitiveOrchestrator } from './utils/cognitive_orchestrator';
-import { runSentinelCheck, ReclassifiedCreditor, Identified261Creditor, AdditionalCreditor } from './utils/sentinel';
+import { runCentinelaAgent, CentinelaBlockedError } from './agents/centinela_agent';
+import { runMapeadorAgent, mapeadorHasBlockers } from './agents/mapeador_agent';
+import { CentinelaOutput } from './agents/types';
 
 /**
  * BUG-08 FIX: Dedicated error class for cases that must not be retried and
@@ -56,7 +57,7 @@ async function uploadToStorage(
     }
 
     const fileBuffer = fs.readFileSync(localPath);
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('screenshots')
       .upload(destFileName, fileBuffer, {
         contentType: 'image/png',
@@ -149,64 +150,9 @@ async function processJob(job: any): Promise<void> {
     return;
   }
 
-  // --- RUN SENTINEL CHECK (API Key #1) ---
-  let _sentinelReclassified: ReclassifiedCreditor[] = [];
-  let _sentinelIdentified261: Identified261Creditor[] = [];
-  let _sentinelAdditional: AdditionalCreditor[] = [];
-  try {
-    const sentinelResult = await runSentinelCheck(client, supabase, logger);
-    if (sentinelResult.reclassifiedCreditors && sentinelResult.reclassifiedCreditors.length > 0) {
-      _sentinelReclassified = sentinelResult.reclassifiedCreditors;
-    }
-    if (sentinelResult.identified261Creditors && sentinelResult.identified261Creditors.length > 0) {
-      _sentinelIdentified261 = sentinelResult.identified261Creditors;
-    }
-    if (sentinelResult.additionalCreditors && sentinelResult.additionalCreditors.length > 0) {
-      _sentinelAdditional = sentinelResult.additionalCreditors;
-    }
-    if (!sentinelResult.success) {
-      const errorMsg = `Centinela de Carga bloqueó el caso por documentos deficientes: ${sentinelResult.errors.join('; ')}`;
-      logger.error(errorMsg);
-
-      // Registrar alerta en la tabla de alertas
-      try {
-        await supabase.from('automation_alerts').insert({
-          job_id: job.id,
-          client_id: String(client.id),
-          step: job.step,
-          alert_type: 'blocked',
-          description: errorMsg,
-        });
-      } catch (alertErr: any) {
-        logger.error('⚠️ No se pudo registrar alerta de Centinela:', alertErr?.message || alertErr);
-      }
-
-      // Actualizar el job a fallido preventivamente
-      await supabase
-        .from(JOBS_TABLE)
-        .update({
-          status: 'failed',
-          error_log: logger.getBufferText() + `\n\n❌ ERROR CENTINELA (Carga de documentos): ${errorMsg}`,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', job.id);
-      
-      return;
-    }
-  } catch (sentinelErr: any) {
-    logger.error(`⚠️ Excepción en Centinela de Carga: ${sentinelErr.message || sentinelErr}`);
-    if (process.env.ENABLE_SENTINEL === 'true') {
-      await supabase
-        .from(JOBS_TABLE)
-        .update({
-          status: 'failed',
-          error_log: logger.getBufferText() + `\n\n❌ EXCEPCIÓN CENTINELA: ${sentinelErr.message || sentinelErr}`,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', job.id);
-      return;
-    }
-  }
+  // El Centinela (API #1) se corre dentro del bloque step===3|0, después de
+  // descargar el CMF, para evitar la doble descarga y limitar el coste a los
+  // pasos que realmente necesitan el análisis de acreedores.
 
   // Safety interlock: set DRY_RUN env dynamically for this job
   const originalDryRun = process.env.DRY_RUN;
@@ -227,8 +173,10 @@ async function processJob(job: any): Promise<void> {
     let cmfLocalPath = '';
     let browserInstance: any = null;
     let mappedAcreditacionDocs: AcreditacionDoc[] = [];
-    let sentinelReclassified: ReclassifiedCreditor[] = [];
-    let sentinelAdditional: AdditionalCreditor[] = [];
+    let centinelaOutput: CentinelaOutput = {
+      reclassifiedCreditors: [], identified261Creditors: [],
+      additionalCreditors: [], cmfDocumentOverrides: [], fechasClave: [],
+    };
     // Si queda con motivo: el cliente califica pero los documentos del Paso 3 no
     // cumplen → en el flujo completo (step:0) se omite SOLO el Paso 3 y se guardan 1, 2 y 4.
     let skipStep3Reason: string | null = null;
@@ -285,25 +233,44 @@ async function processJob(job: any): Promise<void> {
         // 2. Analyze CMF PDF (result also passed into cognitive orchestrator to avoid double-parse)
         const cmfResult = await analyzeCmfPdf(cmfLocalPath, logger);
 
-        // 3. Run AI Cognitive Orchestrator ("Mente Pensante")
-        logger.log('🧠 Ejecutando orquestador cognitivo de IA (Claude Sonnet 4.6) para auditar documentos y fechas...');
-        const orchResult = await runCognitiveOrchestrator(client, cmfLocalPath, supabase, logger, _sentinelReclassified, _sentinelIdentified261, _sentinelAdditional);
-
-        if (orchResult.status === 'success' && orchResult.mappedDocs) {
-          mappedAcreditacionDocs = orchResult.mappedDocs;
+        // 3. Run Centinela Agent (API #1) — ahora aquí, después del CMF descargado
+        try {
+          centinelaOutput = await runCentinelaAgent(supabase, client.id, client, cmfLocalPath, logger);
+        } catch (centinelaErr: any) {
+          if (centinelaErr instanceof CentinelaBlockedError) {
+            const errorMsg = `Centinela bloqueó el caso: ${centinelaErr.message}`;
+            logger.error(errorMsg);
+            try {
+              await supabase.from('automation_alerts').insert({
+                job_id: job.id, client_id: String(client.id), step: job.step,
+                alert_type: 'blocked', description: errorMsg,
+              });
+            } catch {}
+            await supabase.from(JOBS_TABLE).update({
+              status: 'failed',
+              error_log: logger.getBufferText() + `\n\n❌ CENTINELA BLOQUEÓ: ${errorMsg}`,
+              updated_at: new Date().toISOString(),
+            }).eq('id', job.id);
+            return;
+          }
+          // Error técnico del centinela — solo bloquea si ENABLE_SENTINEL está activo
+          logger.error(`⚠️ Excepción en Centinela de Carga: ${centinelaErr.message || centinelaErr}`);
+          if (process.env.ENABLE_SENTINEL === 'true') {
+            await supabase.from(JOBS_TABLE).update({
+              status: 'failed',
+              error_log: logger.getBufferText() + `\n\n❌ EXCEPCIÓN CENTINELA: ${centinelaErr.message}`,
+              updated_at: new Date().toISOString(),
+            }).eq('id', job.id);
+            return;
+          }
         }
 
-        // --- Decisión sobre el Paso 3 ---
-        // ERROR TÉCNICO del orquestador (API caída / JSON malformado de Claude): NO es un
-        // problema de requisitos del cliente. Suele ser TRANSITORIO (la salida del LLM varía),
-        // así que se LANZA para que el loop de intentos (maxAttempts) reintente la auditoría.
-        // Si agota los reintentos, el job se marca 'failed' en el bloque final (no se omite
-        // el Paso 3 a ciegas ni se guardan pasos con una auditoría que nunca se pudo correr).
-        if (orchResult.status === 'error' && orchResult.technicalError) {
-          const motivo = orchResult.reason || 'Error técnico del orquestador cognitivo.';
-          logger.error(`❌ Error técnico del orquestador del Paso 3 (reintentable): ${motivo}`);
-          throw new Error(`Error técnico del orquestador (reintentable): ${motivo}`);
-        }
+        // 4. Run Mapeador Agent (API #2) — mapea documentos a acreedores
+        logger.log('🗺️ Ejecutando Agente Mapeador (Orquestador Cognitivo) para mapear documentos...');
+        const mapeadorOutput = await runMapeadorAgent(
+          supabase, client.id, client, cmfLocalPath, centinelaOutput, logger
+        );
+        mappedAcreditacionDocs = mapeadorOutput.mappedDocs;
 
         // El Paso 3 SOLO se completa si el cliente CALIFICA (atraso 90+ días) Y los DOCUMENTOS
         // pasan la auditoría cognitiva. La regla de 80 UF genera solo una advertencia, no bloquea.
@@ -311,17 +278,14 @@ async function processJob(job: any): Promise<void> {
           logger.log(`⚠️  ADVERTENCIA: Suma del total del crédito de acreedores con 90+d ($${cmfResult.totalCreditoOf90PlusCreditors.toLocaleString('es-CL')}) no alcanza 80 UF ($${cmfResult.requiredAmountCLP.toLocaleString('es-CL')}). El flujo continúa; revisar documentos adicionales si aplica.`);
         }
 
-        // Propagar reclasificaciones del sentinel al scope del intento actual
-        sentinelReclassified = _sentinelReclassified;
-        sentinelAdditional = _sentinelAdditional;
-        const totalQualifyingCount = (cmfResult.qualifying90PlusCount || 0) + (sentinelReclassified.length || 0);
+        const totalQualifyingCount = (cmfResult.qualifying90PlusCount || 0) + centinelaOutput.reclassifiedCreditors.length;
         const noCalifica = totalQualifyingCount < 2;
-        const docsInvalidos = orchResult.status === 'error';
+        const { blocked: docsInvalidos, reason: docsInvalidosReason } = mapeadorHasBlockers(mapeadorOutput);
 
         if (noCalifica || docsInvalidos) {
           const motivo = noCalifica
             ? `El cliente no cumple los requisitos de fondo para la renegociación. No se detectó deuda con mora >= 90 días en el CMF.`
-            : (orchResult.reason || 'Los documentos de acreditación del Paso 3 no cumplen los requisitos.');
+            : (docsInvalidosReason || 'Los documentos de acreditación del Paso 3 no cumplen los requisitos.');
 
           if (job.step === 0) {
             skipStep3Reason = motivo;
@@ -456,45 +420,37 @@ async function processJob(job: any): Promise<void> {
       } else if (job.step === 2) {
         logger.log('📝 Navegando e ingresando información de Paso 2...');
         
-        logger.log('🕵️‍♂️ Analizando la Carpeta Tributaria para determinar la categoría tributaria...');
-        const categoria = await analyzeTaxCategory(tributariaLocalPath, logger);
+        logger.log('🕵️‍♂️ Agente Tributario — analizando Carpeta Tributaria...');
+        const tributariaOutput2 = await runTributarioAgent(supabase, client.id, tributariaLocalPath, logger);
+        const categoria = tributariaOutput2.categoria;
 
         // --- BLOQUEO: Primera categoría con actividad F29 en últimos 24 meses ---
-        if (categoria === 'primera') {
-          logger.log('🔍 Contribuyente de Primera Categoría — verificando actividad F29 en los últimos 24 meses...');
-          const f29Result = await detectF29ActivityLast24Months(tributariaLocalPath, logger);
+        if (tributariaOutput2.f29_meses_con_actividad.length > 0) {
+          const meses = tributariaOutput2.f29_meses_con_actividad.join(', ');
+          const alertDesc = `Paso 2 bloqueado: primera categoría con actividad F29 en ${tributariaOutput2.f29_meses_con_actividad.length} mes(es): ${meses}`;
+          logger.log(`🚫 ${alertDesc}`);
 
-          if (f29Result.hasActivityLast24Months) {
-            const alertDesc = `Paso 2 bloqueado: ${f29Result.summary}`;
-            logger.log(`🚫 ${alertDesc}`);
-
-            // BUG-10 FIX: wrap insert in try/catch so a schema error doesn't
-            // replace the block message with a cryptic Supabase error.
-            try {
-              const { error: insertErr } = await supabase.from('automation_alerts').insert({
-                job_id: job.id,
-                client_id: String(client.id),
-                step: 2,
-                alert_type: 'blocked',
-                description: alertDesc
-              });
-              if (insertErr) logger.error('⚠️ No se pudo registrar alerta en automation_alerts:', insertErr.message);
-            } catch (alertInsertErr: any) {
-              logger.error('⚠️ Excepción al insertar en automation_alerts:', alertInsertErr);
-            }
-
-            // Marcar el job como bloqueado
-            await supabase
-              .from(JOBS_TABLE)
-              .update({ status: 'blocked', error_message: alertDesc, updated_at: new Date().toISOString() })
-              .eq('id', job.id);
-
-            // BUG-08 FIX: throw BlockedError instead of generic Error so the
-            // retry loop breaks immediately and doesn't overwrite status to 'failed'.
-            throw new BlockedError(alertDesc);
-          } else {
-            logger.log('✅ Sin actividad F29 en los últimos 24 meses. Continuando con Paso 2.');
+          try {
+            const { error: insertErr } = await supabase.from('automation_alerts').insert({
+              job_id: job.id,
+              client_id: String(client.id),
+              step: 2,
+              alert_type: 'blocked',
+              description: alertDesc
+            });
+            if (insertErr) logger.error('⚠️ No se pudo registrar alerta en automation_alerts:', insertErr.message);
+          } catch (alertInsertErr: any) {
+            logger.error('⚠️ Excepción al insertar en automation_alerts:', alertInsertErr);
           }
+
+          await supabase
+            .from(JOBS_TABLE)
+            .update({ status: 'blocked', error_message: alertDesc, updated_at: new Date().toISOString() })
+            .eq('id', job.id);
+
+          throw new BlockedError(alertDesc);
+        } else {
+          logger.log('✅ Sin actividad F29 en los últimos 24 meses. Continuando con Paso 2.');
         }
 
         const currentUrl = page.url();
@@ -513,7 +469,9 @@ async function processJob(job: any): Promise<void> {
         logger.log(`→ Redireccionando a la URL del Paso 3: ${step3Url}`);
         await page.goto(step3Url, { waitUntil: 'domcontentloaded' });
 
-        await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs, sentinelReclassified, sentinelAdditional);
+        await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs,
+          centinelaOutput.reclassifiedCreditors, centinelaOutput.additionalCreditors,
+          centinelaOutput.cmfDocumentOverrides);
       } else if (job.step === 4) {
         logger.log('📝 Navegando e ingresando información de Paso 4...');
         
@@ -527,41 +485,36 @@ async function processJob(job: any): Promise<void> {
       } else if (job.step === 0) {
         logger.log('📝 Llenando Todos los Pasos (Secuencia Completa 1 a 4)...');
         
-        logger.log('🕵️‍♂️ Analizando la Carpeta Tributaria para determinar la categoría tributaria...');
-        const categoria = await analyzeTaxCategory(tributariaLocalPath, logger);
-        
-        // BUG-14 / BUG-23 FIX: Run the same F29 check that step===2 does.
-        // Previously, step===0 computed `categoria` but never ran detectF29ActivityLast24Months.
-        if (categoria === 'primera') {
-          logger.log('🔍 [step=0] Contribuyente de Primera Categoría — verificando actividad F29 en los últimos 24 meses...');
-          const f29Result = await detectF29ActivityLast24Months(tributariaLocalPath, logger);
+        logger.log('🕵️‍♂️ Agente Tributario — analizando Carpeta Tributaria...');
+        const tributariaOutput0 = await runTributarioAgent(supabase, client.id, tributariaLocalPath, logger);
+        const categoria = tributariaOutput0.categoria;
 
-          if (f29Result.hasActivityLast24Months) {
-            const alertDesc = `Paso 2 (all-steps) bloqueado: ${f29Result.summary}`;
-            logger.log(`🚫 ${alertDesc}`);
+        if (tributariaOutput0.f29_meses_con_actividad.length > 0) {
+          const meses = tributariaOutput0.f29_meses_con_actividad.join(', ');
+          const alertDesc = `Paso 2 (all-steps) bloqueado: primera categoría con actividad F29 en ${tributariaOutput0.f29_meses_con_actividad.length} mes(es): ${meses}`;
+          logger.log(`🚫 ${alertDesc}`);
 
-            try {
-              const { error: insertErr } = await supabase.from('automation_alerts').insert({
-                job_id: job.id,
-                client_id: String(client.id),
-                step: 2,
-                alert_type: 'blocked',
-                description: alertDesc
-              });
-              if (insertErr) logger.error('⚠️ No se pudo registrar alerta en automation_alerts:', insertErr.message);
-            } catch (alertInsertErr: any) {
-              logger.error('⚠️ Excepción al insertar en automation_alerts:', alertInsertErr);
-            }
-
-            await supabase
-              .from(JOBS_TABLE)
-              .update({ status: 'blocked', error_message: alertDesc, updated_at: new Date().toISOString() })
-              .eq('id', job.id);
-
-            throw new BlockedError(alertDesc);
-          } else {
-            logger.log('✅ Sin actividad F29 en los últimos 24 meses. Continuando con all-steps.');
+          try {
+            const { error: insertErr } = await supabase.from('automation_alerts').insert({
+              job_id: job.id,
+              client_id: String(client.id),
+              step: 2,
+              alert_type: 'blocked',
+              description: alertDesc
+            });
+            if (insertErr) logger.error('⚠️ No se pudo registrar alerta en automation_alerts:', insertErr.message);
+          } catch (alertInsertErr: any) {
+            logger.error('⚠️ Excepción al insertar en automation_alerts:', alertInsertErr);
           }
+
+          await supabase
+            .from(JOBS_TABLE)
+            .update({ status: 'blocked', error_message: alertDesc, updated_at: new Date().toISOString() })
+            .eq('id', job.id);
+
+          throw new BlockedError(alertDesc);
+        } else {
+          logger.log('✅ Sin actividad F29 en los últimos 24 meses. Continuando con all-steps.');
         }
         const clientData: ClientData = {
           nacionalidad: client.nacionalidad,
@@ -589,8 +542,9 @@ async function processJob(job: any): Promise<void> {
           mappedAcreditacionDocs,
           logger,
           skipStep3Reason,
-          sentinelReclassified,
-          sentinelAdditional
+          centinelaOutput.reclassifiedCreditors,
+          centinelaOutput.additionalCreditors,
+          centinelaOutput.cmfDocumentOverrides
         );
       }
 

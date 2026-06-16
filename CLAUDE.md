@@ -14,7 +14,8 @@ This repository contains the hybrid automation system for filling out the renego
 ## Key Directories
 
 - `src/automation/` - Step-specific Playwright scripts (`login.ts`, `step1_personal.ts`, `step2_declaraciones.ts`, `step3_acreedores.ts`, `step4_apoderado.ts`, `all_steps.ts`)
-- `src/utils/` - Utility functions (browser controllers, logger, Supabase clients, PDF optimizer/analyzer, acreedor_matcher, cmf_analyzer, **cognitive_orchestrator**, date_helper)
+- `src/utils/` - Utility functions (browser controllers, logger, Supabase clients, PDF optimizer/analyzer, acreedor_matcher, cmf_analyzer, **cognitive_orchestrator**, date_helper, sentinel)
+- `src/agents/` - Cadena multi-agente: `types.ts`, `agent_runs.ts`, `validator.ts`, `tributario_agent.ts`, `centinela_agent.ts`, `mapeador_agent.ts`
 - `outputs/` - Screenshots, HTML snapshots, and log files of successful/failed automation steps
 - `outputs/acreditaciones_tmp/` - Temporary local copies of downloaded certificate PDFs (used by cognitive_orchestrator)
 
@@ -90,6 +91,25 @@ Esta validación es **no bloqueante** en el flujo técnico (solo genera `⚠️ 
 ### Step 3 — Known Portal Blockers
 - **`#dlgImportante` blocking `#btnGuardarEmpresa`**: After saving a representante legal, the portal shows `#dlgImportante` which intercepts all pointer events. The fix is `dismissBlockingDialogs(page, log)`, called both after `#modalRepresentante` closes and immediately before clicking `#btnGuardarEmpresa`.
 - **`Subir Documento` is a plain `<a>`, not `<a class="btn">`**: Use `getByText(/subir documento/i)` as the primary selector. Document attachment only works after ALL creditors have been added (portal enables the links then). This requires the two-phase approach: add all creditors first, then attach documents.
+
+### Cadena Multi-Agente (`src/agents/`)
+
+El worker no llama directamente a `analyzeTaxCategory`, `runSentinelCheck` ni `runCognitiveOrchestrator`. Toda la cadena pasa por los agentes:
+
+```
+CMF download → analyzeCmfPdf (TS)
+            → runTributarioAgent   (step 2) → agent_runs
+            → runCentinelaAgent    (step 3) → agent_runs
+            → runMapeadorAgent     (step 3) → agent_runs → Playwright
+```
+
+- **`types.ts`** — interfaces tipadas: `TributarioOutput`, `CmfParseOutput`, `CentinelaOutput`, `MapeadorOutput`, `AgentRunRow<T>`.
+- **`agent_runs.ts`** — CRUD: `insertAgentRun`, `markRunning`, `completeRun`, `failRun`, `getLatestRun`.
+- **`validator.ts`** — type guards + reglas de negocio por agente (30d bypasseable, ≥2 prods, ≥80 UF, RUT, filenames únicos). `mergeResults` + `logValidationResult`.
+- **Idempotencia**: tributario = SHA-256 del PDF de la carpeta tributaria; centinela = SHA-256 del CMF; mapeador = run ID del centinela.
+- **Errores técnicos vs semánticos**: errores de API (créditos agotados, red) → `failRun` + throw `Error` genérico (el retry loop reintenta). Errores de documentos (faltantes, RUT incorrecto) → `CentinelaBlockedError` o `completeRun` con `needsLawyerReview=true`.
+- **`SentinelResult.technicalError`**: campo `boolean?` en `sentinel.ts`. El catch externo lo marca `true`; `centinela_agent.ts` lo lee para distinguir error retryable de bloqueo semántico.
+- **Para agregar un agente nuevo**: hash → idempotencia → insertAgentRun → markRunning → lógica → validateXxxOutput → completeRun/failRun. Ver `tributario_agent.ts` como plantilla.
 
 ### Worker — Primera Categoría & F29 Block
 - **F29 Activity Check**: After detecting `categoria === 'primera'` from the Carpeta Tributaria, the worker calls `detectF29ActivityLast24Months(tributariaLocalPath, logger)` from `pdf_analyzer.ts`. If activity is found, it inserts an `automation_alerts` record (`alert_type: 'blocked'`), sets the job status to `'blocked'`, and throws `BlockedError` — which breaks the retry loop without overwriting the status to `'failed'`.

@@ -79,6 +79,25 @@ The portal only enables "Subir Documento" links once ALL creditors are in the ta
 2. **Phase 2** — Attach acreditación documents for each creditor.
    - **Matching por `filename` para NO-CMF**: cada acreedor NO-CMF asocia su documento por `AcreditacionDoc.filename === additionalCreditor.document_filename` (NO por institución). Los acreedores del CMF **excluyen** los filenames reservados a NO-CMF (`reservedNonCmfFilenames`). Esto evita que productos del mismo banco se crucen el certificado (ej. el CPF de las tarjetas vs. el `consultaCredito` del consumo, todos "Banco de Chile"). **Requiere que el orquestador pueble `AcreditacionDoc.filename`.**
 
+### CMF Consolidation Patterns
+
+El CMF puede presentar los acreedores de dos formas distintas que afectan directamente cuántas filas crea el robot en el portal:
+
+**Patrón A — Múltiples productos del mismo banco en UNA sola fila CMF**
+Cuando el CMF tiene un solo tipo de producto (ej. todos "Consumo"), todos los créditos del banco van en una fila. El portal solo recibe UNA entrada para ese banco.
+- Ejemplo: Banco Itaú Chile tiene 3 productos (consumo + tarjeta + línea) → CMF muestra 1 fila `[Consumo]` con $5.072.748 total.
+- El certificado que se adjunta debe cubrir todos los productos (ej. Cartera Vencida con páginas por producto).
+- El monto a declarar = suma de los certificados individuales (puede diferir del CMF por intereses).
+
+**Patrón B — Dos filas del mismo banco por tipo distinto (ej. Banco Estado Vivienda + Consumo)**
+El CMF separa por tipo (`Vivienda` vs. `Consumo`), generando dos filas y dos entradas en el portal.
+- `findAcreditacionDocs('Banco Estado', docs)` devuelve TODOS los docs con `institucion_cmf: 'Banco Estado'`.
+- `attachDocumentoAcreedor` usa el **monto** como key para encontrar la fila correcta → un doc puede cubrir ambas filas si se adjunta secuencialmente.
+- Si un solo documento (ej. captura del portal) muestra los dos productos, registrarlo UNA vez en `MAPPED_DOCS` es suficiente — fillStep3 lo adjuntará a cada fila por monto.
+
+**Patrón C — `getReclassifiedMatch` con tiebreaker**
+Si el Sentinel reclasifica dos productos del mismo banco (ej. BdCh consumo + BdCh tarjeta ambos reclasificados), el match por nombre devolvería ambos. Se usa el `totalCredito` más cercano como desempate: la brecha entre productos distintos (rango de millones) siempre supera la brecha CMF/doc ($300–500k), por lo que el tiebreaker es unambiguo.
+
 ### Known Portal Blockers
 1. **`#dlgImportante` blocks `#btnGuardarEmpresa`**: After saving a representante legal (`#guardarRep`), the portal shows `#dlgImportante` on top of `#modalEmpresa`, intercepting all pointer events.
    - Fix: `dismissBlockingDialogs(page, log)` — called (a) after `#modalRepresentante` hides, and (b) immediately before clicking `#btnGuardarEmpresa`.
