@@ -1,0 +1,1627 @@
+{
+  "personaEstadoCivil": [
+    {
+      "value": "1",
+      "label": "Soltero(a)"
+    },
+    {
+      "value": "2",
+      "label": "Casado(a)"
+    },
+    {
+      "value": "3",
+      "label": "Divorciado(a)"
+    },
+    {
+      "value": "4",
+      "label": "Viudo(a)"
+    },
+    {
+      "value": "5",
+      "label": "Con separación judicial"
+    },
+    {
+      "value": "6",
+      "label": "Conviviente Civil"
+    },
+    {
+      "value": "7",
+      "label": "No tiene o no informado"
+    }
+  ],
+  "personaRegimenPatrimonial": [],
+  "personaProfesionOficio": [
+    {
+      "value": "1",
+      "label": "Abogados"
+    },
+    {
+      "value": "2",
+      "label": "Actores"
+    },
+    {
+      "value": "3",
+      "label": "Administradores de sistemas"
+    },
+    {
+      "value": "4",
+      "label": "Administrativos"
+    },
+    {
+      "value": "5",
+      "label": "Agentes de aduana"
+    },
+    {
+      "value": "6",
+      "label": "Agentes de bolsa, cambio y otros servicios financieros"
+    },
+    {
+      "value": "7",
+      "label": "Agentes de compras y/o consignatarios"
+    },
+    {
+      "value": "8",
+      "label": "Agentes de empleo y contratistas de mano de obra"
+    },
+    {
+      "value": "9",
+      "label": "Agentes de seguros"
+    },
+    {
+      "value": "10",
+      "label": "Agentes inmobiliarios"
+    },
+    {
+      "value": "11",
+      "label": "Agricultores"
+    },
+    {
+      "value": "12",
+      "label": "Agrónomos"
+    },
+    {
+      "value": "13",
+      "label": "Albañiles"
+    },
+    {
+      "value": "14",
+      "label": "Alfareros y afines (barro, arcilla y abrasivos)"
+    },
+    {
+      "value": "15",
+      "label": "Analistas de gestión y organización"
+    },
+    {
+      "value": "16",
+      "label": "Analistas de sistemas"
+    },
+    {
+      "value": "17",
+      "label": "Analistas financieros"
+    },
+    {
+      "value": "18",
+      "label": "Apicultores y sericultores"
+    },
+    {
+      "value": "19",
+      "label": "Archivistas y curadores de museos"
+    },
+    {
+      "value": "20",
+      "label": "Arquitectos"
+    },
+    {
+      "value": "21",
+      "label": "Arquitectos paisajistas"
+    },
+    {
+      "value": "22",
+      "label": "Artesanos"
+    },
+    {
+      "value": "23",
+      "label": "Artistas de artes plásticas"
+    },
+    {
+      "value": "24",
+      "label": "Asesoras del hogar (Limpiadores y asistentes domésticos)"
+    },
+    {
+      "value": "25",
+      "label": "Asesores financieros y en inversiones"
+    },
+    {
+      "value": "26",
+      "label": "Asistente contable"
+    },
+    {
+      "value": "27",
+      "label": "Astrólogos, adivinadores"
+    },
+    {
+      "value": "28",
+      "label": "Atletas y deportistas"
+    },
+    {
+      "value": "29",
+      "label": "Autores y otros escritores"
+    },
+    {
+      "value": "30",
+      "label": "Auxiliares de servicio de abordo"
+    },
+    {
+      "value": "31",
+      "label": "Avicultores"
+    },
+    {
+      "value": "32",
+      "label": "Ayudantes de ambulancias"
+    },
+    {
+      "value": "33",
+      "label": "Ayudantes de cocina"
+    },
+    {
+      "value": "34",
+      "label": "Bailarines y coreógrafos"
+    },
+    {
+      "value": "35",
+      "label": "Barnizadores"
+    },
+    {
+      "value": "36",
+      "label": "Barrenderos"
+    },
+    {
+      "value": "37",
+      "label": "Bibliotecarios, documentalistas y afines"
+    },
+    {
+      "value": "38",
+      "label": "Biólogos, botánicos, zoólogos y afines"
+    },
+    {
+      "value": "39",
+      "label": "Bodeguero y peonetas"
+    },
+    {
+      "value": "40",
+      "label": "Bomberos"
+    },
+    {
+      "value": "41",
+      "label": "Buzos"
+    },
+    {
+      "value": "42",
+      "label": "Cajeros de tiendas y bancos"
+    },
+    {
+      "value": "43",
+      "label": "Cajeros y expendedores de billetes"
+    },
+    {
+      "value": "44",
+      "label": "Camareros de barra"
+    },
+    {
+      "value": "45",
+      "label": "Camareros de mesas"
+    },
+    {
+      "value": "46",
+      "label": "Capitanes, oficiales de cubierta y prácticos"
+    },
+    {
+      "value": "47",
+      "label": "Carabineros"
+    },
+    {
+      "value": "48",
+      "label": "Cargadores"
+    },
+    {
+      "value": "49",
+      "label": "Carniceros, pescaderos"
+    },
+    {
+      "value": "50",
+      "label": "Carpinteros"
+    },
+    {
+      "value": "51",
+      "label": "Carteros"
+    },
+    {
+      "value": "52",
+      "label": "Cartógrafos"
+    },
+    {
+      "value": "53",
+      "label": "Cazadores y tramperos"
+    },
+    {
+      "value": "54",
+      "label": "Chefs"
+    },
+    {
+      "value": "55",
+      "label": "Clasificadores de desechos"
+    },
+    {
+      "value": "56",
+      "label": "Cobradores"
+    },
+    {
+      "value": "57",
+      "label": "Cocineros"
+    },
+    {
+      "value": "58",
+      "label": "Comerciantes de tiendas"
+    },
+    {
+      "value": "59",
+      "label": "Conductores (chofer) de autobuses"
+    },
+    {
+      "value": "60",
+      "label": "Conductores (chofer) de camiones pesados"
+    },
+    {
+      "value": "61",
+      "label": "Conductores (chofer) de camionetas (fletes)"
+    },
+    {
+      "value": "62",
+      "label": "Conductores (chofer) de motocicletas"
+    },
+    {
+      "value": "63",
+      "label": "Conductores (chofer) de taxis"
+    },
+    {
+      "value": "64",
+      "label": "Conductores (chofer) de vehículos de tracción animal"
+    },
+    {
+      "value": "65",
+      "label": "Conductores (chofer) privados"
+    },
+    {
+      "value": "66",
+      "label": "Conserjes"
+    },
+    {
+      "value": "67",
+      "label": "Contadores públicos y/o auditores"
+    },
+    {
+      "value": "68",
+      "label": "Costureros, bordadores"
+    },
+    {
+      "value": "69",
+      "label": "Criadores de ganado"
+    },
+    {
+      "value": "70",
+      "label": "Cuidadores de animales"
+    },
+    {
+      "value": "71",
+      "label": "Dentistas"
+    },
+    {
+      "value": "72",
+      "label": "Dentistas auxiliares y ayudantes de odontología"
+    },
+    {
+      "value": "73",
+      "label": "Desarrolladores de software"
+    },
+    {
+      "value": "74",
+      "label": "Desarrolladores Web y multimedia"
+    },
+    {
+      "value": "75",
+      "label": "Dibujantes técnicos"
+    },
+    {
+      "value": "76",
+      "label": "Dietistas y nutricionistas"
+    },
+    {
+      "value": "77",
+      "label": "Digitadores de datos"
+    },
+    {
+      "value": "78",
+      "label": "Directores de cine, de teatro"
+    },
+    {
+      "value": "79",
+      "label": "Directores de empresas públicas o privadas"
+    },
+    {
+      "value": "80",
+      "label": "Diseñadores de productos y de prendas"
+    },
+    {
+      "value": "81",
+      "label": "Diseñadores gráficos y multimedia"
+    },
+    {
+      "value": "82",
+      "label": "Diseñadores y decoradores de interior"
+    },
+    {
+      "value": "83",
+      "label": "Economistas"
+    },
+    {
+      "value": "84",
+      "label": "Educadores de parvularios"
+    },
+    {
+      "value": "85",
+      "label": "Electricistas de obras"
+    },
+    {
+      "value": "86",
+      "label": "Empacadores manuales"
+    },
+    {
+      "value": "87",
+      "label": "Empleados de agencias de viajes"
+    },
+    {
+      "value": "88",
+      "label": "Empleados de archivos"
+    },
+    {
+      "value": "89",
+      "label": "Empleados de centros de llamadas"
+    },
+    {
+      "value": "90",
+      "label": "Empleados de control de abastecimientos e inventario"
+    },
+    {
+      "value": "91",
+      "label": "Empleados de servicios de correos"
+    },
+    {
+      "value": "92",
+      "label": "Empleados de ventanillas de informaciones"
+    },
+    {
+      "value": "93",
+      "label": "Ensambladores de equipos eléctricos y electrónicos"
+    },
+    {
+      "value": "94",
+      "label": "Ensambladores de maquinaria mecánica"
+    },
+    {
+      "value": "95",
+      "label": "Entrenadores, instructores y árbitros de actividades deportivas"
+    },
+    {
+      "value": "96",
+      "label": "Entrevistadores de encuestas y de investigaciones de mercados"
+    },
+    {
+      "value": "97",
+      "label": "Escribientes públicos"
+    },
+    {
+      "value": "98",
+      "label": "Especialistas en tratamientos de belleza (estética)"
+    },
+    {
+      "value": "99",
+      "label": "Expendedores de gasolineras"
+    },
+    {
+      "value": "100",
+      "label": "Fabricantes y afinadores de instrumentos musicales"
+    },
+    {
+      "value": "101",
+      "label": "Farmacéuticos"
+    },
+    {
+      "value": "102",
+      "label": "Filósofos, historiadores y especialistas en ciencias políticas"
+    },
+    {
+      "value": "103",
+      "label": "Fiscalizadores tributarios"
+    },
+    {
+      "value": "104",
+      "label": "Físicos y astrónomos"
+    },
+    {
+      "value": "105",
+      "label": "Fisioterapeutas"
+    },
+    {
+      "value": "106",
+      "label": "Fonoaudiólogos y audiólogos"
+    },
+    {
+      "value": "107",
+      "label": "Fotógrafos"
+    },
+    {
+      "value": "108",
+      "label": "Fumigadores y otros controladores de plagas y malas hierbas"
+    },
+    {
+      "value": "109",
+      "label": "Funcionarios públicos de aduanas"
+    },
+    {
+      "value": "110",
+      "label": "Gasfiter e instaladores de tuberías"
+    },
+    {
+      "value": "111",
+      "label": "Geógrafos"
+    },
+    {
+      "value": "112",
+      "label": "Geólogos y geofísicos"
+    },
+    {
+      "value": "113",
+      "label": "Gerentes de empresas públicas o privadas"
+    },
+    {
+      "value": "114",
+      "label": "Guardianes de prisión (gendarmes)"
+    },
+    {
+      "value": "115",
+      "label": "Guardias de protección (guardias privados)"
+    },
+    {
+      "value": "116",
+      "label": "Guías de turismo"
+    },
+    {
+      "value": "117",
+      "label": "Herreros y forjadores"
+    },
+    {
+      "value": "118",
+      "label": "Ingenieros en administración de empresas"
+    },
+    {
+      "value": "119",
+      "label": "Ingenieros agrónomos y forestales"
+    },
+    {
+      "value": "120",
+      "label": "Ingenieros civil civil"
+    },
+    {
+      "value": "121",
+      "label": "Ingenieros civil industrial"
+    },
+    {
+      "value": "122",
+      "label": "Ingenieros civiles ambientales"
+    },
+    {
+      "value": "123",
+      "label": "Ingenieros civiles de minas, metalúrgicas."
+    },
+    {
+      "value": "124",
+      "label": "Ingenieros civiles electricistas"
+    },
+    {
+      "value": "125",
+      "label": "Ingenieros civiles electrónicos"
+    },
+    {
+      "value": "126",
+      "label": "Ingenieros civiles informáticos"
+    },
+    {
+      "value": "127",
+      "label": "Ingenieros civiles mecánicos"
+    },
+    {
+      "value": "128",
+      "label": "Ingenieros civiles químicos"
+    },
+    {
+      "value": "129",
+      "label": "Ingenieros comerciales"
+    },
+    {
+      "value": "130",
+      "label": "Ingenieros en ejecución"
+    },
+    {
+      "value": "131",
+      "label": "Ingenieros en prevención de riesgos"
+    },
+    {
+      "value": "132",
+      "label": "Ingenieros en telecomunicaciones"
+    },
+    {
+      "value": "133",
+      "label": "Inspectores de la salud laboral,  medioambiental"
+    },
+    {
+      "value": "134",
+      "label": "Inspectores de policía y detectives"
+    },
+    {
+      "value": "135",
+      "label": "Instalador de ventanas"
+    },
+    {
+      "value": "136",
+      "label": "Instaladores de material aislante y de insonorización"
+    },
+    {
+      "value": "137",
+      "label": "Instructores de educación física y actividades recreativas"
+    },
+    {
+      "value": "138",
+      "label": "Instructores de Escuelas de Conductores"
+    },
+    {
+      "value": "139",
+      "label": "Jardinero"
+    },
+    {
+      "value": "140",
+      "label": "Joyeros, orfebres y plateros"
+    },
+    {
+      "value": "141",
+      "label": "Jueces y fiscales"
+    },
+    {
+      "value": "142",
+      "label": "Lavadores de vehículos"
+    },
+    {
+      "value": "143",
+      "label": "Lavadores de ventanas"
+    },
+    {
+      "value": "144",
+      "label": "Lavanderos y planchadores manuales"
+    },
+    {
+      "value": "145",
+      "label": "Limpiadores de fachadas y deshollinadores"
+    },
+    {
+      "value": "146",
+      "label": "Limpiadores y asistentes de oficinas, hoteles y otros establecimientos"
+    },
+    {
+      "value": "147",
+      "label": "Locutores de radio, televisión y otros medios de comunicación"
+    },
+    {
+      "value": "148",
+      "label": "Mamposteros, tronzadores, labrantes y grabadores de piedra"
+    },
+    {
+      "value": "149",
+      "label": "Maquinistas de locomotoras"
+    },
+    {
+      "value": "150",
+      "label": "Marinos mercantes"
+    },
+    {
+      "value": "151",
+      "label": "Mariscador"
+    },
+    {
+      "value": "152",
+      "label": "Matemáticos, actuarios y estadísticos"
+    },
+    {
+      "value": "153",
+      "label": "Mayordomos domésticos"
+    },
+    {
+      "value": "154",
+      "label": "Mecánicos y reparadores de máquinas agrícolas e industriales"
+    },
+    {
+      "value": "155",
+      "label": "Mecánicos y reparadores de motores de avión"
+    },
+    {
+      "value": "156",
+      "label": "Mecánicos y reparadores de vehículos de motor"
+    },
+    {
+      "value": "157",
+      "label": "Mecánicos y reparadores en electrónica"
+    },
+    {
+      "value": "158",
+      "label": "Mecánicos-montadores de instalaciones de refrigeración y climatización"
+    },
+    {
+      "value": "159",
+      "label": "Médicos especialistas"
+    },
+    {
+      "value": "160",
+      "label": "Médicos generales"
+    },
+    {
+      "value": "161",
+      "label": "Mensajeros, mandaderos, maleteros y repartidores (estafeta)"
+    },
+    {
+      "value": "162",
+      "label": "Meteorólogos"
+    },
+    {
+      "value": "163",
+      "label": "Miembros del poder legislativo"
+    },
+    {
+      "value": "164",
+      "label": "Mineros y operadores de instalaciones mineras"
+    },
+    {
+      "value": "165",
+      "label": "Modelos de moda, arte y publicidad y/o promotoras"
+    },
+    {
+      "value": "166",
+      "label": "Músicos, cantantes y compositores"
+    },
+    {
+      "value": "167",
+      "label": "Niñeras y cuidadores infantiles"
+    },
+    {
+      "value": "168",
+      "label": "Oficiales de las fuerzas armadas"
+    },
+    {
+      "value": "169",
+      "label": "Oficiales maquinistas en navegación"
+    },
+    {
+      "value": "170",
+      "label": "Operadores de grúas, aparatos elevadores y afines"
+    },
+    {
+      "value": "171",
+      "label": "Operadores de incineradores, instalaciones de tratamiento de agua y afines"
+    },
+    {
+      "value": "172",
+      "label": "Operadores de instalaciones de procesamiento de metales"
+    },
+    {
+      "value": "173",
+      "label": "Operadores de instalaciones de producción de energía"
+    },
+    {
+      "value": "174",
+      "label": "Operadores de instalaciones de refinación de petróleo y gas natural"
+    },
+    {
+      "value": "175",
+      "label": "Operadores de maquinaria agrícola y forestal"
+    },
+    {
+      "value": "176",
+      "label": "Operadores de máquinas de blanqueamiento, teñido y limpieza de tejidos"
+    },
+    {
+      "value": "177",
+      "label": "Operadores de máquinas de coser y tejedoras"
+    },
+    {
+      "value": "178",
+      "label": "Operadores de máquinas de embalaje, embotellamiento y etiquetado"
+    },
+    {
+      "value": "179",
+      "label": "Operadores de máquinas de movimiento de tierras y afines"
+    },
+    {
+      "value": "180",
+      "label": "Operadores de máquinas de preparación de fibras, hilado y devanado"
+    },
+    {
+      "value": "181",
+      "label": "Operadores de máquinas de tratamiento de pieles y cueros"
+    },
+    {
+      "value": "182",
+      "label": "Operadores de máquinas de vapor y calderas"
+    },
+    {
+      "value": "183",
+      "label": "Operadores de máquinas lavarropas"
+    },
+    {
+      "value": "184",
+      "label": "Operadores de máquinas para elaborar alimentos y productos afines"
+    },
+    {
+      "value": "185",
+      "label": "Operadores de máquinas para fabricar cemento y otros productos minerales"
+    },
+    {
+      "value": "186",
+      "label": "Operadores de máquinas para fabricar productos de caucho, material plástico y  papel"
+    },
+    {
+      "value": "187",
+      "label": "Operadores de máquinas para la fabricación de calzado"
+    },
+    {
+      "value": "188",
+      "label": "Operadores de máquinas pulidoras, galvanizadoras y recubridoras de metales"
+    },
+    {
+      "value": "189",
+      "label": "Operadores de plantas y máquinas de productos químicos"
+    },
+    {
+      "value": "190",
+      "label": "Operarios en cemento armado, enfoscadores y afines"
+    },
+    {
+      "value": "191",
+      "label": "Optometristas"
+    },
+    {
+      "value": "192",
+      "label": "Organizadores de conferencias y eventos"
+    },
+    {
+      "value": "193",
+      "label": "Otros miembros de las fuerzas armadas"
+    },
+    {
+      "value": "194",
+      "label": "Panaderos, pasteleros y confiteros"
+    },
+    {
+      "value": "195",
+      "label": "Paramédicos"
+    },
+    {
+      "value": "196",
+      "label": "Peluqueros"
+    },
+    {
+      "value": "197",
+      "label": "Perforadores y sondistas de pozos y afines"
+    },
+    {
+      "value": "198",
+      "label": "Periodistas"
+    },
+    {
+      "value": "199",
+      "label": "Personal de pompas fúnebres y embalsamadores"
+    },
+    {
+      "value": "200",
+      "label": "Pescadores de alta mar"
+    },
+    {
+      "value": "201",
+      "label": "Pilotos de aviación"
+    },
+    {
+      "value": "202",
+      "label": "Pintores y empapeladores"
+    },
+    {
+      "value": "203",
+      "label": "Practicantes y asistentes médicos"
+    },
+    {
+      "value": "204",
+      "label": "Preparadores y elaboradores de tabaco y sus productos"
+    },
+    {
+      "value": "205",
+      "label": "Procuradores, técnicos jurídicos"
+    },
+    {
+      "value": "206",
+      "label": "Profesionales de enfermería"
+    },
+    {
+      "value": "207",
+      "label": "Profesionales de medicina alternativa"
+    },
+    {
+      "value": "208",
+      "label": "Profesionales de partería"
+    },
+    {
+      "value": "209",
+      "label": "Profesionales del trabajo social"
+    },
+    {
+      "value": "210",
+      "label": "Profesionales en redes de computadores"
+    },
+    {
+      "value": "211",
+      "label": "Profesionales religiosos"
+    },
+    {
+      "value": "212",
+      "label": "Profesores de educación diferencial"
+    },
+    {
+      "value": "213",
+      "label": "Profesores de enseñanza primaria"
+    },
+    {
+      "value": "214",
+      "label": "Profesores de enseñanza secundaria"
+    },
+    {
+      "value": "215",
+      "label": "Profesores de universidades y de la enseñanza superior"
+    },
+    {
+      "value": "216",
+      "label": "Profesores particulares"
+    },
+    {
+      "value": "217",
+      "label": "Psicólogos"
+    },
+    {
+      "value": "218",
+      "label": "Publicista y marketing"
+    },
+    {
+      "value": "219",
+      "label": "Químicos"
+    },
+    {
+      "value": "220",
+      "label": "Recepcionistas"
+    },
+    {
+      "value": "221",
+      "label": "Recolectores de basura y material reciclable"
+    },
+    {
+      "value": "222",
+      "label": "Recolectores de dinero en aparatos de venta automática y lectores de medidores"
+    },
+    {
+      "value": "223",
+      "label": "Relacionadores públicos"
+    },
+    {
+      "value": "224",
+      "label": "Reparadores de bicicletas"
+    },
+    {
+      "value": "225",
+      "label": "Reponedores de estanterías"
+    },
+    {
+      "value": "226",
+      "label": "Sastres, modistos, peleteros y sombrereros"
+    },
+    {
+      "value": "227",
+      "label": "Secretarias/os (general)"
+    },
+    {
+      "value": "228",
+      "label": "Sociólogos, antropólogos y afines"
+    },
+    {
+      "value": "229",
+      "label": "Soldadores y oxicortadores"
+    },
+    {
+      "value": "230",
+      "label": "Sopladores, modeladores, laminadores, cortadores y pulidores de vidrio"
+    },
+    {
+      "value": "231",
+      "label": "Suboficiales de las fuerzas armadas"
+    },
+    {
+      "value": "232",
+      "label": "Supervisores de industrias manufactureras"
+    },
+    {
+      "value": "233",
+      "label": "Supervisores de la construcción"
+    },
+    {
+      "value": "234",
+      "label": "Supervisores de mantenimiento y limpieza en oficinas, hoteles y otros establecimientos"
+    },
+    {
+      "value": "235",
+      "label": "Supervisores de tiendas y almacenes"
+    },
+    {
+      "value": "236",
+      "label": "Supervisores en ingeniería de minas"
+    },
+    {
+      "value": "237",
+      "label": "Tapiceros, colchoneros y afines"
+    },
+    {
+      "value": "238",
+      "label": "Tasadores"
+    },
+    {
+      "value": "239",
+      "label": "Técnico electricista"
+    },
+    {
+      "value": "240",
+      "label": "Técnico en administración de empresas"
+    },
+    {
+      "value": "241",
+      "label": "Técnico en comercio exterior"
+    },
+    {
+      "value": "242",
+      "label": "Técnico en electrónica"
+    },
+    {
+      "value": "243",
+      "label": "Técnico en enfermería"
+    },
+    {
+      "value": "244",
+      "label": "Técnico en prevención de riesgo"
+    },
+    {
+      "value": "245",
+      "label": "Técnicos mecánicos"
+    },
+    {
+      "value": "246",
+      "label": "Técnico parvulario"
+    },
+    {
+      "value": "247",
+      "label": "Técnicos agropecuarios"
+    },
+    {
+      "value": "248",
+      "label": "Técnicos de laboratorios médicos"
+    },
+    {
+      "value": "249",
+      "label": "Técnicos de prótesis médicas y dentales"
+    },
+    {
+      "value": "250",
+      "label": "Técnicos de radiodifusión y grabación audiovisual"
+    },
+    {
+      "value": "251",
+      "label": "Técnicos en aeronáutica"
+    },
+    {
+      "value": "252",
+      "label": "Técnicos en aparatos de diagnóstico y tratamiento médico"
+    },
+    {
+      "value": "253",
+      "label": "Técnicos en ciencias biológicas (excluyendo la medicina)"
+    },
+    {
+      "value": "254",
+      "label": "Técnicos en optometría y ópticos"
+    },
+    {
+      "value": "255",
+      "label": "Técnicos en redes y sistemas de computadores"
+    },
+    {
+      "value": "256",
+      "label": "Técnicos en soporte y mantención informática"
+    },
+    {
+      "value": "257",
+      "label": "Técnicos forestales"
+    },
+    {
+      "value": "258",
+      "label": "Técnicos informáticos"
+    },
+    {
+      "value": "259",
+      "label": "Técnicos y asistentes farmacéuticos"
+    },
+    {
+      "value": "260",
+      "label": "Técnicos y asistentes fisioterapeutas"
+    },
+    {
+      "value": "261",
+      "label": "Técnicos y asistentes veterinarios"
+    },
+    {
+      "value": "262",
+      "label": "Telefonistas"
+    },
+    {
+      "value": "263",
+      "label": "Trabajadores comunitarios de la salud"
+    },
+    {
+      "value": "264",
+      "label": "Trabajadores de explotaciones de acuicultura"
+    },
+    {
+      "value": "265",
+      "label": "Trabajadores forestales"
+    },
+    {
+      "value": "266",
+      "label": "Traductores, intérpretes y lingüistas"
+    },
+    {
+      "value": "267",
+      "label": "Urbanistas e ingenieros de tránsito"
+    },
+    {
+      "value": "268",
+      "label": "Vendedores de tiendas y almacenes"
+    },
+    {
+      "value": "269",
+      "label": "Vendedores ambulantes"
+    },
+    {
+      "value": "270",
+      "label": "Vendedores de comidas al mostrador"
+    },
+    {
+      "value": "271",
+      "label": "Vendedores de quioscos y de puestos de mercado"
+    },
+    {
+      "value": "272",
+      "label": "Vendedores por teléfono"
+    },
+    {
+      "value": "273",
+      "label": "Vendedores puerta a puerta"
+    },
+    {
+      "value": "274",
+      "label": "Veterinarios"
+    },
+    {
+      "value": "275",
+      "label": "Visitadores médicos"
+    },
+    {
+      "value": "276",
+      "label": "Zapateros y afines"
+    },
+    {
+      "value": "277",
+      "label": "Martillero Público"
+    },
+    {
+      "value": "278",
+      "label": "Planificador social"
+    },
+    {
+      "value": "279",
+      "label": "Ingenieros en Información y Control de Gestión"
+    },
+    {
+      "value": "280",
+      "label": "Administrador Público"
+    },
+    {
+      "value": "9999",
+      "label": "Otros"
+    },
+    {
+      "value": "10000",
+      "label": "Ingeniero en Transporte"
+    },
+    {
+      "value": "10001",
+      "label": "Petisero"
+    },
+    {
+      "value": "10002",
+      "label": "Técnico en Turismo"
+    },
+    {
+      "value": "10003",
+      "label": "Estadístico"
+    },
+    {
+      "value": "10004",
+      "label": "Topógrafo"
+    },
+    {
+      "value": "999999",
+      "label": "No tiene o no informado"
+    },
+    {
+      "value": "1000000",
+      "label": "Ingenierio Forestal"
+    },
+    {
+      "value": "1000001",
+      "label": "Constructor Civil"
+    },
+    {
+      "value": "1000002",
+      "label": "Ingeniería en aviación comercial"
+    }
+  ],
+  "personaOcupacion": [
+    {
+      "value": "8",
+      "label": "Busca trabajo por 1era vez"
+    },
+    {
+      "value": "9",
+      "label": "Cesante"
+    },
+    {
+      "value": "10",
+      "label": "Dueño/a de casa"
+    },
+    {
+      "value": "11",
+      "label": "Estudiante"
+    },
+    {
+      "value": "12",
+      "label": "Jubilado / Pensionado / Montepiado"
+    },
+    {
+      "value": "13",
+      "label": "Trabajador/a dependiente"
+    },
+    {
+      "value": "14",
+      "label": "Trabajador/a independiente"
+    },
+    {
+      "value": "15",
+      "label": "Ley de Protección al Empleo"
+    },
+    {
+      "value": "32767",
+      "label": "Sin Información"
+    }
+  ],
+  "personaRegion": [
+    {
+      "value": "15",
+      "label": "Región de Arica y Parinacota"
+    },
+    {
+      "value": "1",
+      "label": "Región de Tarapacá"
+    },
+    {
+      "value": "2",
+      "label": "Región de Antofagasta"
+    },
+    {
+      "value": "3",
+      "label": "Región de Atacama"
+    },
+    {
+      "value": "4",
+      "label": "Región de Coquimbo"
+    },
+    {
+      "value": "5",
+      "label": "Región de Valparaíso"
+    },
+    {
+      "value": "13",
+      "label": "Región Metropolitana"
+    },
+    {
+      "value": "6",
+      "label": "Región del Libertador General Bernardo O'Higgins"
+    },
+    {
+      "value": "7",
+      "label": "Región del Maule"
+    },
+    {
+      "value": "16",
+      "label": "Región de Ñuble"
+    },
+    {
+      "value": "8",
+      "label": "Región del Biobío"
+    },
+    {
+      "value": "9",
+      "label": "Región de la Araucanía"
+    },
+    {
+      "value": "14",
+      "label": "Región de los Ríos"
+    },
+    {
+      "value": "10",
+      "label": "Región de los Lagos"
+    },
+    {
+      "value": "11",
+      "label": "Región Aysén General Carlos Ibañez del Campo"
+    },
+    {
+      "value": "12",
+      "label": "Región de Magallanes y la Antártica Chilena"
+    }
+  ],
+  "personaComuna": [
+    {
+      "value": "322",
+      "label": "ALHUÉ"
+    },
+    {
+      "value": "318",
+      "label": "BUIN"
+    },
+    {
+      "value": "319",
+      "label": "CALERA DE TANGO"
+    },
+    {
+      "value": "280",
+      "label": "CERRILLOS"
+    },
+    {
+      "value": "281",
+      "label": "CERRO NAVIA"
+    },
+    {
+      "value": "314",
+      "label": "COLINA"
+    },
+    {
+      "value": "282",
+      "label": "CONCHALÍ"
+    },
+    {
+      "value": "323",
+      "label": "CURACAVÍ"
+    },
+    {
+      "value": "283",
+      "label": "EL BOSQUE"
+    },
+    {
+      "value": "327",
+      "label": "EL MONTE"
+    },
+    {
+      "value": "284",
+      "label": "ESTACIÓN CENTRAL"
+    },
+    {
+      "value": "285",
+      "label": "HUECHURABA"
+    },
+    {
+      "value": "286",
+      "label": "INDEPENDENCIA"
+    },
+    {
+      "value": "328",
+      "label": "ISLA DE MAIPO"
+    },
+    {
+      "value": "287",
+      "label": "LA CISTERNA"
+    },
+    {
+      "value": "288",
+      "label": "LA FLORIDA"
+    },
+    {
+      "value": "289",
+      "label": "LA GRANJA"
+    },
+    {
+      "value": "290",
+      "label": "LA PINTANA"
+    },
+    {
+      "value": "291",
+      "label": "LA REINA"
+    },
+    {
+      "value": "315",
+      "label": "LAMPA"
+    },
+    {
+      "value": "292",
+      "label": "LAS CONDES"
+    },
+    {
+      "value": "293",
+      "label": "LO BARNECHEA"
+    },
+    {
+      "value": "294",
+      "label": "LO ESPEJO"
+    },
+    {
+      "value": "295",
+      "label": "LO PRADO"
+    },
+    {
+      "value": "296",
+      "label": "MACUL"
+    },
+    {
+      "value": "297",
+      "label": "MAIPÚ"
+    },
+    {
+      "value": "324",
+      "label": "MARÍA PINTO"
+    },
+    {
+      "value": "321",
+      "label": "MELIPILLA"
+    },
+    {
+      "value": "298",
+      "label": "ÑUÑOA"
+    },
+    {
+      "value": "329",
+      "label": "PADRE HURTADO"
+    },
+    {
+      "value": "320",
+      "label": "PAINE"
+    },
+    {
+      "value": "299",
+      "label": "PEDRO AGUIRRE CERDA"
+    },
+    {
+      "value": "330",
+      "label": "PEÑAFLOR"
+    },
+    {
+      "value": "300",
+      "label": "PEÑALOLÉN"
+    },
+    {
+      "value": "312",
+      "label": "PIRQUE"
+    },
+    {
+      "value": "301",
+      "label": "PROVIDENCIA"
+    },
+    {
+      "value": "302",
+      "label": "PUDAHUEL"
+    },
+    {
+      "value": "311",
+      "label": "PUENTE ALTO"
+    },
+    {
+      "value": "303",
+      "label": "QUILICURA"
+    },
+    {
+      "value": "304",
+      "label": "QUINTA NORMAL"
+    },
+    {
+      "value": "305",
+      "label": "RECOLETA"
+    },
+    {
+      "value": "306",
+      "label": "RENCA"
+    },
+    {
+      "value": "317",
+      "label": "SAN BERNARDO"
+    },
+    {
+      "value": "307",
+      "label": "SAN JOAQUÍN"
+    },
+    {
+      "value": "313",
+      "label": "SAN JOSÉ DE MAIPO"
+    },
+    {
+      "value": "308",
+      "label": "SAN MIGUEL"
+    },
+    {
+      "value": "325",
+      "label": "SAN PEDRO"
+    },
+    {
+      "value": "309",
+      "label": "SAN RAMÓN"
+    },
+    {
+      "value": "279",
+      "label": "SANTIAGO"
+    },
+    {
+      "value": "326",
+      "label": "TALAGANTE"
+    },
+    {
+      "value": "316",
+      "label": "TILTIL"
+    },
+    {
+      "value": "310",
+      "label": "VITACURA"
+    }
+  ],
+  "personaTelefonoPrefijo": [
+    {
+      "value": "2",
+      "label": "2"
+    },
+    {
+      "value": "32",
+      "label": "32"
+    },
+    {
+      "value": "33",
+      "label": "33"
+    },
+    {
+      "value": "34",
+      "label": "34"
+    },
+    {
+      "value": "35",
+      "label": "35"
+    },
+    {
+      "value": "39",
+      "label": "39"
+    },
+    {
+      "value": "41",
+      "label": "41"
+    },
+    {
+      "value": "42",
+      "label": "42"
+    },
+    {
+      "value": "43",
+      "label": "43"
+    },
+    {
+      "value": "44",
+      "label": "44"
+    },
+    {
+      "value": "45",
+      "label": "45"
+    },
+    {
+      "value": "51",
+      "label": "51"
+    },
+    {
+      "value": "52",
+      "label": "52"
+    },
+    {
+      "value": "53",
+      "label": "53"
+    },
+    {
+      "value": "55",
+      "label": "55"
+    },
+    {
+      "value": "56",
+      "label": "56"
+    },
+    {
+      "value": "57",
+      "label": "57"
+    },
+    {
+      "value": "58",
+      "label": "58"
+    },
+    {
+      "value": "61",
+      "label": "61"
+    },
+    {
+      "value": "63",
+      "label": "63"
+    },
+    {
+      "value": "64",
+      "label": "64"
+    },
+    {
+      "value": "65",
+      "label": "65"
+    },
+    {
+      "value": "67",
+      "label": "67"
+    },
+    {
+      "value": "68",
+      "label": "68"
+    },
+    {
+      "value": "71",
+      "label": "71"
+    },
+    {
+      "value": "72",
+      "label": "72"
+    },
+    {
+      "value": "73",
+      "label": "73"
+    },
+    {
+      "value": "75",
+      "label": "75"
+    },
+    {
+      "value": "9",
+      "label": "9"
+    }
+  ]
+}

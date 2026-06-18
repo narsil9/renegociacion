@@ -11,6 +11,27 @@ This repository contains the hybrid automation system for filling out the renego
 - **Build Command**: `npm run build`
 - **Test Command**: `npm test`
 
+## 🟢 Encender el sistema (worker / daemon)
+
+> Cuando el usuario diga **"enciende el sistema"** (o "prende el worker / el daemon"), ejecutá en la terminal:
+> ```bash
+> bash scripts/sistema.sh start
+> ```
+
+El **worker es el daemon** (un solo proceso): pollea la cola `automation_jobs` cada 5s y, por cada job, corre la cadena de agentes + Playwright Pasos 1→4 contra el portal Superir. **Si el worker no está corriendo, los casos cargados desde el dashboard quedan en `pending` y no pasa nada.** Por eso debe quedar SIEMPRE encendido.
+
+`scripts/sistema.sh` es **portátil** (este Mac u otra máquina con Node + el repo + `.env`). Hace, de forma idempotente: `npm install` si falta, `npx playwright install chromium`, valida que exista `.env`, y arranca el worker — con **pm2** si está instalado (auto-restart + arranque al boot), o con `nohup` en background si no.
+
+| Acción | Comando |
+|---|---|
+| Encender | `bash scripts/sistema.sh start` |
+| Ver estado / log | `bash scripts/sistema.sh status` |
+| Seguir el log en vivo | `bash scripts/sistema.sh logs` |
+| Apagar | `bash scripts/sistema.sh stop` |
+| Arranque al bootear (Mac Mini, 1 vez) | `pm2 startup` (seguir la instrucción que imprime) |
+
+**Requisitos en la máquina** (one-time): Node + npm; el repo clonado; un `.env` con `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `HEADLESS=true`. **NO** poner `BYPASS_DATE_CHECK` ni `DISABLE_SENTINEL=true` en producción. La máquina debe estar encendida, sin dormir y con internet (Superir + Supabase + Anthropic). El dashboard (input) vive en Vercel y está siempre on — no se enciende acá. Cada cliente trae su propia ClaveÚnica en la tabla `clients` (la carga el dashboard); `CLAVE_UNICA_PASSWORD` del `.env` es solo para el cliente de prueba `21917363-6`.
+
 ## Key Directories
 
 - `src/automation/` - Step-specific Playwright scripts (`login.ts`, `step1_personal.ts`, `step2_declaraciones.ts`, `step3_acreedores.ts`, `step4_apoderado.ts`, `all_steps.ts`)
@@ -45,7 +66,7 @@ This repository contains the hybrid automation system for filling out the renego
 ### Portal State Integrity (Testing & Dry-Runs)
 - **Dry Runs**: By default, runs are executed with `DRY_RUN=true`. Under dry runs, do NOT commit/submit forms to proceed to the next step.
 - **Auto-Cleanup**: In Step 2, if `DRY_RUN=true`, the script must automatically delete the uploaded files at the end of the test so that subsequent trials start with a clean draft state.
-- **Database Safety**: Never write directly to production database tables. All job polling and client reading must target the sandbox tables (`pato_prueba_clients` and `pato_prueba_automation_jobs` when in test mode).
+- **Database Safety / Sandbox-como-producción**: El sistema opera HOY sobre el proyecto Supabase **sandbox (`fnz…`)** como si fuera producción. El worker usa las tablas `clients` y `automation_jobs` del sandbox (las viejas `pato_prueba_*` quedaron **obsoletas**, no se usan). **NUNCA** crear, escribir ni importar datos del proyecto del abogado (`ton…`); solo se lee de prod (read-only) para credenciales cuando un cliente tiene `airtable_id` (hoy no aplica: los clientes nuevos llevan su ClaveÚnica propia en `clients.clave_unica_password`).
 
 ### Modal Bypass & Direct Submissions
 - **Step 1 Modal Workaround**: If the preview modal `#confirmarInformacionModal` doesn't become visible within 5 seconds of clicking Save, programmatically trigger the submission via page evaluation:
@@ -86,7 +107,7 @@ El Paso 3 ingresa el **monto del documento de acreditación** (más actual que e
 - **Destino**: si la keyword no aparece en la línea (multi-línea en PDF), infiere del prefijo del Rol (BD→Bodega/Almacenaje, DP→Departamento, LC→Local Comercial, etc.).
 - **Output**: `TributarioOutput.contribuciones_deuda?: ContribucionProperty[]`. Si hay propiedades morosas, `validateTributarioOutput` emite `needsLawyerReview = true`.
 - **Monto**: el monto **NO** está en la CT — el abogado debe obtener el Certificado de Deuda TGR y cargarlo como acreedor no-CMF (similar a William Montero).
-- ⚠️ **Validado con CT de formato 2024** (Jorge Romero). Re-testear con CT de nuevo formato 2025+ cuando aparezca el primer caso.
+- ✅ **Validado con CT de formato 2024 Y nuevo formato 2026** — El nuevo formato incluye la sección F22 (Declaraciones de Renta) DESPUÉS de F29, con referencias de fecha como `04/2026` que causaban falsos positivos. Fix: `detectF29ActivityLast24Months` trunca `f29Section` en el límite de F22 (regex `Declaraciones de Renta.*Formulario 22`). Adicionalmente, el nuevo formato lista los 36 períodos F29 siempre, incluso vacíos (`"No se registra declaración para este período."`) — se ignoran con un `NO_DECLARATION_PHRASE` check en el contexto post-match. `analyzeTaxCategory` también excluye texto post-F22 para evitar que etiquetas del formulario como "CRÉDITO POR IMPUESTO DE PRIMERA CATEGORÍA" generen falsos positivos de categoría.
 
 ### Step 3 — Requisito de sesión (Art. 260 / 80 UF)
 Para que el cliente pueda iniciar una sesión de renegociación deben cumplirse **dos condiciones simultáneas**:
@@ -122,6 +143,9 @@ CMF download → analyzeCmfPdf (TS)
 ### Worker — Primera Categoría & F29 Block
 - **F29 Activity Check**: After detecting `categoria === 'primera'` from the Carpeta Tributaria, the worker calls `detectF29ActivityLast24Months(tributariaLocalPath, logger)` from `pdf_analyzer.ts`. If activity is found, it inserts an `automation_alerts` record (`alert_type: 'blocked'`), sets the job status to `'blocked'`, and throws `BlockedError` — which breaks the retry loop without overwriting the status to `'failed'`.
 - **`BlockedError`**: Dedicated error class in `worker.ts`. Treated identically to `CredentialError` in the retry guard (`if (isValidationError || isBlockedError) break`). Do NOT use a generic `Error` for this case — it would overwrite the `blocked` status with `failed`.
+- **Segunda Categoría (boletas de honorarios) NO bloquea**: Las boletas de honorarios no son impedimento legal para la renegociación. Se declaran como ingreso en el **Paso 5**: sumar los montos de boletas emitidas en los últimos 6 meses y dividir por 6 → ingreso mensual declarado. El único bloqueo tributario es `categoria === 'primera'` con actividad real en F29 en los últimos 24 meses.
+- **El Centinela corre por defecto**: A partir de 2026-06-18, el Centinela se ejecuta siempre en el worker. Para desactivarlo (sin detección NO-CMF, sin gasto de créditos API) usar `DISABLE_SENTINEL=true` en `.env`. **NO usar `DISABLE_SENTINEL=true` en producción** — los acreedores NO-CMF (TGR, cajas, fintechs, tarjetas no reportadas) quedarían sin declarar.
+- **Datos personales en `clients` deben usar valores exactos del portal**: `selectBootstrap` en `step1_personal.ts` usa `locator.selectOption(value)` que requiere el atributo `value` exacto del `<option>`. Texto libre o etiquetas descriptivas causan timeout de 60s. Valores conocidos: `estado_civil='1'` (Soltero/a), `region='Región Metropolitana'` (value=13), `comuna='LO BARNECHEA'` (uppercase, value=293), `profesion_oficio='Administrativos'` (value=4), `ocupacion='Trabajador/a dependiente'` (value=13). Para descubrir valores desconocidos: revisar el HTML dump en `outputs/failure_step1_*.html`.
 
 ### Step 3 — Resilience Pattern (`withRetry`)
 All critical Playwright operations in `step3_acreedores.ts` are wrapped in `withRetry<T>(fn, opts)` with linear back-off:
@@ -238,30 +262,42 @@ ANTHROPIC_API_KEY=sk-ant-api03-...
 
 ---
 
-## Dashboard — Carga de Documentos (repo `dashboard_rene/rp_renegociaciones`)
+## Dashboard del abogado — repo `rp_carga_documentos` (Next.js 16, separado)
 
-Vista del abogado (`/subir-caso`, label "Carga de Documentos") para adjuntar documentos a un cliente **que ya existe** en Supabase con sus datos personales. **No** crea ni edita datos personales.
-- **`GET /api/subir-caso?rut=`**: confirma que el cliente existe y devuelve su nombre + `has_cmf`.
-- **`POST /api/subir-caso`** (multipart): requiere solo `rut`; **404** si el cliente no existe. Reemplaza los certificados anteriores, sube el CMF (opcional, conserva el existente si no se adjunta) y los certificados, llena `client_documents` (tipo 22=monto, 23=vencimiento), actualiza `acreditacion_documentos_json`, y reencola un job (`step: 1`, `dry_run: true`). Errores de inserción NO se silencian (limpia huérfanos y retorna error).
-- **`GET /api/acreedores`**: catálogo `acreedores_canonicos` (cap subido a 1000 para que carguen los ~501 activos).
-- El form tiene 3 áreas: **CMF**, **Certificados de Deuda (monto)**, **Certificados de Vencimiento**; cada certificado lleva su banco (selector con autocompletado). Selector de archivo con botón claro ("Seleccionar archivo" → "Cambiar archivo" + nombre del archivo).
-- El worker consume estos documentos: descarga el CMF vía `informe_cmf_path` y los certificados vía `client_documents`. Para un run completo 1→4 el cliente además necesita `carpeta_tributaria_path` y `carpeta_retenedores_path` (que el dashboard NO sube).
+Ubicación: `/Users/patomartini/Desktop/rp_carga_documentos`. Es el **input de producción**: el abogado NO entra a Supabase. Apunta al sandbox `fnz…` (`lib/supabase.ts`). Tiene dos vistas:
+
+### Vista "Datos Personales" (`app/datos-personales/`)
+Crea/edita la fila del cliente en `clients` con los mismos `<select>` del portal (Paso 1).
+- **`GET /api/datos-personales?rut=`**: trae la fila para precargar (match por `rut.ilike`, case/puntos-insensible).
+- **`POST /api/datos-personales`**: valida contra los enums del portal y hace **upsert** en `clients`. Opcional `enqueue` → encola `automation_jobs` (idempotente: reusa job `pending`/`running`).
+- **Convención de valores** (validada con Cinthia, que corrió 1→4): `estado_civil` = **value** (`'1'`..`'7'`, el worker decide casado por `=== '2'`); `profesion_oficio`/`ocupacion`/`region`/`comuna` = **label exacto** (comuna en MAYÚSCULA). `selectBootstrap` matchea por value O label. Enums en `lib/portal_select_values.json` (copia de `supabase/portal_select_values.json`).
+- ⚠️ **Régimen patrimonial**: opciones provisionales (sin verificar contra el portal) — pendiente un dump de cliente casado. **Comunas**: solo RM cargadas; otras regiones caen a texto libre.
+
+### Vista "Cargar Caso" (`app/subir-caso/`)
+Sube la carpeta local del cliente y la clasifica.
+- **`classify()`** clasifica por **nombre de archivo** (no por ruta): CMF, Carpeta Tributaria, Agentes Retenedores, certificados CMF / NO-CMF. Lo no reconocido se muestra para revisión (no se descarta en silencio).
+- **Checklist de requisitos** bloquea la carga si falta el CMF (obligatorio aguas abajo en `worker.ts`).
+- **`GET/POST /api/subir-caso`** (`action=init|file|finalize`): sube a Storage (`documentos`, preserva extensión real), llena `client_documents` (tipo 24 general / 22 monto / 23 vencimiento, elegible por certificado), setea `informe_cmf_path`/`carpeta_tributaria_path`/`carpeta_retenedores_path`, y `finalize` encola el job (idempotente). Match de cliente por `rut.ilike`.
+- **`GET /api/acreedores`**: catálogo `acreedores_canonicos` (cap 1000).
+
+El worker consume todo esto: CMF vía `informe_cmf_path`, certificados vía `client_documents`, CT vía `carpeta_tributaria_path`, retenedores vía `carpeta_retenedores_path`.
 
 ---
 
 ## Flujo de datos para la automatización Superir
 
-Nuestra automatización del portal **lee** de producción (read-only) y ejecuta/registra todo en el sandbox. En fase de prueba, la cola propia es `pato_prueba_automation_jobs` en el sandbox.
+Sandbox-como-producción: todo el flujo vive en el sandbox `fnz…`. El proyecto del abogado (`ton…`) NO se toca.
 
 ```
-[PROD, read-only]
-  v_casos_renegociacion      → obtener rut, nombre, t0, estado
-  renegociacion_overrides    → obtener clave_unica (just-in-time), clave_ct, cmf_deudas_json, sii_agente_json
+[Dashboard rp_carga_documentos] (abogado)
+  Datos Personales → upsert clients (datos Paso 1 + ClaveÚnica propia)
+  Cargar Caso      → Storage `documentos` + client_documents + *_path en clients
+                   → INSERT automation_jobs (client_id + step, dry_run)
 
-[SANDBOX]
-  pato_prueba_automation_jobs (INSERT) → encolar job de automatización (client_id + step)
-  [Mac Mini ejecuta Playwright]        → login.ts → step1_personal.ts → step2_declaraciones.ts
-  pato_prueba_automation_jobs (UPDATE) → escribir status/error/screenshot/logs al completar
+[SANDBOX fnz… — Mac Mini ejecuta el worker]
+  worker.ts toma el job → cadena de agentes (tributario→centinela→mapeador)
+                        → Playwright login → step1..step4
+  automation_jobs (UPDATE) → status/error/screenshot/logs al completar
 ```
 
 ---
@@ -298,7 +334,10 @@ BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/claud
 BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_step3.ts
 
 # Test del Centinela aislado (DETECCIÓN no-CMF) — GASTA créditos de Claude (API #1)
-ENABLE_SENTINEL=true BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_reconciliacion.ts
+BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_reconciliacion.ts
+
+# Para saltar el Centinela en tests (sin gasto de créditos API, sin detección NO-CMF)
+DISABLE_SENTINEL=true BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_reconciliacion.ts
 
 # Setup de un caso nuevo (perfil + CMF) y carga de certificados a client_documents
 npx ts-node -r dotenv/config casos/alejandra_espinoza/setup_test.ts

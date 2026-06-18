@@ -1,5 +1,80 @@
 # Tareas: Automatización Superir — Estado Actual
 
+---
+
+## 🚀 PRIORIDAD — Camino a Producción
+
+> La cadena completa (Tributario→Centinela→Mapeador→Steps 1→4) fue validada en DRY_RUN con 9 casos el 2026-06-17.
+> El paso siguiente es probar con documentos reales y frescos, corregir los últimos gaps de catálogo, y conectar el worker al loop de producción.
+
+### P0 — Desbloqueadores inmediatos
+
+- [x] **Aliases catálogo — CCAF / Coopeuch** ⚡ *(2026-06-17)*
+  - Aliases en `ALIASES` de `acreedor_matcher.ts`: "Caja Los Andes", "Caja de Compensación de Los Andes/Los Andes" → "CCAF Los Andes". Ídem para CCAF 18 de Septiembre, Gabriela Mistral, La Araucana, Los Héroes.
+  - "Coopeuch" → "Coopeuch Ltda" (alias explícito para Tier 1; token-containment ya lo resolvía).
+  - Catálogo ya tenía: Coopeuch Ltda (82878900-7), Municipalidades RM (incluye Santiago y Las Condes).
+  - **Pendiente**: Municipalidad de Colina y Registro Civil — RUT no verificado, no insertados. William excluye multa Colina del test; el abogado la declara manual.
+
+- [ ] **Primer run con cliente REAL y docs frescos (<30 días)** 🎯
+  - Obtener un cliente nuevo O solicitar docs actualizados para Jaime Cartes (Santander TC 2982 + Tenpo 9924) o Noelia Lorca (La Araucana + Forum)
+  - Crear carpeta `casos/nuevo_cliente/` con `analisis_deudas.md` + `setup_test.ts` + `upload_documents.ts`
+  - Correr sin flags de bypass: `npx ts-node --transpile-only -r dotenv/config casos/nuevo_cliente/test_full_chain.ts` (Centinela corre por defecto; solo poner `DISABLE_SENTINEL=true` en pruebas sin API)
+  - Objetivo: que el Centinela apruebe (APROBADO, no RECHAZADO), que el Mapeador no genere alertas, que Playwright complete los 4 pasos limpiamente
+
+- [ ] **Primer envío real (DRY_RUN=false)** 🎯
+  - Una vez que el run con docs frescos pase sin bypass, correr con `DRY_RUN=false` para un cliente confirmado por el abogado
+  - Verificar en el portal Superir que los datos quedaron grabados correctamente
+
+### P1 — Infraestructura de producción
+
+- [x] **Conectar worker al loop real de la cadena** *(2026-06-18)* — `npm run worker` corre la cadena completa (tributario→centinela→mapeador→Steps 1→4) vía la cola `pato_prueba_automation_jobs`. Job `d65d7a9f` (Cinthia Rodríguez, DRY_RUN=true, step=0): ✅ 6/6 acreedores CMF + docs adjuntos, Steps 1→2→3→4 exitosos, `status=success` en Supabase. **Primer run histórico del worker daemon end-to-end vía queue.**
+  - ⚠️ Fashion's Park (NO-CMF Art.260 $98.716) **no apareció** — en ese momento el flag era `ENABLE_SENTINEL=true` (ya obsoleto). Hoy el Centinela corre por defecto; para desactivarlo usar `DISABLE_SENTINEL=true`.
+  - ⚠️ El worker requiere que `clients` sandbox tenga datos personales completos con **valores exactos del portal** (números de opción: `estado_civil='1'`, `region='Región Metropolitana'`, `comuna='LO BARNECHEA'`). Sin esto, Step 1 falla en `selectBootstrap`.
+
+- [x] **`ENABLE_SENTINEL` → `DISABLE_SENTINEL` (2026-06-18)** — Lógica invertida: el Centinela corre por defecto; para saltarlo usar `DISABLE_SENTINEL=true` en `.env` (solo en pruebas sin API). `.env` actualizado. Workers viejos con bypass matados. **Centinela corre por defecto en producción; ENABLE_SENTINEL ya no existe.**
+
+- [x] **Datos personales en `clients` con valores exactos del portal** *(2026-06-18)* — Resuelto vía el dashboard (ver subsección "Dashboard de carga" abajo). Convención fijada: `estado_civil` = **value** (`'1'`..`'7'`), el resto (`profesion_oficio`, `ocupacion`, `region`, `comuna`) = **label exacto** (comuna en MAYÚSCULA). Enums reales en `supabase/portal_select_values.json`. La fila se crea/edita desde la vista "Datos Personales" del dashboard, validada contra esos enums.
+
+### P1.b — Dashboard de carga (input del abogado) — repo `rp_carga_documentos`
+
+> El abogado NO entra a Supabase: usa el dashboard. Flujo: **Datos Personales** (crea la fila `clients`) → **Cargar Caso** (sube la carpeta) → encola `automation_jobs` → worker. Apunta al sandbox `fnz…`.
+
+- [x] **Vista "Datos Personales"** *(2026-06-18)* — `app/datos-personales/` + `app/api/datos-personales/route.ts` + `lib/portal-values.ts`. Form con los mismos dropdowns del portal (cascada región→comuna, régimen solo si casado), upsert a `clients` por RUT (ilike), validación contra enums, trigger opcional de job (idempotente). Probado E2E contra el dev server.
+- [x] **Fixes en "Cargar Caso"** *(2026-06-18)* — `classify()` por nombre de archivo (retenedores ya no se confunde con tributaria), Checklist de requisitos que bloquea si falta CMF, tabla editable (nada se descarta en silencio), `rut.ilike` (RUT con DV "K"), preserva extensión real, tipo de doc por certificado (22/23/24), enqueue idempotente.
+- [x] **Enqueue por defecto = `step:0` + `dry_run:false`** *(2026-06-18)* — Ambos puntos (`subir-caso/finalize` y `datos-personales`) encolan la **cadena completa Pasos 1→4** (`step:0`) y dejan el **borrador vivo en Superir sin radicar** (`dry_run:false`; el flujo para en la vista del Paso 5). Antes encolaban `step:1`/`dry_run:true` (solo Paso 1 + limpiaba el borrador). **Validado E2E**: run real dashboard→worker→portal con RUT de prueba 21917363-6 + carpeta Alejandra → `success`, borrador cargado 1→4, 5 acreedores, sin presentar.
+- [x] **Primer flujo COMPLETO dashboard→portal con borrador vivo** *(2026-06-18)* — crear cliente (dashboard) → subir carpeta (dashboard) → worker `DRY_RUN=false` → Pasos 1→4 guardados en Superir, no radicado. Todo persiste (clients, client_documents, job success + screenshots). **2ª verificación** con datos reales de Pato + nuevo default (sin parche) → `success`.
+- [x] **Datos Personales: sin trigger + guardado parcial** *(2026-06-18)* — Quitado el checkbox de "encolar" (encolaba antes de subir docs → worker fallaba). Ahora la vista SOLO guarda. Guardado **parcial** permitido (solo bloquea valores inválidos; campos vacíos se permiten y se reportan). Prefill por RUT + banner de faltantes + borde ámbar en campos obligatorios vacíos + botón "Guardar avance/datos".
+- [x] **Gate "datos personales completos" en Cargar Caso** *(2026-06-18)* — `lib/personal-fields.ts` (lógica compartida). GET de subir-caso devuelve `personal_complete`+`missing_personal` (pill en el banner + ítem rojo en el checklist que bloquea "Iniciar Carga"). `finalize` devuelve **409** si está incompleto (backstop server-side). Así el worker nunca corre con Paso 1 incompleto.
+- [x] **Plantilla de carpeta (molde)** *(2026-06-18)* — Card "Formato de la carpeta" en Cargar Caso + botón "Descargar carpeta molde (.zip)" (`public/plantilla_caso_cliente.zip`: subcarpetas 02_Informe_CMF / 03_Tributaria_y_SII / acreedores_cmf / acreedores_no_cmf + LEEME). El abogado la llena y la sube.
+- [x] **Encender el sistema (worker daemon) — `scripts/sistema.sh`** *(2026-06-18)* — Script portátil (`start`/`stop`/`status`/`logs`) que instala deps + Playwright y deja el worker corriendo (pm2 si está, sino nohup). Documentado en CLAUDE.md ("🟢 Encender el sistema"): el usuario dice "enciende el sistema" → `bash scripts/sistema.sh start`. **Falta dejarlo persistente al boot en el Mac Mini (`pm2 startup`).**
+- [ ] **Régimen patrimonial — opciones reales** — `lib/portal-values.ts` usa labels estándar SIN verificar contra el portal (ningún dump tiene la lista; carga dinámica solo con casado). Verificar con un dump de cliente casado antes de un run real con casado. **[BLOQUEANTE para clientes casados]**
+- [ ] **Comunas fuera de RM** — `portal_select_values.json` solo trae las 52 comunas de la Región Metropolitana; otras regiones caen a texto libre. Cargar las comunas del resto de regiones cuando aparezca un caso no-RM.
+- [ ] **Recarga atómica de carpeta** — `subir-caso action=init` borra `client_documents`+Storage antes de subir; una falla a mitad deja el expediente parcial. Cambiar a subir-y-luego-reemplazar para recargas.
+- [ ] **Deploy del dashboard** — `rp_carga_documentos` (Next 16, Vercel) — deployar con los cambios de esta sesión.
+- [ ] **Auth en rutas API del dashboard** — hoy sin gate de usuario (service-role del lado server). Agregar antes de producción pública.
+
+- [x] **Correr migration_sandbox_v4.sql en sandbox** *(2026-06-18)* — Aplicada en SQL Editor `fnz...`. `clients.airtable_id` creada, `automation_alerts.client_id` → uuid+FK a clients, `automation_jobs.needs_lawyer_review` + `pending_review` en el CHECK. Verificado (3/3 columnas). Fixes: `DECLARE r RECORD` faltante + comparación `client_id::text` en el DELETE (client_id ya era uuid). Tabla `clients` documentada con `COMMENT ON COLUMN` (valores literales del portal). **Sandbox-como-producción: NO se toca el proyecto del abogado (`ton...`).**
+
+- [ ] **(DIFERIDO) Correr migration_prod_v4.sql en producción** — Solo cuando se decida pasar a la DB real del abogado (`ton...`). HOY operamos sandbox-como-producción y NO se toca `ton...`. Migraciones obsoletas (`_v1/_v2/_v3`, sandbox `_v1`/`_v3_cleanup`) ya eliminadas; queda solo `migration_prod_v4.sql` como referencia futura. **Coordinar con abogado.**
+
+- [ ] **Gate del abogado (needsLawyerReview)** — Cuando el Centinela o el Mapeador marcan `needsLawyerReview=true`, el worker hoy sigue de todas formas. En producción debe: (a) guardar el estado `pending_review` en `automation_jobs`, (b) no correr Playwright, (c) notificar al dashboard para que el abogado confirme/corrija antes de continuar.
+
+- [ ] **(DIFERIDO) Apuntar worker a la DB real** — El worker ya usa `clients` / `automation_jobs` en el sandbox `fnz...` (las tablas `pato_prueba_*` quedaron obsoletas, no se usan). Solo si se pasa a la DB del abogado habría que cambiar `SUPABASE_URL` a `ton...`. Hoy NO.
+
+### P2 — Casos pendientes (necesitan docs del abogado)
+
+- [ ] **Jaime Cartes (RUT 17.596.599-8)** — Solicitar certs frescos: Santander TC 2982 + Tenpo TC 9924 + Coopeuch. Con docs nov/2025 el total era ~76 UF (<80 UF). Tributariamente libre. Scripts listos. `institucion_cmf` Santander corregido a `'Santander-Chile'` (como aparece en CMF). Credenciales sandbox `Udechile.0930` rechazadas — confirmar clave actual.
+- [ ] **Noelia Lorca (RUT 15.121.553-K)** — Solicitar docs frescos + cert saldo La Araucana + cert Forum. Scripts listos. Centinela detectó 3 NO-CMF: La Araucana $9.5M (Art.260, 322d), Forum $5.4M (Art.260, 164d), tarjeta 9782 $300k (Art.260, ~254d, emisor sin identificar — probablemente BdCh, confirmar). Credenciales sandbox `Jose1705.` rechazadas — confirmar clave actual.
+- [ ] **Alejandra Espinoza** — Obtener su Carpeta Tributaria (SII). El resto de sus docs ya están en `client_documents`.
+
+### P3 — Mejoras post-producción
+
+- [ ] **Worker: idempotencia por hash de PDFs** — Si el CMF y los certs no cambiaron desde el último run `completed`, reusar el output de `agent_runs` sin gastar créditos API.
+- [ ] **Validación "mínimo 2 productos" en TS** — El check de `qualifying90PlusCount >= 2` ya existe en el Centinela/validator, pero no bloquea en el worker. Agregar guardia antes de Playwright.
+- [ ] **CT Jorge Romero con formato 2025+** — Re-testear `detectContribucionesDeuda` cuando aparezca una CT con el nuevo layout del SII.
+
+---
+
 ## Completadas (sesiones anteriores)
 
 - [x] **CMF Analyzer** — normalización diacríticos, extracción `overdue90DaysTotal`, mapeo columnas dinámico, validación 80 UF
@@ -82,36 +157,27 @@ Docs (CMF + certs + carpeta tributaria)
 - [x] **`src/agents/centinela_agent.ts`** — Wrapper de `sentinel.ts` con idempotencia SHA-256, agent_runs (step=3), `validateCentinelaOutput` antes de completeRun, conversión `SentinelResult→CentinelaOutput`. `ENABLE_SENTINEL=false` → bypass sin escribir a agent_runs. `CentinelaBlockedError` para bloqueos semánticos. `cmfDocumentOverrides` vacío (TODO próxima iteración).
 - [x] **Worker conectado al centinela_agent** — `runSentinelCheck` eliminado del worker. Centinela se corre dentro del bloque `step===3|0` después del CMF descargado. `orchResult`, `fillStep3` y `fillAllSteps` consumen `centinelaOutput.*`.
 - [x] **Fix `technicalError` en sentinel.ts** — Campo `technicalError?: boolean` en `SentinelResult`; catch externo lo marca `true`. `centinela_agent.ts` distingue: técnico → throw Error genérico (reintentable), semántico → `CentinelaBlockedError` (bloquea caso). Antes, API caída o créditos agotados bloqueaban el caso permanentemente.
-- [ ] **Probar con Alejandra** — `test_centinela_agent.ts` listo en `casos/alejandra_espinoza/`. Bloqueado por créditos API agotados. Recargar en console.anthropic.com y correr: `ENABLE_SENTINEL=true BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_centinela_agent.ts`
+- [ ] **Probar con Alejandra** — `test_centinela_agent.ts` listo en `casos/alejandra_espinoza/`. Bloqueado: falta CT del SII. Correr cuando llegue la CT: `BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_centinela_agent.ts`
 
 ### Agente Mapeador (Step 3)
 - [x] **`src/agents/mapeador_agent.ts`** — Wrapper de `cognitive_orchestrator.ts` con idempotencia (hash = centinela run ID), agent_runs (step=3), conversión `OrchestrationResult→MapeadorOutput`. Errores técnicos → failRun+throw (retry). Errores semánticos (missing_document, rut_mismatch) → completeRun con needsLawyerReview. `mapeadorHasBlockers()` helper para el worker.
 - [x] **Worker conectado al mapeador_agent** — `runCognitiveOrchestrator` eliminado del worker. Worker llama `runMapeadorAgent` y usa `mapeadorHasBlockers` para decidir si bloquea el Paso 3.
-- [ ] **`cmfDocumentOverrides` desde el Centinela** — El Centinela ya extrae monto/fecha de cada cert; el Mapeador los recibe como parte del JSON. Pendiente de implementar en `centinela_agent.ts`.
+- [x] **`cmfDocumentOverrides` desde el Centinela** — El Centinela extrae monto+fecha de cada cert (260 directos) y los pasa al Mapeador. Implementado y validado con Carlos Uribe (Internacional + CMR Falabella).
+- [x] **Fix cognitive_orchestrator — streaming + budget_tokens (2026-06-17)** — `messages.create` → `messages.stream()` + `stream.finalMessage()`. `thinking: { type: 'adaptive' }` → `{ type: 'enabled', budget_tokens: 8000 }`. Resuelve "Unexpected end of JSON input" (Claude consumía todos los tokens en thinking). Texto por cert reducido: 20k→4k chars (orchestrator) y 12k→4k chars (sentinel). Mismo fix ya aplicado a sentinel.ts en sesión anterior.
+- [x] **E2E cadena completa (Steps 1→4) — Carlos Uribe (2026-06-17)** — ✅ 5/5: Internacional $19.591.001/02-09-2025 (260), CMR Falabella $1.867.320/05-10-2025 (260), BancoEstado $3.790.012 (261), Santander $5.176.316 (261), Itaú $26.908.918 (261). Primer test con cadena completa tributario→centinela→mapeador→Playwright. DRY_RUN limpió.
+- [x] **OCR local multi-página Tesseract (2026-06-17)** — `src/utils/ocr_helper.ts` nuevo con `runOcrOnPdf` (pdftoppm→tesseract spa, todas las páginas) y `extractTextWithOcrFallback`. Reemplaza GS+Vision (página 1 solo) en `sentinel.ts` y `cognitive_orchestrator.ts`. Tributario: OCR-first para CTs escaneadas, Claude Opus solo como fallback. `pdf_analyzer.ts`: 3 funciones aceptan `preExtractedText?` (retrocompatible). Validado con EECC escaneados Cencosud (7432 chars vs 0 antes).
+- [x] **Mapeador determinista (2026-06-17)** — `src/utils/deterministic_mapeador.ts` nuevo con `buildMappedDocsDeterministic`. Elimina la segunda llamada LLM (Claude) del Mapeador (~2 min). Mapeo en memoria desde `CentinelaOutput.document_filename` + `client_documents`. 0 tokens de API. `mapeador_agent.ts`: usa determinista por defecto; Claude como fallback con `FORCE_VISION_MAPEADOR=true`. Validado con Carlos Uribe: 10 docs, 0 alertas, milisegundos.
+- [x] **E2E cadena completa (Steps 1→4) — Cinthia Rodríguez (2026-06-17)** — ✅ 7/7: Banco Estado $1.290.159 (261), CAR Ripley $1.647.930 (261), CAT/CENCOSUD $6.783.469 (260 CMF), PRESTO LIDER $646.166 (261), CMR Falabella $2.558.037 (260 CMF), Solventa $300.810 (261), Fashion's Park $98.716 (260 NO-CMF). Corregidos 2 bugs: `normInst(null)` en `deterministic_mapeador.ts` y `matchAcreedor(null)` en `step3_acreedores.ts` cuando `AdditionalCreditor.institucion_cmf` es null. CT categoría `ninguna` (escaneada). DRY_RUN limpió.
 
 ### Conexión al flujo real
-- [ ] **Worker orquesta la cadena** — `worker.ts` corre secuencialmente: CMF parser → Centinela (espera `cmf` completed) → Mapeador (espera `centinela` completed) → Playwright. Si un paso falla, los siguientes no corren.
-- [ ] **`input_hash` para idempotencia** — Hash del set de PDFs. Si los docs no cambiaron y el run anterior completó, reusar output (no gastar créditos).
-- [ ] **Gate del abogado** — Si `needs_lawyer_review = true` en cualquier agente, pausar antes de Playwright y notificar en dashboard.
-
----
-
-## Pendientes — Casos
-
-- [ ] **Jaime Cartes (RUT 17.596.599-8)** — **BLOQUEADO** hasta **13/07/2026** (boletas honorarios). Certs Santander TC + Tenpo desactualizados (monto <80 UF). Sin scripts.
-- [ ] **Noelia Lorca (RUT 15.121.553-K)** — **BLOQUEADA** hasta ~**dic/2026**. Docs incompletos (La Araucana, Forum, TGR). Sin scripts.
-- [ ] **Irene Arévalo (RUT 16.143.425-6)** — **BLOQUEADA** doble hasta ~**oct/2027**. Scripts listos, no ejecutar.
-
----
-
-## Pendientes — Técnico (pre-agentes)
-
-- [x] **Probar camino NO-CMF Art.260** — ✅ Validado con TGR de William Montero (2026-06-16).
-- [ ] **Run mecánico completo Patricio (BYPASS_DATE_CHECK=true)** — Pasos 1→4. Pendiente: `missing_document` PRESTO LIDER.
-- [ ] **Run real 1→4 con docs frescos** — Requiere CMF + certs <30 días.
-- [ ] **ClaveÚnica de Miled** — `Miled12345` inválida.
-- [ ] **Prueba cliente Primera Categoría** — Verificar `BlockedError` + F29 con actividad real.
-- [ ] **Verificar categoría tributaria Patricio** — `ninguna` en E2E jun/2026. ¿Real o PDF escaneado?
+- [x] **Batch completo 10 casos (2026-06-17)** — `casos/run_batch_full_chain.ts` corrió todos los casos no bloqueados. Resultado: ✅ 9 ok, ⏭️ 1 skip (Alejandra sin CT), ❌ 0 errores.
+- [x] **Fix parsers nuevos formatos PDF (2026-06-18)**
+  - CMF Ley 21.680: columnas a posiciones 0–41 (institución), 42–67 (tipo), 68+ (fecha). Fix `sliceAEnd=42`, `sliceBEnd=68`. Fix stripping de `(N)` global (no solo al final) en nombres de institución.
+  - CT 2026 F29: sección F22 aparece después de F29 — `pdf_analyzer.ts` ahora trunca `f29Section` en el límite de F22 para evitar falsos positivos de actividad en `04/2026`.
+  - Validados con CT `20260602-232145_carpeta_tributaria.pdf` y CMF `informe_deudas_18680500-3.pdf` (formato nuevo).
+- [x] **Worker queue E2E — primer run histórico (2026-06-18)** — Ver P1 completada arriba. Job `d65d7a9f` Cinthia Rodríguez: Steps 1→4, 6/6 acreedores CMF, `status=success`.
+- [x] **Test de producción Jaime + Noelia (2026-06-18)** — Pipeline validado sin bypass: Centinela bloqueó en ambos casos por CMF vencido. Jaime: `CMF_EXPIRED` 203d + 2 certs vencidos. Noelia: `CMF_EXPIRED` 191d + 5 certs vencidos + 3 NO-CMF detectados (La Araucana Art.260, Forum Art.260, tarjeta 9782 Art.260). Infra validada: ✅ Anthropic API, ✅ OCR Tesseract, ✅ Centinela por defecto, ✅ upload_documents con client_documents.
+- [ ] **Worker + gate + aliases + run real** → ver sección **PRIORIDAD** al inicio del documento.
 
 ---
 
