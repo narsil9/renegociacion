@@ -153,6 +153,13 @@ CMF download → analyzeCmfPdf (TS)
 - **El Centinela corre por defecto**: A partir de 2026-06-18, el Centinela se ejecuta siempre en el worker. Para desactivarlo (sin detección NO-CMF, sin gasto de créditos API) usar `DISABLE_SENTINEL=true` en `.env`. **NO usar `DISABLE_SENTINEL=true` en producción** — los acreedores NO-CMF (TGR, cajas, fintechs, tarjetas no reportadas) quedarían sin declarar.
 - **Datos personales en `clients` deben usar valores exactos del portal**: `selectBootstrap` en `step1_personal.ts` usa `locator.selectOption(value)` que requiere el atributo `value` exacto del `<option>`. Texto libre o etiquetas descriptivas causan timeout de 60s. Valores conocidos: `estado_civil='1'` (Soltero/a), `region='Región Metropolitana'` (value=13), `comuna='LO BARNECHEA'` (uppercase, value=293), `profesion_oficio='Administrativos'` (value=4), `ocupacion='Trabajador/a dependiente'` (value=13). Para descubrir valores desconocidos: revisar el HTML dump en `outputs/failure_step1_*.html`.
 
+### Worker — Gate del abogado (`pending_review` + reanudación)
+Cuando el Paso 3 produce señales que requieren revisión humana (acreedores NO-CMF a confirmar, `amount_mismatch` del Mapeador), el worker se comporta distinto según el modo del job:
+- **Run real (`dry_run === false`) sin confirmar**: marca el job `status='pending_review'` + `needs_lawyer_review=true`, inserta una `automation_alert` (`alert_type:'needs_review'`) y **NO corre Playwright** (`return` temprano). El abogado debe revisar y re-encolar desde el dashboard.
+- **Supervisado (`dry_run`)**: llena el borrador igual (para que el abogado lo revise) y solo marca `needs_lawyer_review=true`.
+- **Reanudación**: el dashboard (`/automatizacion`, botón "Confirmar y reanudar" → `POST /api/automatizacion {job_id, action:'resume'}`) hace `status='pending'` + `lawyer_confirmed=true` (idempotente vía `.eq('status','pending_review')`; maneja 23505 del índice de job activo). El poller retoma el job; el worker, al ver `lawyer_confirmed === true` en el gate, **continúa el Paso 3** pese a las señales y limpia `needs_lawyer_review=false` (revisión resuelta).
+- **Columna**: `automation_jobs.lawyer_confirmed` (BOOLEAN, default `false`; `supabase/migration_sandbox_v5.sql`). ⚠️ **Esa migración debe correrse en el SQL Editor del sandbox `fnz...`** — sin la columna, el POST de reanudar falla.
+
 ### Step 3 — Resilience Pattern (`withRetry`)
 All critical Playwright operations in `step3_acreedores.ts` are wrapped in `withRetry<T>(fn, opts)` with linear back-off:
 

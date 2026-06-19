@@ -464,27 +464,41 @@ async function processJob(job: any): Promise<void> {
 
           if (needsReviewSignals.length > 0) {
             const reviewMsg = `Revisión del abogado requerida: ${needsReviewSignals.join(' · ')}.`;
-            // Registrar siempre (visibilidad para el dashboard) — sin tragar el error (M3).
-            const { error: alertErr } = await supabase.from('automation_alerts').insert({
-              job_id: job.id, client_id: client.id, step: 3,
-              alert_type: 'needs_review', description: reviewMsg,
-            });
-            if (alertErr) logger.error('⚠️ No se pudo registrar alerta needs_review:', alertErr.message);
 
-            if (job.dry_run === false) {
-              // Run real autónomo: NO presentar/llenar el portal sin confirmación.
-              logger.log(`🛑 ${reviewMsg} — run real detenido en 'pending_review' (no se corre Playwright).`);
-              await supabase.from(JOBS_TABLE).update({
-                status: 'pending_review',
-                needs_lawyer_review: true,
-                error_log: logger.getBufferText() + `\n\n🛑 PENDING REVIEW: ${reviewMsg}`,
-                updated_at: new Date().toISOString(),
-              }).eq('id', job.id);
-              return;
+            if (job.lawyer_confirmed === true) {
+              // El abogado ya revisó este caso en el dashboard y lo re-encoló confirmado
+              // (pending_review → pending + lawyer_confirmed=true). Se continúa con el
+              // Paso 3 pese a las señales; la revisión queda resuelta.
+              logger.log(`✅ ${reviewMsg} — El abogado confirmó el job y lo re-encoló; se continúa con el Paso 3.`);
+              const { error: clrErr } = await supabase
+                .from(JOBS_TABLE)
+                .update({ needs_lawyer_review: false })
+                .eq('id', job.id);
+              if (clrErr) logger.error('⚠️ No se pudo limpiar needs_lawyer_review:', clrErr.message);
+            } else {
+              // Registrar la alerta (visibilidad para el dashboard) — sin tragar el error (M3).
+              const { error: alertErr } = await supabase.from('automation_alerts').insert({
+                job_id: job.id, client_id: client.id, step: 3,
+                alert_type: 'needs_review', description: reviewMsg,
+              });
+              if (alertErr) logger.error('⚠️ No se pudo registrar alerta needs_review:', alertErr.message);
+
+              if (job.dry_run === false) {
+                // Run real autónomo SIN confirmación: NO presentar/llenar el portal.
+                // El abogado debe revisar y re-encolar (Confirmar y reanudar) desde el dashboard.
+                logger.log(`🛑 ${reviewMsg} — run real detenido en 'pending_review' (no se corre Playwright). El abogado debe confirmar y re-encolar desde el dashboard.`);
+                await supabase.from(JOBS_TABLE).update({
+                  status: 'pending_review',
+                  needs_lawyer_review: true,
+                  error_log: logger.getBufferText() + `\n\n🛑 PENDING REVIEW: ${reviewMsg}`,
+                  updated_at: new Date().toISOString(),
+                }).eq('id', job.id);
+                return;
+              }
+              // Supervisado (dry_run): se llena el borrador para que el abogado lo revise; se marca el flag.
+              logger.log(`⚠️ ${reviewMsg} — DRY_RUN: se llena el borrador para revisión; se marca needs_lawyer_review.`);
+              await supabase.from(JOBS_TABLE).update({ needs_lawyer_review: true }).eq('id', job.id);
             }
-            // Supervisado (dry_run): se llena el borrador para que el abogado lo revise; se marca el flag.
-            logger.log(`⚠️ ${reviewMsg} — DRY_RUN: se llena el borrador para revisión; se marca needs_lawyer_review.`);
-            await supabase.from(JOBS_TABLE).update({ needs_lawyer_review: true }).eq('id', job.id);
           }
         }
       }

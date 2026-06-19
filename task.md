@@ -18,6 +18,7 @@
 - [x] **Reorganización `src/` = solo producción (2026-06-19)** — 52 scripts dev/diagnóstico + CLI legacy `index.ts` movidos de `src/` → **`tools/`** (imports reescritos). `src/utils/` quedó con los 13 módulos del grafo del worker. `tsconfig.build.json` + `npm run build:prod` (artefacto production-only). `.gitignore` y `package.json` actualizados. Producción byte-idéntica (sin regresión).
 - [x] **`INSTALL.md`** — guía completa para correr el worker en otra máquina (requisitos de sistema: poppler/tesseract/ghostscript; clone → npm install → playwright → `.env` → `scripts/sistema.sh start` → pm2).
 - [x] **`B4` índice único** — pendiente **correr `migration_sandbox_v4.sql`** en el SQL Editor (agrega `uq_active_job_per_client`).
+- [x] **Correr `migration_sandbox_v5.sql` en el SQL Editor del sandbox `fnz...`** *(2026-06-19)* — `automation_jobs.lawyer_confirmed` (BOOLEAN, default false) aplicada. Gate del abogado operativo.
 
 ### P0 — Desbloqueadores inmediatos
 
@@ -69,7 +70,11 @@
 
 - [ ] **(DIFERIDO) Correr migration_prod_v4.sql en producción** — Solo cuando se decida pasar a la DB real del abogado (`ton...`). HOY operamos sandbox-como-producción y NO se toca `ton...`. Migraciones obsoletas (`_v1/_v2/_v3`, sandbox `_v1`/`_v3_cleanup`) ya eliminadas; queda solo `migration_prod_v4.sql` como referencia futura. **Coordinar con abogado.**
 
-- [ ] **Gate del abogado (needsLawyerReview)** — Cuando el Centinela o el Mapeador marcan `needsLawyerReview=true`, el worker hoy sigue de todas formas. En producción debe: (a) guardar el estado `pending_review` en `automation_jobs`, (b) no correr Playwright, (c) notificar al dashboard para que el abogado confirme/corrija antes de continuar.
+- [x] **Gate del abogado (needsLawyerReview) — detención + reanudación (2026-06-19)** — Implementado en dos partes:
+  - **Detención (fix B1)**: cuando hay señales de revisión (acreedores NO-CMF a confirmar o `amount_mismatch` del Mapeador) en un run real (`dry_run=false`), el worker marca el job `pending_review` + `needs_lawyer_review=true`, registra una `automation_alert` (`needs_review`) y **no corre Playwright** (`worker.ts`).
+  - **Reanudación (2026-06-19)**: nueva columna `automation_jobs.lawyer_confirmed` (BOOLEAN, default false; `supabase/migration_sandbox_v5.sql`). El dashboard (`/automatizacion`) muestra un botón **"Confirmar y reanudar"** en los casos `pending_review` → `POST /api/automatizacion {job_id, action:'resume'}` setea `status='pending'` + `lawyer_confirmed=true` (idempotente por `.eq('status','pending_review')`, maneja 23505 del índice único de job activo). El poller lo retoma; el worker, al ver `lawyer_confirmed`, **continúa el Paso 3** y limpia `needs_lawyer_review=false` (revisión resuelta).
+  - Migración aplicada *(2026-06-19)*: columna `lawyer_confirmed` en sandbox. Gate operativo.
+  - Validado: `tsc` limpio en ambos repos (renegociacion + rp_carga_documentos).
 
 - [ ] **(DIFERIDO) Apuntar worker a la DB real** — El worker ya usa `clients` / `automation_jobs` en el sandbox `fnz...` (las tablas `pato_prueba_*` quedaron obsoletas, no se usan). Solo si se pasa a la DB del abogado habría que cambiar `SUPABASE_URL` a `ton...`. Hoy NO.
 
