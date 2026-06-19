@@ -87,7 +87,7 @@
 ### P3 — Mejoras post-producción
 
 - [ ] **Worker: idempotencia por hash de PDFs** — Si el CMF y los certs no cambiaron desde el último run `completed`, reusar el output de `agent_runs` sin gastar créditos API.
-- [ ] **Validación "mínimo 2 productos" en TS** — El check de `qualifying90PlusCount >= 2` ya existe en el Centinela/validator, pero no bloquea en el worker. Agregar guardia antes de Playwright.
+- [x] **Validación "mínimo 2 productos" en TS** *(2026-06-19)* — Guardia en `worker.ts` (bloque step 3/0): `totalQualifyingCount = CMF 90+d + reclasificados Centinela + NO-CMF Art.260`; si `< 2` el caso no califica. En step 3 individual → `status='blocked'` + `automation_alert` (`blocked`) + `error_message` (antes era `failed` sin alerta → "falló sin alerta registrada" en el panel). En step:0 → omite solo el Paso 3 y guarda 1/2/4, con alerta legible. Mensaje explícito con el conteo por fuente. `tsc` limpio.
 - [ ] **CT Jorge Romero con formato 2025+** — Re-testear `detectContribucionesDeuda` cuando aparezca una CT con el nuevo layout del SII.
 
 ---

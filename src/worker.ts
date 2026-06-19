@@ -402,44 +402,59 @@ async function processJob(job: any): Promise<void> {
           logger.log(`⚠️  ADVERTENCIA: Suma del total del crédito de acreedores con 90+d ($${cmfResult.totalCreditoOf90PlusCreditors.toLocaleString('es-CL')}) no alcanza 80 UF ($${cmfResult.requiredAmountCLP.toLocaleString('es-CL')}). El flujo continúa; revisar documentos adicionales si aplica.`);
         }
 
+        // Requisito de fondo (Art. 260): al menos 2 productos con mora >= 91 días.
+        // Se cuentan los del CMF + los reclasificados por el Centinela + los NO-CMF Art.260.
         // B2: contar también los acreedores NO-CMF Art.260 (patrón William/TGR) — un
         // cliente que califica gracias a una deuda NO-CMF 260 NO debe quedar fuera.
+        const cmf90PlusCount = cmfResult.qualifying90PlusCount || 0;
+        const reclassifiedCount = centinelaOutput.reclassifiedCreditors.length;
         const nonCmf260Count = (centinelaOutput.additionalCreditors || []).filter(
           (a) => a.categoria_articulo === 260
         ).length;
-        const totalQualifyingCount =
-          (cmfResult.qualifying90PlusCount || 0) + centinelaOutput.reclassifiedCreditors.length + nonCmf260Count;
+        const totalQualifyingCount = cmf90PlusCount + reclassifiedCount + nonCmf260Count;
         const noCalifica = totalQualifyingCount < 2;
         const { blocked: docsInvalidos, reason: docsInvalidosReason } = mapeadorHasBlockers(mapeadorOutput);
 
         if (noCalifica || docsInvalidos) {
           const motivo = noCalifica
-            ? `El cliente no cumple los requisitos de fondo para la renegociación. No se detectó deuda con mora >= 91 días en el CMF.`
+            ? `El cliente no cumple el requisito de fondo de la renegociación: se requieren al menos 2 productos con mora ≥ 91 días y se detectó(aron) ${totalQualifyingCount} ` +
+              `(CMF: ${cmf90PlusCount}, reclasificados por el Centinela: ${reclassifiedCount}, NO-CMF Art. 260: ${nonCmf260Count}). ` +
+              `Revisar el Informe CMF y los documentos de acreditación; si el cliente igual debiera calificar, verificar que las deudas con mora estén bien clasificadas.`
             : (docsInvalidosReason || 'Los documentos de acreditación del Paso 3 no cumplen los requisitos.');
 
           if (job.step === 0) {
+            // Flujo completo: se omite SOLO el Paso 3 y se guardan los Pasos 1, 2 y 4.
             skipStep3Reason = motivo;
             logger.log(`⏭️  Paso 3 NO se completará (se guardarán los Pasos 1, 2 y 4): ${motivo}`);
-            try {
-              const { error: insertErr } = await supabase.from('automation_alerts').insert({
-                job_id: job.id,
-                client_id: client.id,
-                step: 3,
-                alert_type: 'blocked',
-                description: `Paso 3 omitido (no cumple requisitos): ${motivo}`,
-              });
-              if (insertErr) logger.error('⚠️ No se pudo registrar alerta de Paso 3 omitido:', insertErr.message);
-            } catch (alertErr: any) {
-              logger.error('⚠️ Excepción al registrar alerta de Paso 3 omitido:', alertErr?.message || alertErr);
-            }
+            const { error: insertErr } = await supabase.from('automation_alerts').insert({
+              job_id: job.id,
+              client_id: client.id,
+              step: 3,
+              alert_type: 'blocked',
+              description: `Paso 3 omitido (no cumple requisitos): ${motivo}`,
+            });
+            if (insertErr) logger.error('⚠️ No se pudo registrar alerta de Paso 3 omitido:', insertErr.message);
           } else {
-            logger.error(`❌ Paso 3 no se puede completar: ${motivo}`);
+            // Paso 3 individual: no hay nada que guardar → el job queda 'blocked' (no
+            // 'failed': reintentar no resuelve un requisito de fondo no cumplido o
+            // documentos inválidos). Se registra alerta + error_message para que el
+            // panel del dashboard muestre el motivo legible, no "falló sin alerta".
+            logger.error(`🚫 Paso 3 no se puede completar: ${motivo}`);
             await cleanupPortalDraftBestEffort();
+            const { error: insertErr } = await supabase.from('automation_alerts').insert({
+              job_id: job.id,
+              client_id: client.id,
+              step: 3,
+              alert_type: 'blocked',
+              description: motivo,
+            });
+            if (insertErr) logger.error('⚠️ No se pudo registrar alerta de bloqueo del Paso 3:', insertErr.message);
             await supabase
               .from(JOBS_TABLE)
               .update({
-                status: 'failed',
-                error_log: logger.getBufferText() + `\n\n❌ ERROR DE VALIDACIÓN (Paso 3): ${motivo}`,
+                status: 'blocked',
+                error_message: motivo,
+                error_log: logger.getBufferText() + `\n\n🚫 PASO 3 BLOQUEADO: ${motivo}`,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', job.id);
