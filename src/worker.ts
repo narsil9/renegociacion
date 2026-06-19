@@ -18,6 +18,7 @@ import { analyzeCmfPdf } from './utils/cmf_analyzer';
 import { createAlert, clearAlert } from './utils/alerts';
 import { cleanupDraft } from './automation/cleanup';
 import { runCentinelaAgent, CentinelaBlockedError } from './agents/centinela_agent';
+import { resolveCertInstitutions } from './utils/cert_institution_resolver';
 import { runMapeadorAgent, mapeadorHasBlockers } from './agents/mapeador_agent';
 import { CentinelaOutput } from './agents/types';
 
@@ -346,6 +347,15 @@ async function processJob(job: any): Promise<void> {
         // 2. Analyze CMF PDF (result also passed into cognitive orchestrator to avoid double-parse)
         const cmfResult = await analyzeCmfPdf(cmfLocalPath, logger);
 
+        // 2.5. Auto-asociación de certificados → acreedor del catálogo POR RUT.
+        // El abogado ya NO elige el banco a mano en el dashboard; el worker lo
+        // deriva del RUT del documento (fallback: nombre de archivo) y lo persiste
+        // en client_documents, para que el Centinela y el Mapeador usen la
+        // asociación correcta. Best-effort: no interrumpe el flujo si falla.
+        await resolveCertInstitutions(supabase, client, logger).catch((err) =>
+          logger.error('🔗 [Resolver] Error no controlado en la auto-asociación (se continúa):', err?.message || err)
+        );
+
         // 3. Run Centinela Agent (API #1) — ahora aquí, después del CMF descargado
         try {
           centinelaOutput = await runCentinelaAgent(supabase, client.id, client, cmfLocalPath, logger);
@@ -463,57 +473,25 @@ async function processJob(job: any): Promise<void> {
         } else {
           logger.log('✓ El cliente califica y los documentos del Paso 3 son válidos. Se completarán los 4 pasos.');
 
-          // B1 — Gate del abogado. Señales de revisión pendiente que NO son bloqueo duro
-          // (los duros —missing_document/rut_mismatch— ya cayeron a 'failed' arriba):
-          //  • acreedores NO-CMF (siempre requieren confirmación del abogado), y
-          //  • monto divergente (amount_mismatch) detectado por el Mapeador.
-          const needsReviewSignals: string[] = [];
-          const nonCmfToConfirm = (centinelaOutput.additionalCreditors || []).filter((a) => a.needs_lawyer_confirmation);
-          if (nonCmfToConfirm.length > 0) {
-            needsReviewSignals.push(`${nonCmfToConfirm.length} acreedor(es) NO-CMF a confirmar (${nonCmfToConfirm.map((a) => a.institucion_cmf).join(', ')})`);
+          // Detección informativa (NO bloqueante): el gate del abogado se eliminó por
+          // decisión del abogado (2026-06-19). Cuando el abogado sube la carpeta y
+          // autoriza la automatización, el flujo corre de corrido: ni los acreedores
+          // NO-CMF ni los montos divergentes (amount_mismatch) frenan el Paso 3 en
+          // 'pending_review'. Solo se anuncia éxito o fallo al final.
+          // Los bloqueos DUROS (missing_document/rut_mismatch) ya cayeron a 'failed' arriba.
+          const informativeSignals: string[] = [];
+          const nonCmfDetected = (centinelaOutput.additionalCreditors || []).filter((a) => a.needs_lawyer_confirmation);
+          if (nonCmfDetected.length > 0) {
+            informativeSignals.push(`${nonCmfDetected.length} acreedor(es) NO-CMF (${nonCmfDetected.map((a) => a.institucion_cmf).join(', ')})`);
           }
           const amountAlerts = mapeadorOutput.alerts.filter((a) => a.type === 'amount_mismatch');
           if (amountAlerts.length > 0) {
-            needsReviewSignals.push(`monto divergente: ${amountAlerts.map((a) => a.message).join('; ')}`);
+            informativeSignals.push(`monto divergente: ${amountAlerts.map((a) => a.message).join('; ')}`);
           }
-
-          if (needsReviewSignals.length > 0) {
-            const reviewMsg = `Revisión del abogado requerida: ${needsReviewSignals.join(' · ')}.`;
-
-            if (job.lawyer_confirmed === true) {
-              // El abogado ya revisó este caso en el dashboard y lo re-encoló confirmado
-              // (pending_review → pending + lawyer_confirmed=true). Se continúa con el
-              // Paso 3 pese a las señales; la revisión queda resuelta.
-              logger.log(`✅ ${reviewMsg} — El abogado confirmó el job y lo re-encoló; se continúa con el Paso 3.`);
-              const { error: clrErr } = await supabase
-                .from(JOBS_TABLE)
-                .update({ needs_lawyer_review: false })
-                .eq('id', job.id);
-              if (clrErr) logger.error('⚠️ No se pudo limpiar needs_lawyer_review:', clrErr.message);
-            } else {
-              // Registrar la alerta (visibilidad para el dashboard) — sin tragar el error (M3).
-              const { error: alertErr } = await supabase.from('automation_alerts').insert({
-                job_id: job.id, client_id: client.id, step: 3,
-                alert_type: 'needs_review', description: reviewMsg,
-              });
-              if (alertErr) logger.error('⚠️ No se pudo registrar alerta needs_review:', alertErr.message);
-
-              if (job.dry_run === false) {
-                // Run real autónomo SIN confirmación: NO presentar/llenar el portal.
-                // El abogado debe revisar y re-encolar (Confirmar y reanudar) desde el dashboard.
-                logger.log(`🛑 ${reviewMsg} — run real detenido en 'pending_review' (no se corre Playwright). El abogado debe confirmar y re-encolar desde el dashboard.`);
-                await supabase.from(JOBS_TABLE).update({
-                  status: 'pending_review',
-                  needs_lawyer_review: true,
-                  error_log: logger.getBufferText() + `\n\n🛑 PENDING REVIEW: ${reviewMsg}`,
-                  updated_at: new Date().toISOString(),
-                }).eq('id', job.id);
-                return;
-              }
-              // Supervisado (dry_run): se llena el borrador para que el abogado lo revise; se marca el flag.
-              logger.log(`⚠️ ${reviewMsg} — DRY_RUN: se llena el borrador para revisión; se marca needs_lawyer_review.`);
-              await supabase.from(JOBS_TABLE).update({ needs_lawyer_review: true }).eq('id', job.id);
-            }
+          if (informativeSignals.length > 0) {
+            // Solo se loguea para trazabilidad (queda en error_log del job). No se inserta
+            // alerta 'needs_review' ni se detiene el flujo: se continúa con el Paso 3.
+            logger.log(`ℹ️ Señales detectadas (no bloqueantes, se continúa con el Paso 3): ${informativeSignals.join(' · ')}.`);
           }
         }
       }
@@ -655,7 +633,7 @@ async function processJob(job: any): Promise<void> {
 
         await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs,
           centinelaOutput.reclassifiedCreditors, centinelaOutput.additionalCreditors,
-          centinelaOutput.cmfDocumentOverrides);
+          centinelaOutput.cmfDocumentOverrides, centinelaOutput.identified261Creditors);
       } else if (job.step === 4) {
         logger.log('📝 Navegando e ingresando información de Paso 4...');
         
@@ -728,7 +706,8 @@ async function processJob(job: any): Promise<void> {
           skipStep3Reason,
           centinelaOutput.reclassifiedCreditors,
           centinelaOutput.additionalCreditors,
-          centinelaOutput.cmfDocumentOverrides
+          centinelaOutput.cmfDocumentOverrides,
+          centinelaOutput.identified261Creditors
         );
       }
 
