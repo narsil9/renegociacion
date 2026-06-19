@@ -62,6 +62,10 @@ function toAcreditacionDoc(
     storage_path: doc.storage_path,
     local_path: doc.local_path,
     filename: doc.filename,
+    // Nombre canónico que dejó el Resolver en client_documents (catalog-resuelto
+    // por RUT/nombre de archivo). step3 lo usa como fallback para hallar el RUT
+    // cuando el nombre del CMF/Centinela no matchea el catálogo.
+    catalogInstitucion: doc.institucion_cmf ?? undefined,
   };
 }
 

@@ -78,6 +78,7 @@ The portal only enables "Subir Documento" links once ALL creditors are in the ta
    - **1a-bis** — NON-CMF creditors (`additionalCreditors` del Sentinel). Se sintetiza un `CmfCreditor` (las funciones del portal solo leen `totalCredito`), se resuelve el catálogo con `matchAcreedor(institucion_cmf)`, y se agrega con `isOtros = categoria_articulo === 261`. Cada uno se loguea como "ACREEDOR NO-CMF (requiere confirmación abogado)".
 2. **Phase 2** — Attach acreditación documents for each creditor.
    - **Matching por `filename` para NO-CMF**: cada acreedor NO-CMF asocia su documento por `AcreditacionDoc.filename === additionalCreditor.document_filename` (NO por institución). Los acreedores del CMF **excluyen** los filenames reservados a NO-CMF (`reservedNonCmfFilenames`). Esto evita que productos del mismo banco se crucen el certificado (ej. el CPF de las tarjetas vs. el `consultaCredito` del consumo, todos "Banco de Chile"). **Requiere que el orquestador pueble `AcreditacionDoc.filename`.**
+   - **Art.260 = adjuntar el MISMO doc dos veces (tipo 22 + tipo 23)**: los acreedores 260 suben el certificado una vez como "Acredita Monto" (22) y otra como "Acredita Vencimiento" (23), como el abogado. `neededTipos = isOtros ? [22] : [22,23]`; se fuerza el `tipo_documento` del `AcreditacionDoc` base (que puede venir como 24) a cada tipo. Los 261 suben solo tipo 22. `attachDocumentoAcreedor` distingue por el texto del tipo, así ambos adjuntos conviven.
 
 ### CMF Consolidation Patterns
 
@@ -94,6 +95,12 @@ El CMF separa por tipo (`Vivienda` vs. `Consumo`), generando dos filas y dos ent
 - `findAcreditacionDocs('Banco Estado', docs)` devuelve TODOS los docs con `institucion_cmf: 'Banco Estado'`.
 - `attachDocumentoAcreedor` usa el **monto** como key para encontrar la fila correcta → un doc puede cubrir ambas filas si se adjunta secuencialmente.
 - Si un solo documento (ej. captura del portal) muestra los dos productos, registrarlo UNA vez en `MAPPED_DOCS` es suficiente — fillStep3 lo adjuntará a cada fila por monto.
+
+**Patrón C — Un certificado de liquidación cubre N créditos del mismo banco (multiproducto)**
+Un certificado de liquidación/portabilidad puede listar VARIOS créditos del deudor (ej. Santander: 3 créditos de consumo). El Centinela (REGLA 9) emite **un `cmfDocumentOverride` por producto** (sufijo del producto entre paréntesis en `institucion_cmf`). `step3` agrupa por institución base (`overrideBaseKey`); si hay ≥2 overrides → **multiproducto**: omite la institución en el loop principal y crea **una fila 260 por producto** con su "Monto total a pagar" (NO un monto consolidado, NO el "Saldo del crédito").
+- **Excluir** productos que no son deuda individual: "VARIOS DEUDORES"/codeudor/fiador/aval y montos triviales (< 1 UF).
+- ⚠️ **CMF parte un crédito en 2 filas**: la misma operación puede aparecer como `mora` + `vigente` (misma fecha de otorgamiento). Es UN crédito → se declara UNA vez al payoff total. Declarar la porción vigente aparte = doble conteo. (Caso Gabriel Santander: op ...258302 = $2.929.423 mora + $8.665.385 vigente → 1 fila a $12.821.458.)
+- **`clearExistingAcreedores`** corre al inicio del llenado: borra ambas tablas para que cada corrida REEMPLACE en vez de APILAR (montos levemente distintos entre runs burlaban el dedup por monto).
 
 **Patrón C — `getReclassifiedMatch` con tiebreaker**
 Si el Sentinel reclasifica dos productos del mismo banco (ej. BdCh consumo + BdCh tarjeta ambos reclasificados), el match por nombre devolvería ambos. Se usa el `totalCredito` más cercano como desempate: la brecha entre productos distintos (rango de millones) siempre supera la brecha CMF/doc ($300–500k), por lo que el tiebreaker es unambiguo.

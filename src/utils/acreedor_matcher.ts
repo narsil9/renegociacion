@@ -283,6 +283,10 @@ const ALIASES: Record<string, string> = {
   'caja los heroes': 'ccaf los heroes',
   // Coopeuch: token-containment ya lo resuelve, pero alias explícito para Tier 1 más rápido y seguro.
   'coopeuch': 'coopeuch ltda',
+  // La Polar: el OCR de las transacciones la escribe pegada ("Lapolar"); el Centinela
+  // puede devolver "La Polar" o "Lapolar". Ambas → "Empresas La Polar S.A." (RUT 96874030-K).
+  'lapolar': 'empresas la polar',
+  'la polar': 'empresas la polar',
 };
 
 /**

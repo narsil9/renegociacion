@@ -20,6 +20,21 @@
 - [x] **`B4` índice único** — pendiente **correr `migration_sandbox_v4.sql`** en el SQL Editor (agrega `uq_active_job_per_client`).
 - [x] **Correr `migration_sandbox_v5.sql` en el SQL Editor del sandbox `fnz...`** *(2026-06-19)* — `automation_jobs.lawyer_confirmed` (BOOLEAN, default false) aplicada. Gate del abogado operativo.
 
+### P0.c — Caso Gabriel Santander: paridad con el abogado en Paso 3 (2026-06-19)
+
+> Run real E2E (worker queue, `DRY_RUN=false`, borrador vivo, identidad de prueba 21917363-6 + docs de Gabriel). Resultado **9/9 filas, estructura idéntica a la solicitud manual del abogado**. Cierre en memoria: `project_gabriel_closed.md`.
+
+- [x] **Auto-asociación cert→acreedor por RUT** — `src/utils/cert_institution_resolver.ts` (NUEVO). El worker deriva `institucion_cmf` por RUT (pdftotext → `extractRutsFromText` → `findCatalogEntryByRut`, fallback por keyword del filename) ANTES del Centinela y lo persiste en `client_documents`. El dashboard ya no exige elegir banco. `step3` usa `AcreditacionDoc.catalogInstitucion` (poblado por `deterministic_mapeador`) como fallback cuando el nombre CMF/Centinela no matchea el catálogo (ej. "Tenpo Payments" → "Tenpo Prepago").
+- [x] **Adjunción Art.260 = tipo 22 + tipo 23 por separado** — Los 260 suben el MISMO certificado dos veces: una "Acredita Monto" (22) y otra "Acredita Vencimiento" (23), como el abogado. `neededTipos = isOtros ? [22] : [22,23]` en la fase de adjunción de `step3_acreedores.ts`. Los 261 siguen solo tipo 22.
+- [x] **Multiproducto: un certificado de liquidación con N créditos → N filas 260** — `step3` agrupa los `cmfDocumentOverrides` por institución base (quitando el sufijo de producto) y crea una fila por producto con su "Monto total a pagar" (no un monto consolidado). Excluye "VARIOS DEUDORES"/codeudor/fiador/aval y montos triviales (<1 UF). Validado con Santander (3 créditos → 3 filas: $12.821.458, $835.106, $588.851).
+- [x] **REGLA 9 + Regla Transversal en el prompt del Centinela** (`sentinel.ts`) — (A) usar período MÁS RECIENTE en estados de cuenta multi-período; (B) SUMAR todos los cupos (Compras + Avances/XL); monto_clp = "Monto total a pagar" (no "Saldo del crédito"); fecha_vencimiento = "Cobranza Judicial iniciada"/inicio de mora (no contratación ni próximo pago); un override por producto en certificados multi-crédito.
+- [x] **`clampDocTextForClaude` (head 3500 + tail 9000)** (`sentinel.ts`) — reemplaza `substring(0,4000)`, que truncaba el período reciente (al final del PDF) en OCRs largos → el Centinela leía el período viejo. Validado con Hites (22k chars) y La Polar (44k chars).
+- [x] **`clearExistingAcreedores` idempotente** — `step3` borra ambas tablas de acreedores al inicio del llenado. Evita acumulación cross-run (montos levemente distintos entre corridas burlaban el dedup por monto).
+- [x] **Aliases La Polar** (`acreedor_matcher.ts`) — "lapolar"/"la polar" → "empresas la polar".
+- [x] **CMF parte 1 crédito en 2 filas (mora + vigente)** — confirmado: la op ...258302 de Santander aparece como $2.929.423 (mora) + $8.665.385 (vigente), misma fecha de otorgamiento → es UN crédito, se declara UNA vez al payoff total. El abogado confirmó **3 productos Santander en 260** → coincide.
+- [ ] **Agregar "Inversiones LP S.A." (emisora Tarjeta La Polar) a `acreedores_canonicos`** — falta el RUT que usó el abogado (el documento solo imprime el RUT del administrador abc Administradora SpA 77.555.730-3). Sin la entidad, La Polar resuelve a "Empresas La Polar S.A." (retailer). Luego alias `la polar`/`tarjeta la polar` → emisora. **No bloqueante** (el adjunto sale bien). Ver memoria `project_inversiones_lp_catalogo.md`.
+- [ ] **Redeploy del dashboard `rp_carga_documentos`** — cambios de subida directa a Storage (signed URL, sin límite Vercel 4.5MB) + sin gate de elección de banco (lo resuelve el resolver por RUT). Pendiente import/redeploy en Vercel.
+
 ### P0 — Desbloqueadores inmediatos
 
 - [x] **Aliases catálogo — CCAF / Coopeuch** ⚡ *(2026-06-17)*

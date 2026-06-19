@@ -113,6 +113,29 @@ export interface SimpleLogger {
 }
 
 /**
+ * Recorta el texto de un documento para enviarlo a Claude SIN perder el período
+ * más reciente. Los estados de cuenta multi-período (varias páginas, un mes por
+ * bloque) suelen venir en orden cronológico ASCENDENTE → el período MÁS RECIENTE
+ * está al FINAL del PDF. Truncar solo el inicio (`substring(0, N)`) dejaba afuera
+ * los meses recientes y el Centinela leía el más viejo (monto y clasificación
+ * 260/261 equivocados). Solución: enviar el INICIO (encabezado/emisor + primer
+ * período) + el FINAL (período más reciente), con un marcador del corte. Para
+ * docs cortos devuelve el texto completo. Robusto al orden: si el más reciente
+ * estuviera al inicio, igual queda incluido.
+ */
+const DOC_HEAD_CHARS = 3500;
+const DOC_TAIL_CHARS = 9000;
+export function clampDocTextForClaude(text: string): string {
+  const t = text ?? '';
+  if (t.length <= DOC_HEAD_CHARS + DOC_TAIL_CHARS) return t;
+  return (
+    t.slice(0, DOC_HEAD_CHARS) +
+    '\n\n[…FRAGMENTO INTERMEDIO OMITIDO POR LONGITUD. Arriba: INICIO del documento (emisor/encabezado + período más antiguo). Abajo: FINAL del documento, donde normalmente está el período MÁS RECIENTE — usá ESE para el monto y la clasificación 260/261…]\n\n' +
+    t.slice(-DOC_TAIL_CHARS)
+  );
+}
+
+/**
  * Executes API Key #1 (Sentinel) to analyze the CMF and certificates uploaded by the lawyer.
  * Bypassed only if DISABLE_SENTINEL=true is set explicitly.
  */
@@ -272,8 +295,8 @@ export async function runSentinelCheck(
           const { text: ocrText } = await extractTextWithOcrFallback(localPath, 50);
           if (ocrText.trim().length > 30) {
             doc.isImageDoc = false;
-            doc.textContent = ocrText.substring(0, 4000);
-            log(`📄 OCR: ${doc.filename} (${doc.textContent.length} chars, todas las páginas)`);
+            doc.textContent = clampDocTextForClaude(ocrText);
+            log(`📄 OCR: ${doc.filename} (${ocrText.length} chars OCR → ${doc.textContent.length} enviados: inicio+final, todas las páginas)`);
           } else {
             // OCR también falló — sin contenido útil
             doc.isImageDoc = false;
@@ -282,7 +305,7 @@ export async function runSentinelCheck(
           }
         } else {
           doc.isImageDoc = false;
-          doc.textContent = fullText.substring(0, 4000);
+          doc.textContent = clampDocTextForClaude(fullText);
         }
       }
     }
@@ -585,12 +608,19 @@ Verifica que cada acreedor calificado tenga los documentos necesarios.
 Si el documento tiene texto extraíble, verifica que el RUT del emisor corresponda al banco asignado.
 
 ---
+**⚠️ REGLA TRANSVERSAL — Cómo leer el MONTO de un estado de cuenta (aplica a Reglas 2B, 7, 8 y 9)**
+
+(A) **VARIOS PERÍODOS en un mismo PDF**: muchos estados de cuenta traen varios meses de facturación (a veces en cualquier orden — no necesariamente el más nuevo primero). **Usa SIEMPRE el período MÁS RECIENTE** (el de la fecha "PAGAR HASTA" / "Período Facturado" / "VENCE EL" más nueva), NO el primero que aparece ni el más viejo. Revisa TODAS las páginas e identifica el período con la fecha más reciente. (Ej.: un PDF con 4 estados de cuenta enero→abril → usa el de abril aunque enero esté en la página 1.) ⚠️ Si el texto del documento viene cortado con el marcador "[…FRAGMENTO INTERMEDIO OMITIDO…]", el período MÁS RECIENTE está en la parte de ABAJO (después del marcador) — leé ahí el monto, la fecha "PAGAR HASTA" y la clasificación 260/261.
+
+(B) **VARIOS CUPOS / LÍNEAS en la misma tarjeta**: una tarjeta puede tener MÁS DE UN cupo o línea de crédito (ej. "Cupo Compras" + "Cupo Avances en Efectivo" / "Avances XL" / "Súper Avance" / "Avance NN"). El monto a declarar es la **SUMA de los "Cupo Utilizado" de TODOS los componentes** del período más reciente, no solo el primero/principal. ⚠️ Es un error frecuente declarar solo el cupo de Compras y omitir el de Avances. (Ej. real La Polar: Cupo Compras utilizado $258.543 + Cupo Avances XL utilizado $495.755 = **$754.298** a declarar — NO $258.543.)
+
+---
 **REGLA 7 — Identificar deudas Art. 261 (deudas vigentes, sin mora ≥91d)**
 Para CADA documento adjunto cuyo acreedor NO fue reclasificado a Art. 260, analiza si corresponde a una deuda vigente (al día o con mora <91d). Si es así, agrégalo a "identified261Creditors" con:
 - bank: nombre del banco
 - product_type: tipo de producto ("credito_consumo", "tarjeta_credito", u "otro")
 - institucion_cmf: nombre según CMF (usa el campo "institucion_cmf" del documento)
-- total_credito_clp: monto total de la deuda según el documento
+- total_credito_clp: monto total de la deuda según el documento — **del período MÁS RECIENTE** (Regla Transversal): el saldo/cupo utilizado/deuda total facturada del último estado de cuenta del PDF.
 - reason: explicación breve de por qué es Art. 261 (ej. "Cargo automático liquidó mora; deuda vigente sin mora ≥91d")
 - document_filename: nombre del archivo que acredita la deuda
 
@@ -610,7 +640,11 @@ El pre-análisis TypeScript te entrega "nonCmfReconciliation": una fila por docu
    - Si tiene mora ≥91 días (calculada con las reglas A/B de la Regla 2) → categoria_articulo = 260, e incluye delinquency_start_date y delinquency_days.
    - Si está al día o con mora <91 días → categoria_articulo = 261 (acredita solo monto).
 
-3. Devuélvelos en "additionalCreditors". NO los repitas en reclassifiedCreditors ni identified261Creditors (esos son SOLO para acreedores que ya están en el CMF). additionalCreditors es exclusivamente para los que NO están en el CMF.
+3. **bank / institucion_cmf = el emisor REAL según el CONTENIDO del documento** (la marca de la tarjeta o el nombre en el encabezado y en las transacciones), NO el nombre del archivo ni una etiqueta genérica. El nombre del archivo puede engañar. Ejemplos: si las transacciones dicen "Lapolar"/"Avance XL" → el emisor es **La Polar** (aunque el archivo se llame "ESTADO_CTA_ABC"); "ABCDIN"/"Dijon" → ABCDIN/COFISA; "Ripley" → Ripley; "Hites" → Hites. Da el nombre comercial claro y ÚNICO del emisor (no una lista de candidatos ni "X / Y / Z").
+
+4. **monto_clp**: aplica la REGLA TRANSVERSAL (período más reciente + SUMA de todos los cupos: Compras + Avances/Avances XL/etc.).
+
+5. Devuélvelos en "additionalCreditors". NO los repitas en reclassifiedCreditors ni identified261Creditors (esos son SOLO para acreedores que ya están en el CMF). additionalCreditors es exclusivamente para los que NO están en el CMF.
 
 ---
 **REGLA 9 — Monto y fecha real para acreedores Art.260 directos del CMF**
@@ -619,11 +653,15 @@ Algunos acreedores ya aparecen en el CMF con "overdue90Days > 0" (campo en el ar
 Para cada acreedor en el array "creditors" donde "overdue90Days > 0" Y cuyo nombre NO aparece en el array "reclassifiedCreditors" que acabas de construir:
 1. Localiza el certificado asociado (busca en el texto de los certificados por nombre de institución).
 2. Del documento, extrae:
-   - "monto_clp": el saldo total adeudado (Saldo Total, Saldo Insoluto, Capital Vigente, o Cupo Total para tarjetas).
-   - "fecha_vencimiento": la fecha de la primera cuota impaga en formato YYYY-MM-DD.
-     • Crédito de consumo: fecha de la cuota más antigua vencida (misma lógica Regla 2A).
-     • Tarjeta de crédito: fecha "PAGAR HASTA" del primer período incumplido.
-3. Si no hay certificado asociado, o el documento no contiene esta información, omite ese acreedor de "cmf260DirectOverrides".
+   - "monto_clp": el **MONTO TOTAL A PAGAR para poner término / liquidar el producto** (lo que el deudor debe declarar). En certificados de liquidación/portabilidad suele estar rotulado como "Monto total a pagar", "Es la suma de:", "Total a pagar", "Monto de prepago" o "Deuda total". ⚠️ **NO uses el "Saldo del crédito" / "Saldo insoluto" / "Capital vigente"** cuando el documento ALSO muestra un "Monto total a pagar" mayor: el saldo es el capital sin intereses/seguros y subdeclara la deuda. Para tarjetas, usa el cupo utilizado / deuda total facturada.
+   - "fecha_vencimiento": la fecha en que la deuda entró en mora / se hizo exigible, en formato YYYY-MM-DD. PRIORIDAD de la fuente en el documento:
+     1. Si el certificado trae una fecha explícita de inicio de mora/cobranza — rótulos como **"Cobranza Judicial iniciada"**, "Fecha inicio mora", "Fecha de mora", "Fecha primera cuota impaga", "En cobranza desde" — **usa ESA** (es la que usa el abogado). En liquidaciones con varios productos suele ser la MISMA fecha para todos.
+     • Crédito de consumo (si no hay rótulo de mora): fecha de la cuota más antigua vencida (misma lógica Regla 2A).
+     • Tarjeta de crédito (si no hay rótulo de mora): fecha "PAGAR HASTA" del primer período incumplido.
+     ⚠️ NO uses la "Fecha de Contratación"/"Fecha de inicio del crédito" ni el "Próximo Pago" como vencimiento — esos NO son la fecha de mora.
+3. **Un certificado que cubre VARIOS productos de la misma institución** (ej. un certificado de liquidación Santander con 3 créditos de consumo) → emite **un override POR CADA producto**, cada uno con el "Monto total a pagar" y la fecha de ESE producto. Distingue cada uno en "institucion_cmf" agregando el identificador del producto entre paréntesis (tipo + fecha + N° de operación), ej. "Banco Santander-Chile (Consumo 05/06/2025 — Op. 650052258302)". Es CRÍTICO: cada producto se declara como una fila separada en el portal, así que NO consolides los montos en uno solo ni repitas el mismo monto en varios productos.
+   ⚠️ **EXCLUYE** los productos que NO son deuda INDIVIDUAL del deudor: los rotulados **"VARIOS DEUDORES"**, "OTROS DEUDORES", codeudor, fiador o aval (son deudas compartidas, no propias), y los de **monto trivial (< 1 UF ≈ $40.000)** que suelen ser remanentes/comisiones. Declara SOLO los créditos a nombre del deudor (Consumo, Tarjeta, Línea de Crédito, Hipotecario). Ej.: si el certificado lista 3 consumos + 2 "VARIOS DEUDORES" de $19.216 y $11, emite SOLO 3 overrides (los consumos).
+4. Si no hay certificado asociado, o el documento no contiene esta información, omite ese acreedor de "cmf260DirectOverrides".
 
 Devuelve los resultados en "cmf260DirectOverrides". NO repitas en reclassifiedCreditors a los acreedores que ya estaban en el CMF como Art.260 — solo van aquí.
 
