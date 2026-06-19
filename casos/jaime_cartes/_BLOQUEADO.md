@@ -1,23 +1,26 @@
-# CASO BLOQUEADO — Jaime Hernán Cartes Fuentes (RUT 17.596.599-8)
+# CASO PENDIENTE — Jaime Hernán Cartes Fuentes (RUT 17.596.599-8)
 
-**Estado:** NO ELEGIBLE — Bloqueo tributario 2ª Categoría
+**Estado:** PENDIENTE — requiere certificados actualizados (el bloqueo tributario anterior fue incorrecto)
 
-## Motivo del bloqueo
+## Corrección importante
 
-| Bloqueo | Detalle | Desbloqueo estimado |
-|---|---|---|
-| **2ª Categoría** | Última boleta honorarios: folio 98, autorizada el **12/07/2025** | **13/07/2026** |
+Las boletas de honorarios **NO bloquean** la postulación. Se declaran como ingreso en el Paso 5
+(promedio mensual de los últimos 6 meses de boletas emitidas). El caso no tiene actividad en
+F29 (Primera Categoría), por lo que tributariamente está libre.
 
-## Acción requerida al desbloqueo (13/07/2026)
+## Acción requerida para postular
 
-1. Solicitar certificados actualizados: **Santander TC 2982** + **Tenpo 9924** (los de nov/2025 quedan <80 UF sin los consumos prepagados).
-2. Retirar el archivo ajeno de Bascuñán de la carpeta `Ingresos/`.
-3. Crear scripts `setup_test.ts` / `upload_documents.ts` / `test_step3.ts`.
+| Pendiente | Detalle |
+|---|---|
+| **Certificados actualizados** | Santander TC 2982 + Tenpo 9924: los documentos de nov/2025 quedaban en ~$3.03M (~76 UF), bajo las 80 UF mínimas. Con intereses acumulados a la fecha actual debieran superarlas, pero se necesitan certs frescos (<30 días) para acreditarlo en el portal. |
 
-## Situación financiera (referencia)
+## Situación financiera
 
-- Art.260: Santander TC 2982 + Tenpo 9924 (~$3M con intereses acumulados a jul/2026, debe verificarse ≥80 UF)
-- Art.261: Coopeuch hipotecario indirecto
-- Sin NO-CMF confirmados
+- **Art.260:** Santander TC 2982 + Tenpo 9924
+- **Art.261:** Coopeuch hipotecario indirecto (codeudor/aval)
+- **Sin NO-CMF confirmados**
+- **Boletas honorarios (2025):** 4 boletas emitidas a Laboratorio Clínico Del Norte (folios 95–98, abril–julio 2025). Se declaran como ingreso en Paso 5: sumar montos de los últimos 6 meses y dividir por 6.
 
-**Nota:** Los consumos Santander Op.8004 y Op.8140 fueron prepagados el 03/11/2025 → ya no cuentan.
+## Scripts disponibles
+
+`setup_test.ts` / `upload_documents.ts` / `test_step3.ts` — listos, pendiente de certs frescos.

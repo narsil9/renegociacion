@@ -9,7 +9,7 @@ Este documento detalla el análisis de elegibilidad y la documentación de respa
 Para iniciar una renegociación formal ante la Superir, la ley exige cumplir simultáneamente con el **triple requisito**:
 1. **Multiproducto (Art. 260):** ≥ 2 deudas/productos distintos con mora ≥ 91 días.
 2. **Monto Mínimo (Art. 260):** suma de `totalCredito` de esos productos ≥ 80 UF (~$3.180.000 CLP).
-3. **Tributario:** sin boletas de honorarios (2ª cat.) en los últimos 12 meses ni giros comerciales con actividad (1ª cat.) en los últimos 24 meses.
+3. **Tributario:** Sin actividad en Primera Categoría con movimientos en el F29 en los últimos 24 meses. Las boletas de honorarios (2ª cat.) no bloquean la postulación: se declaran como ingreso mensual en el Paso 5 (promedio de los últimos 6 meses de boletas emitidas).
 
 ### Tabla Resumen de los Productos Calificados (Artículo 260)
 
@@ -23,14 +23,13 @@ Para iniciar una renegociación formal ante la Superir, la ley exige cumplir sim
 | **TOTAL MORA ART. 260** | **$62.389.415 CLP** | — | — | **80 UF (~$3.180.000)** | **CUMPLE (~1.568 UF)** |
 
 > [!CAUTION]
-> **DIAGNÓSTICO TRIBUTARIO DE ELEGIBILIDAD: NO CALIFICA (BLOQUEO TRIBUTARIO DURO)**
-> A pesar de contar con deudas calificadas en Art. 260 por más de 1.500 UF, la clienta presenta **dos bloqueos tributarios graves** que impiden su admisibilidad como Persona Deudora:
-> 1. **Segunda Categoría**: Registra la emisión de **2 boletas de honorarios** en el periodo de los últimos 12 meses:
->    - Noviembre 2025: **$2.300.000** (PPM $333.500)
->    - Diciembre 2025: **$3.910.000** (PPM $566.950)
-> 2. **Primera Categoría**: Cuenta con inicio de actividades vigente en Primera Categoría (CONSERVACION Y RESTAURACION DE BIEN, Régimen Pro Pyme General 14D) y registra **declaraciones de IVA Formulario 29 con actividad comercial** (compras facturadas registradas en el giro) en los últimos 24 meses (por ejemplo, en Octubre 2025, Código 519 = 1 factura recibida por un monto de $75.531).
-> 
-> **Recomendación Jurídica**: La clienta debe postular al proceso de Reorganización/Liquidación de Empresa, o suspender de manera absoluta toda emisión de boletas y compras en el giro de Primera Categoría, y esperar el transcurso de los plazos legales (12 meses para boletas y 24 meses para F29 con actividad) antes de volver a postular al portal de Persona Deudora.
+> **DIAGNÓSTICO TRIBUTARIO DE ELEGIBILIDAD: NO CALIFICA — BLOQUEO POR PRIMERA CATEGORÍA (F29)**
+> A pesar de contar con deudas calificadas en Art. 260 por más de 1.500 UF, la clienta presenta **un bloqueo tributario** que impide su admisibilidad como Persona Deudora:
+> - **Primera Categoría + F29**: Cuenta con inicio de actividades vigente (CONSERVACION Y RESTAURACION DE BIEN, Régimen Pro Pyme General 14D) y registra **declaraciones F29 con actividad comercial** en los últimos 24 meses (Octubre 2025: Código 519 = 1 factura recibida por $75.531). Esto la clasifica como sujeto con actividad empresarial propia, incompatible con el procedimiento de Persona Deudora. Desbloqueo estimado: **~octubre 2027**.
+>
+> **Nota sobre las boletas de honorarios:** Irene emitió boletas en nov/2025 ($2.3M) y dic/2025 ($3.9M). Las boletas **no son impedimento** para la renegociación — se declaran como ingreso en el Paso 5. El único bloqueo es el F29.
+>
+> **Recomendación Jurídica**: La clienta debe postular al proceso de Reorganización/Liquidación de Empresa, o cesar de manera absoluta toda actividad en el giro de Primera Categoría (sin compras ni ventas en el giro) y esperar 24 meses sin movimientos en F29.
 > 
 > *Nota sobre las firmas y declaraciones juradas en la carpeta:* Se adjunta una DDJJ simple indicando que el inmueble en Isla de Maipo (que aún figura en el SII) ya fue enajenado en 2019, lo cual está acreditado con Dominio Vigente y certificado de Hipotecas y Gravámenes de Talagante.
 
@@ -198,7 +197,7 @@ La clienta trabaja de forma dependiente para la empresa **Environmental Complian
 
 ## IX. Conclusión del Análisis
 
-1. **Elegibilidad**: El caso presenta viabilidad en cuanto a pasivos (deuda acumulada de más de $62M calificada en Art. 260). No obstante, **el caso no es viable para Renegociación de Persona Deudora** debido al inicio de actividades en Primera Categoría con movimientos en los últimos 24 meses y la emisión de boletas de honorarios en los últimos 12 meses.
+1. **Elegibilidad**: El caso presenta viabilidad en cuanto a pasivos (deuda acumulada de más de $62M calificada en Art. 260). No obstante, **el caso no es viable para Renegociación de Persona Deudora** debido al inicio de actividades en Primera Categoría con movimientos reales en el F29 en los últimos 24 meses (Código 519, oct/2025). Las boletas de honorarios (nov/2025 y dic/2025) **no son impedimento** — se declararían en el Paso 5 cuando el caso sea viable.
 2. **Acreditación**: Toda la morosidad bancaria y de consumo se encuentra respaldada con certificados de saldo y estados de cuenta históricos consecutivos que prueban la cadena de mora sin interrupción.
 3. **Bienes**: Se acredita de forma correcta que la clienta no posee bienes inmuebles vigentes (con Dominio Vigente y Certificado de Hipotecas y Gravámenes que prueban la enajenación de su propiedad de Isla de Maipo en 2019). Las participaciones de capital en las dos empresas activas y los saldos bancarios en BancoEstado sí deben declararse formalmente en el listado de activos.
 

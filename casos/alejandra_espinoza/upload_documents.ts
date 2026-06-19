@@ -39,9 +39,10 @@ const ALEJANDRA_RUT = '18.738.680-2';
 const STORAGE_PREFIX = 'pato_alejandra';
 
 const DOCS_DIR = path.resolve(__dirname, 'documentos');
-const CAT_DIR = path.join(DOCS_DIR, 'Acreedores CMF', 'CAT (ex CENCOSUD)', 'Certificado de Deuda');
-const CMR_DIR = path.join(DOCS_DIR, 'Acreedores CMF', 'CMR Falabella', 'Certificado de Deuda');
-const CHILE_DIR = path.join(DOCS_DIR, 'Acreedores CMF', 'Banco de Chile', 'Certificado de Deuda');
+const CAT_DIR = path.join(DOCS_DIR, '06_Acreedores_Art260_Mora', 'CAT_Cencosud');
+const CMR_DIR = path.join(DOCS_DIR, '06_Acreedores_Art260_Mora', 'CMR_Falabella');
+const CHILE_261_DIR = path.join(DOCS_DIR, '07_Acreedores_Art261_Al_Dia', 'Banco_de_Chile');
+const CHILE_NO_CMF_DIR = path.join(DOCS_DIR, '08_Acreedores_NO_CMF', 'Banco_de_Chile');
 
 const DOCS_TO_UPLOAD = [
   // ── Art. 260: CAT (ex CENCOSUD) ──────────────────────────────────────────
@@ -72,7 +73,7 @@ const DOCS_TO_UPLOAD = [
   },
   // ── Art. 261: Banco de Chile Crédito de Consumo ──────────────────────────
   {
-    local: path.join(CHILE_DIR, 'consultaCredito DE CONSUMO.pdf'),
+    local: path.join(CHILE_261_DIR, 'consultaCredito DE CONSUMO.pdf'),
     storagePath: `${STORAGE_PREFIX}/chile_consumo_consulta.pdf`,
     filename: 'consultaCredito DE CONSUMO.pdf',
     institucion_cmf: 'Banco de Chile',
@@ -82,7 +83,7 @@ const DOCS_TO_UPLOAD = [
   // ── Art. 261: Banco de Chile Tarjetas (Platinium + Entel) ────────────────
   // Un solo Certificado de Liquidación de Portabilidad acredita ambas tarjetas.
   {
-    local: path.join(CHILE_DIR, 'CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf'),
+    local: path.join(CHILE_NO_CMF_DIR, 'CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf'),
     storagePath: `${STORAGE_PREFIX}/chile_certificado_liquidacion.pdf`,
     filename: 'CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf',
     institucion_cmf: 'Banco de Chile',

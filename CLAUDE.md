@@ -39,6 +39,12 @@ El **worker es el daemon** (un solo proceso): pollea la cola `automation_jobs` c
 - `src/agents/` - Cadena multi-agente: `types.ts`, `agent_runs.ts`, `validator.ts`, `tributario_agent.ts`, `centinela_agent.ts`, `mapeador_agent.ts`
 - `outputs/` - Screenshots, HTML snapshots, and log files of successful/failed automation steps
 - `outputs/acreditaciones_tmp/` - Temporary local copies of downloaded certificate PDFs (used by cognitive_orchestrator)
+- `tools/` - **Scripts dev/diagnóstico/one-off — NO producción.** (inspect_*, check_*, migrate_*, run_*, upload_*, el CLI legacy `index.ts`, etc.) Fuera del build de producción. Los `*_*` con prefijo de diagnóstico están gitignored.
+
+> ### ⚙️ Superficie de PRODUCCIÓN (qué corre en el robot)
+> El único entry de producción es **`src/worker.ts`** (daemon). Su grafo de imports = lo que corre en producción: `src/worker.ts` + `src/automation/*` + `src/agents/*` + 13 módulos de `src/utils/` (acreedor_matcher, alerts, browser, cmf_analyzer, cognitive_orchestrator, date_helper, deterministic_mapeador, logger, ocr_helper, pdf_analyzer, pdf_optimizer, sentinel, supabaseWorker).
+> **`src/` contiene SOLO producción.** Todo lo de prueba/dev vive en `tools/` (scripts sueltos) y `casos/` (tests por cliente).
+> Build production-only: **`npm run build:prod`** (`tsconfig.build.json`, compila solo el grafo del worker → `dist/`). Deploy: ship `dist/`. El daemon: `bash scripts/sistema.sh start`.
 
 > ⚠️ The local `dashboard/` directory has been **removed**. All UI control is now handled by the supervisor's external dashboard.
 
@@ -345,9 +351,9 @@ npx ts-node -r dotenv/config casos/alejandra_espinoza/upload_documents.ts
 
 # 🧹 LIMPIEZA TOTAL del borrador en el portal (correr ANTES de re-testear el flujo real)
 # Borra archivos del Paso 2 y acreedores + CMF del Paso 3 de la solicitud. Login con ClaveÚnica.
-npx ts-node -r dotenv/config src/utils/limpieza_total.ts
-# Para otro cliente: CLAVE_UNICA_RUT=12345678-9 npx ts-node -r dotenv/config src/utils/limpieza_total.ts
+npx ts-node -r dotenv/config tools/limpieza_total.ts
+# Para otro cliente: CLAVE_UNICA_RUT=12345678-9 npx ts-node -r dotenv/config tools/limpieza_total.ts
 
 # Inspect the verAcreedores page for HTML IDs (run while portal session is active)
-npx ts-node -r dotenv/config src/utils/inspect_otros_acreedores.ts
+npx ts-node -r dotenv/config tools/inspect_otros_acreedores.ts
 ```

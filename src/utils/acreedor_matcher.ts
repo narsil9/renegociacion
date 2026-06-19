@@ -267,6 +267,22 @@ const ALIASES: Record<string, string> = {
   'santander chile': 'banco santander', // CMF escribe "Santander-Chile" (banco) → distinto de "Santander Consumer"
   'car ripley': 'car s a tarjeta ripley',
   'car': 'car s a tarjeta ripley',
+  // CCAF: los documentos usan "Caja de Compensación X" pero el catálogo registra "CCAF X".
+  // Sin estos aliases, matchAcreedor devuelve not_found para los NO-CMF de cajas de compensación.
+  'caja los andes': 'ccaf los andes',
+  'caja de compensacion de los andes': 'ccaf los andes',
+  'caja de compensacion los andes': 'ccaf los andes',
+  'caja compensacion los andes': 'ccaf los andes',
+  'caja de compensacion 18 de septiembre': 'ccaf 18 de septiembre',
+  'caja 18 de septiembre': 'ccaf 18 de septiembre',
+  'caja de compensacion gabriela mistral': 'ccaf gabriela mistral',
+  'caja gabriela mistral': 'ccaf gabriela mistral',
+  'caja de compensacion la araucana': 'ccaf la araucana',
+  'caja la araucana': 'ccaf la araucana',
+  'caja de compensacion los heroes': 'ccaf los heroes',
+  'caja los heroes': 'ccaf los heroes',
+  // Coopeuch: token-containment ya lo resuelve, pero alias explícito para Tier 1 más rápido y seguro.
+  'coopeuch': 'coopeuch ltda',
 };
 
 /**
@@ -313,6 +329,19 @@ export function matchAcreedor(
   }
 
   return { status: 'not_found', cmfName };
+}
+
+/**
+ * A1 — Clave canónica de institución, alias-aware. Resuelve el nombre del CMF
+ * ("CAR - Ripley", "Santander-Chile") y el nombre canónico del catálogo
+ * ("CAR S.A. (Tarjeta Ripley)", "Banco Santander") a la MISMA clave vía ALIASES,
+ * para que el matching documento↔acreedor por institución no falle cuando el
+ * dashboard guarda el nombre canónico y el worker compara contra el del CMF.
+ */
+export function canonicalInstitutionKey(name: string | null | undefined): string {
+  if (!name) return '';
+  const norm = normalizeText(name);
+  return ALIASES[norm] ?? norm;
 }
 
 /**

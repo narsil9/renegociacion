@@ -20,7 +20,9 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { MapeadorOutput, CentinelaOutput } from './types';
 import { insertAgentRun, markRunning, completeRun, failRun, getLatestRun } from './agent_runs';
 import { validateMapeadorOutput, logValidationResult } from './validator';
-import { runCognitiveOrchestrator, CognitiveAlert, ClientProfile } from '../utils/cognitive_orchestrator';
+import { runCognitiveOrchestrator, CognitiveAlert, ClientProfile, ClientDocument } from '../utils/cognitive_orchestrator';
+import { buildMappedDocsDeterministic } from '../utils/deterministic_mapeador';
+import { extractCreditors } from '../utils/cmf_analyzer';
 
 interface SimpleLogger {
   log(msg: string): void;
@@ -79,27 +81,58 @@ export async function runMapeadorAgent(
   };
 
   try {
-    const orchResult = await runCognitiveOrchestrator(
-      clientProfile,
-      cmfLocalPath,
-      supabase,
-      logger ?? defaultLogger,
-      centinelaOutput.reclassifiedCreditors,
-      centinelaOutput.identified261Creditors,
-      centinelaOutput.additionalCreditors
-    );
+    let output: MapeadorOutput;
 
-    // Error técnico (API caída, JSON malformado): relanzar para que el retry loop reintente
-    if (orchResult.status === 'error' && orchResult.technicalError) {
-      const msg = orchResult.reason ?? 'Error técnico del orquestador cognitivo';
-      await failRun(supabase, runId, [msg]);
-      throw new Error(`Error técnico del mapeador (reintentable): ${msg}`);
+    if (process.env.FORCE_VISION_MAPEADOR === 'true') {
+      // Fallback explícito: llamar al orquestador cognitivo (Claude) en vez del determinista
+      log('FORCE_VISION_MAPEADOR=true — usando orquestador cognitivo (Claude).');
+      const orchResult = await runCognitiveOrchestrator(
+        clientProfile,
+        cmfLocalPath,
+        supabase,
+        logger ?? defaultLogger,
+        centinelaOutput.reclassifiedCreditors,
+        centinelaOutput.identified261Creditors,
+        centinelaOutput.additionalCreditors
+      );
+      if (orchResult.status === 'error' && orchResult.technicalError) {
+        const msg = orchResult.reason ?? 'Error técnico del orquestador cognitivo';
+        await failRun(supabase, runId, [msg]);
+        throw new Error(`Error técnico del mapeador (reintentable): ${msg}`);
+      }
+      output = { mappedDocs: orchResult.mappedDocs ?? [], alerts: orchResult.alerts };
+    } else {
+      // Camino principal: mapeador determinista — 0 llamadas a la API de Anthropic
+      log('Usando mapeador determinista (sin Claude).');
+
+      const { data: dbDocs, error: dbErr } = await supabase
+        .from('client_documents')
+        .select('*')
+        .eq('client_id', clientProfile.id);
+      if (dbErr) throw new Error(`Error consultando client_documents: ${dbErr.message}`);
+
+      const clientDocuments: ClientDocument[] = (dbDocs ?? []).map((d: any) => ({
+        id: d.id,
+        client_id: d.client_id,
+        document_type: d.document_type,
+        acreditacion_tipo: d.acreditacion_tipo,
+        institucion_cmf: d.institucion_cmf,
+        storage_path: d.storage_path,
+        filename: d.filename,
+        uploaded_at: d.uploaded_at,
+      }));
+      log(`${clientDocuments.length} documentos cargados desde client_documents.`);
+
+      const cmfCreditors = await extractCreditors(cmfLocalPath, logger ?? defaultLogger);
+      log(`${cmfCreditors.length} acreedores cargados del CMF.`);
+
+      output = await buildMappedDocsDeterministic(
+        centinelaOutput,
+        clientDocuments,
+        cmfCreditors,
+        logger ?? defaultLogger
+      );
     }
-
-    const output: MapeadorOutput = {
-      mappedDocs: orchResult.mappedDocs ?? [],
-      alerts: orchResult.alerts,
-    };
 
     const validation = validateMapeadorOutput(output);
     logValidationResult(validation, 'mapeador', log);
@@ -132,8 +165,11 @@ export async function runMapeadorAgent(
  * re-instanciar la lógica de validación.
  */
 export function mapeadorHasBlockers(output: MapeadorOutput): { blocked: boolean; reason: string } {
+  const bypassRut = process.env.BYPASS_RUT_CHECK === 'true';
   const blockers = output.alerts.filter(
-    (a: CognitiveAlert) => a.type === 'missing_document' || a.type === 'rut_mismatch'
+    (a: CognitiveAlert) =>
+      a.type === 'missing_document' ||
+      (a.type === 'rut_mismatch' && !bypassRut)
   );
   if (blockers.length === 0) return { blocked: false, reason: '' };
   return {

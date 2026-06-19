@@ -19,7 +19,7 @@ export async function fillAllSteps(
   page: Page,
   clientData: ClientData,
   tributariaOptimizedPath: string,
-  retenedoresOptimizedPath: string,
+  retenedoresOptimizedPath: string | null,
   categoria: 'primera' | 'segunda' | 'ninguna',
   cmfLocalPath: string,
   supabase: SupabaseClient,

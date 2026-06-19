@@ -7,10 +7,11 @@
  *   - Regla 30d: CMF y certificados ≤30 días (salteable con BYPASS_DATE_CHECK=true)
  *   - Estructura: shape mínimo de cada output (type guards)
  *   - Art. 260 con vencimiento: reclasificados y no-CMF-260 deben tener fecha
- *   - Requisito de sesión: ≥2 productos con mora ≥90d
+ *   - Requisito de sesión: ≥2 productos con mora ≥91d
  *   - Monto ≥80 UF: advertencia no bloqueante
  *   - Filenames únicos por institución en mappedDocs
- *   - RUT mismatch / missing_document → needsLawyerReview + error bloqueante
+ *   - RUT mismatch → bloqueante (salteable con BYPASS_RUT_CHECK=true para pruebas)
+ *   - missing_document → needsLawyerReview + error bloqueante (no salteable)
  *
  * No hace llamadas a Supabase ni a la API de Claude — es pura lógica TS.
  */
@@ -43,6 +44,10 @@ function getBypassDateCheck(): boolean {
     process.env.BYPASS_DATE_CHECK === 'true' ||
     process.env.BYPASS_DATE_VALIDATION === 'true'
   );
+}
+
+function getBypassRutCheck(): boolean {
+  return process.env.BYPASS_RUT_CHECK === 'true';
 }
 
 // ---------------------------------------------------------------------------
@@ -141,7 +146,7 @@ export function validateTributarioOutput(output: TributarioOutput): ValidationRe
 
 /**
  * Step 3 — CMF Parser (TS determinista, sin Claude).
- * Antigüedad del CMF ≤30d; ≥2 productos 90+ días; advertencia si <80 UF.
+ * Antigüedad del CMF ≤30d; ≥2 productos 91+ días; advertencia si <80 UF.
  */
 export function validateCmfParseOutput(output: CmfParseOutput): ValidationResult {
   const errors: string[] = [];
@@ -159,7 +164,7 @@ export function validateCmfParseOutput(output: CmfParseOutput): ValidationResult
   if (!output.meets90DaysRequirement) {
     errors.push(
       `Requisito de sesión no cumplido: ${output.qualifying90PlusCount} producto(s) con ` +
-      'mora ≥90 días (mínimo 2 requeridos).'
+      'mora ≥91 días (mínimo 2 requeridos).'
     );
   }
 
@@ -226,7 +231,7 @@ export function validateCentinelaOutput(output: CentinelaOutput): ValidationResu
 
   const expiredCmfClave = output.fechasClave.find(f => f.tipo === 'expiracion_cmf' && f.diasRestantes < 0);
   if (expiredCmfClave) {
-    const msg = `CMF expirado según FechaClave: ${expiredCmfClave.detalle}`;
+    const msg = `CMF vencido: ${expiredCmfClave.detalle}`;
     if (getBypassDateCheck()) {
       warnings.push(`⚠️  ${msg} — BYPASS_DATE_CHECK activo`);
     } else {
@@ -259,8 +264,13 @@ export function validateMapeadorOutput(output: MapeadorOutput): ValidationResult
 
   for (const alert of output.alerts) {
     if (alert.type === 'rut_mismatch') {
-      errors.push(`RUT mismatch: ${alert.message}`);
-      needsLawyerReview = true;
+      const msg = `RUT mismatch: ${alert.message}`;
+      if (getBypassRutCheck()) {
+        warnings.push(`⚠️  ${msg} — BYPASS_RUT_CHECK activo`);
+      } else {
+        errors.push(msg);
+        needsLawyerReview = true;
+      }
     } else if (alert.type === 'missing_document') {
       errors.push(`Documento faltante: ${alert.message}`);
       needsLawyerReview = true;

@@ -35,8 +35,8 @@ Esta skill condensa las reglas legales **más** los descubrimientos operativos d
 1. **Multiproducto (Art. 260):** ≥ **2 deudas/productos distintos** con mora **≥ 91 días** (más de 90 días corridos). Los productos **pueden ser del mismo banco** (ej. consumo + tarjeta de Banco Estado cuentan como 2 si tienen operaciones independientes).
 2. **Monto mínimo (Art. 260):** la suma del **Monto Total del Crédito** (saldo insoluto / cupo utilizado, **NO** solo el monto atrasado) de esos productos ≥ **80 UF** (~$3.17M–$3.25M CLP; UF ≈ $39.700, recalcular al valor del día si se conoce).
 3. **Tributario (SII):**
-   - **Segunda categoría:** sin boletas de honorarios en los últimos 12 meses ni F29 con actividad en los últimos 24 meses.
-   - **Primera categoría:** si inició actividades, sin ninguna actividad comercial (F29 con ventas/compras/retenciones) en los últimos 24 meses. **Bloquea** si hay actividad F29.
+   - **Segunda categoría (boletas de honorarios):** Las boletas **NO bloquean** la renegociación. Se declaran como ingreso en el **Paso 5** (suma de boletas de los últimos 6 meses ÷ 6 = ingreso mensual). No hay plazo de espera tributaria por boletas.
+   - **Primera categoría + F29:** **Bloquea** si `categoria === 'primera'` y hay actividad real en F29 (ventas/compras/retenciones) en los últimos 24 meses (`f29_meses_con_actividad.length > 0` → `BlockedError`).
 
 > El chequeo es **no bloqueante técnicamente** en el robot (solo `⚠️ ADVERTENCIA`), pero el análisis DEBE confirmar que se cumplen los 3 antes de declarar elegibilidad.
 

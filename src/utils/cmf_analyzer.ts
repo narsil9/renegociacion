@@ -158,9 +158,10 @@ function parseCreditorTable(
   // 1. Detect format by checking if any line contains a date pattern
   const hasDates = lines.some(line => /\d{2}\/\d{2}\/\d{4}/.test(line));
   
-  // Define dynamic boundaries based on format
-  const sliceAEnd = hasDates ? 50 : 38;
-  const sliceBEnd = hasDates ? 75 : 65;
+  // Define dynamic boundaries based on format.
+  // New Ley 21.680 layout (pdftotext -layout): institution 0-41, tipo 42-67, date 68+.
+  const sliceAEnd = hasDates ? 42 : 38;
+  const sliceBEnd = hasDates ? 68 : 65;
 
   const groups: string[][] = [];
   let currentGroup: string[] = [];
@@ -242,7 +243,12 @@ function parseCreditorTable(
       if (colC) colCParts.push(colC);
     }
 
-    const institucion = colAParts.join(' ').replace(/\s+/g, ' ').trim();
+    // Strip Ley 21.680 footnote markers "(1)" "(2)" "(3)" etc. from institution names.
+    // They appear at the end of the name line or on a separate "(N) crédito" sub-line.
+    const institucion = colAParts.join(' ')
+      .replace(/\s+/g, ' ')
+      .replace(/\s*\(\d+\)\s*/g, ' ')
+      .trim();
     const rawTipo = colBParts.join(' ').replace(/\s+/g, ' ').trim();
     const rawDate = colCParts.join(' ').replace(/\s+/g, ' ').trim();
 

@@ -327,9 +327,11 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
     log('→ Guardando y continuando al Paso 2...');
 
     const urlAntes = page.url();
-    const btnGuardarYContinuar = page.locator('button[onclick*="guardarYContinuar"]');
+    // .first() evita strict-mode violation si el onclick matchea más de un botón.
+    const btnGuardarYContinuar = page.locator('button[onclick*="guardarYContinuar"]').first();
     const btnGuardar = page.locator('#btnGuardar');
     if (await btnGuardarYContinuar.isVisible().catch(() => false)) {
+      log('→ Clickeando botón guardarYContinuar...');
       await btnGuardarYContinuar.click();
     } else {
       log('→ Botón guardarYContinuar no visible. Clickeando #btnGuardar...');

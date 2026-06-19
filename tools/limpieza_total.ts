@@ -24,9 +24,9 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 import { createClient } from '@supabase/supabase-js';
-import { launchBrowser } from './browser';
-import { loginAndNavigateToStep1 } from '../automation/login';
-import { cleanupDraft } from '../automation/cleanup';
+import { launchBrowser } from '../src/utils/browser';
+import { loginAndNavigateToStep1 } from '../src/automation/login';
+import { cleanupDraft } from '../src/automation/cleanup';
 import * as path from 'path';
 
 const supabase = createClient(

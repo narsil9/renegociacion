@@ -34,6 +34,22 @@ export interface ContribucionesDeudaResult {
   summary: string;
 }
 
+export interface BHEPeriod {
+  /** Período en formato "Mes YYYY", ej. "Mayo 2025" */
+  periodo: string;
+  /** Honorario bruto en CLP */
+  honorarioBruto: number;
+}
+
+export interface CarpetaTributariaMetadata {
+  /** Fecha de generación de la CT, ej. "02/06/2026" */
+  fechaGeneracion: string | null;
+  /** Ingreso mensual promedio (últimos 6 meses de boletas) en CLP. null si no hay boletas. */
+  ingresoMensualPromedio: number | null;
+  /** Detalle de boletas de los últimos 12 meses */
+  boletasUltimos12Meses: BHEPeriod[];
+}
+
 interface SimpleLogger {
   log(msg: string): void;
 }
@@ -82,8 +98,9 @@ export async function extractTextFromPdfLayout(pdfPath: string): Promise<string>
  * Analyzes the Carpeta Tributaria text to determine the client's tax category.
  */
 export async function analyzeTaxCategory(
-  pdfPath: string, 
-  logger?: SimpleLogger
+  pdfPath: string,
+  logger?: SimpleLogger,
+  preExtractedText?: string
 ): Promise<TaxCategory> {
   const log = (msg: string) => {
     if (logger) logger.log(msg);
@@ -91,7 +108,7 @@ export async function analyzeTaxCategory(
   };
 
   log(`📊 Analizando Carpeta Tributaria en: ${pdfPath}...`);
-  const text = await extractTextFromPdf(pdfPath);
+  const text = preExtractedText ?? await extractTextFromPdf(pdfPath);
 
   // 1. Search for the specific label "Categoría Tributaria:" under "Datos del Contribuyente"
   const labelRegex = /Categor[íi]a\s+Tributaria\s*:/i;
@@ -148,17 +165,23 @@ export async function analyzeTaxCategory(
     return 'segunda';
   }
 
-  // 3. Absolute Fallback: check whole document
-  log('⚠️ Buscando en todo el documento...');
-  const hasFirstTotal = /Primera\s+Categor[íi]a|1ra\s+Categor[íi]a/i.test(text);
-  const hasSecondTotal = /Segunda\s+Categor[íi]a|2da\s+Categor[íi]a/i.test(text);
+  // 3. Absolute Fallback: check whole document — BUT exclude F22 section.
+  // The new CT format embeds the full F22 form which contains field labels like
+  // "CRÉDITO POR IMPUESTO DE PRIMERA CATEGORÍA" that are NOT indicators of
+  // primera categoría taxation. Splitting on F22/F29 anchors prevents false positives.
+  log('⚠️ Buscando en todo el documento (excluyendo sección F22)...');
+  const f22AnchorIdx = text.search(/Declaraciones\s+de\s+Renta\s*[-–]\s*Formulario\s+22|Formulario\s+22\s*\(F22\)|A[Ññ]O\s+TRIBUTARIO\s+\d{4}\s+IMPUESTOS\s+ANUALES/i);
+  const safeText = f22AnchorIdx !== -1 ? text.substring(0, f22AnchorIdx) : text;
+
+  const hasFirstTotal = /Primera\s+Categor[íi]a|1ra\s+Categor[íi]a/i.test(safeText);
+  const hasSecondTotal = /Segunda\s+Categor[íi]a|2da\s+Categor[íi]a/i.test(safeText);
 
   if (hasFirstTotal) {
-    log('✓ Categoría tributaria detectada (total): Primera Categoría.');
+    log('✓ Categoría tributaria detectada (total, pre-F22): Primera Categoría.');
     return 'primera';
   }
   if (hasSecondTotal) {
-    log('✓ Categoría tributaria detectada (total): Segunda Categoría.');
+    log('✓ Categoría tributaria detectada (total, pre-F22): Segunda Categoría.');
     return 'segunda';
   }
   
@@ -178,7 +201,8 @@ export async function analyzeTaxCategory(
  */
 export async function detectF29ActivityLast24Months(
   pdfPath: string,
-  logger?: SimpleLogger
+  logger?: SimpleLogger,
+  preExtractedText?: string
 ): Promise<F29ActivityResult> {
   const log = (msg: string) => {
     if (logger) logger.log(msg);
@@ -186,7 +210,7 @@ export async function detectF29ActivityLast24Months(
   };
 
   log(`📋 Detectando actividad F29 en los últimos 24 meses: ${pdfPath}...`);
-  const text = await extractTextFromPdf(pdfPath);
+  const text = preExtractedText ?? await extractTextFromPdf(pdfPath);
 
   // --- Locate the F29 / IVA section ---
   const lower = text.toLowerCase();
@@ -217,8 +241,16 @@ export async function detectF29ActivityLast24Months(
     };
   }
 
-  // Work only with the F29 section onwards to avoid false positives
-  const f29Section = text.substring(f29StartIdx);
+  // Work only with the F29 section, stopping before the F22 (annual income tax) section.
+  // The new CT format includes the full F22 form after F29, which contains date references
+  // like "04/2026" (declaration period) that would trigger false-positive activity detection.
+  const f22BoundaryIdx = text.search(
+    /Declaraciones\s+de\s+Renta\s*[-–]\s*Formulario\s+22|Formulario\s+22\s*\(F22\)/i
+  );
+  const f29EndIdx = f22BoundaryIdx !== -1 && f22BoundaryIdx > f29StartIdx
+    ? f22BoundaryIdx
+    : text.length;
+  const f29Section = text.substring(f29StartIdx, f29EndIdx);
 
   // BUG-12 FIX: use getCurrentChileDate() for timezone-correct reference —
   // the rest of the codebase uses this helper to avoid UTC/Chile offset issues.
@@ -234,6 +266,13 @@ export async function detectF29ActivityLast24Months(
 
   const activeMonths: string[] = [];
 
+  // New CT format (2025+) lists ALL 36 F29 periods as headers even when there
+  // is no declaration ("No se registra declaración para este período.").
+  // A period is only "active" if the ~200 chars following its header do NOT
+  // contain that phrase. This prevents false-positive blocks for segunda categoría
+  // clients whose CT happens to show an empty F29 history.
+  const NO_DECLARATION_PHRASE = /no\s+se\s+registra\s+declaraci[oó]n\s+para\s+este\s+per[ií]odo/i;
+
   // Pattern 1: "Marzo 2024" / "marzo de 2024"
   const p1 = /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})\b/gi;
   let m: RegExpExecArray | null;
@@ -243,6 +282,9 @@ export async function detectF29ActivityLast24Months(
     if (month !== undefined && !isNaN(year)) {
       const d = new Date(year, month, 1);
       if (d >= cutoff && d <= today) {
+        // Skip if the immediately following context says "no se registra declaración"
+        const context = f29Section.substring(m.index + m[0].length, m.index + m[0].length + 200);
+        if (NO_DECLARATION_PHRASE.test(context)) continue;
         const key = `${year}-${String(month + 1).padStart(2, '0')}`;
         if (!activeMonths.includes(key)) activeMonths.push(key);
       }
@@ -311,7 +353,8 @@ export async function detectF29ActivityLast24Months(
  */
 export async function detectContribucionesDeuda(
   pdfPath: string,
-  logger?: SimpleLogger
+  logger?: SimpleLogger,
+  preExtractedText?: string
 ): Promise<ContribucionesDeudaResult> {
   const log = (msg: string) => {
     if (logger) logger.log(msg);
@@ -320,7 +363,9 @@ export async function detectContribucionesDeuda(
 
   log(`🏠 Detectando deudas por contribuciones en: ${pdfPath}...`);
 
-  const text = await extractTextFromPdfLayout(pdfPath);
+  // For scanned PDFs, preExtractedText (OCR) is accepted; otherwise use pdftotext -layout
+  // to preserve column alignment needed for the property table.
+  const text = preExtractedText ?? await extractTextFromPdfLayout(pdfPath);
   const propSectionIdx = text.search(/propiedades\s+y\s+bienes\s+ra[íi]ces/i);
 
   if (propSectionIdx === -1) {
@@ -383,4 +428,79 @@ export async function detectContribucionesDeuda(
   log(`📊 ${summary}`);
 
   return { propiedadesMorosas, summary };
+}
+
+/**
+ * Extracts the CT generation date and boletas de honorarios from a Carpeta Tributaria.
+ *
+ * New CT format (2025+) includes:
+ * - "Fecha de generación de la Carpeta: DD/MM/YYYY HH:MM"
+ * - Table: "Períodos | Honorario bruto ($) | Retención..."
+ *
+ * Returns ingresoMensualPromedio as the average of the most recent 6 months of boletas,
+ * which is the figure used for Step 5 (Ingresos) in the portal.
+ */
+export async function extractCarpetaTributariaMetadata(
+  pdfPath: string,
+  logger?: SimpleLogger,
+  preExtractedText?: string
+): Promise<CarpetaTributariaMetadata> {
+  const log = (msg: string) => {
+    if (logger) logger.log(msg);
+    else console.log(msg);
+  };
+
+  const text = preExtractedText ?? await extractTextFromPdf(pdfPath);
+
+  // 1. Extract CT generation date
+  const dateMatch = text.match(/Fecha\s+de\s+generaci[oó]n\s+de\s+la\s+Carpeta\s*:\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const fechaGeneracion = dateMatch ? dateMatch[1] : null;
+  if (fechaGeneracion) {
+    log(`📅 Fecha de generación CT: ${fechaGeneracion}`);
+  } else {
+    log('⚠️ No se encontró "Fecha de generación de la Carpeta" en la CT.');
+  }
+
+  // 2. Extract boletas de honorarios table
+  // Header: "Boletas de Honorarios electrónicas emitidas (N): Últimos 12 meses"
+  // Row pattern: "Mes YYYY  <honorario>  <retención>  <ppm>"
+  const boletasAnchorIdx = text.search(/Boletas\s+de\s+Honorarios\s+electr[oó]nicas\s+emitidas/i);
+  const boletasUltimos12Meses: BHEPeriod[] = [];
+
+  if (boletasAnchorIdx !== -1) {
+    // Work until next major section (Boletas recibidas or F29)
+    const endAnchorIdx = text.search(/Boleta\s+de\s+prestaci[oó]n\s+de\s+servicios|Declaraciones\s+de\s+IVA|Formulario\s+29/i);
+    const boletasSection = text.substring(
+      boletasAnchorIdx,
+      endAnchorIdx !== -1 && endAnchorIdx > boletasAnchorIdx ? endAnchorIdx : boletasAnchorIdx + 3000
+    );
+
+    // Match rows: "Mes YYYY  1.145.000  166.025  0"
+    // Amount format: digits with dots (Chilean thousands separator)
+    const rowRegex = /^(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(\d{4})\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*$/gim;
+    let rowMatch: RegExpExecArray | null;
+    while ((rowMatch = rowRegex.exec(boletasSection)) !== null) {
+      const periodo = `${rowMatch[1].charAt(0).toUpperCase() + rowMatch[1].slice(1).toLowerCase()} ${rowMatch[2]}`;
+      const honorarioBruto = parseInt(rowMatch[3].replace(/\./g, ''), 10);
+      if (!isNaN(honorarioBruto) && honorarioBruto > 0) {
+        boletasUltimos12Meses.push({ periodo, honorarioBruto });
+      }
+    }
+
+    log(`📊 Boletas detectadas: ${boletasUltimos12Meses.length} período(s)`);
+    boletasUltimos12Meses.forEach(b => log(`   ${b.periodo}: $${b.honorarioBruto.toLocaleString('es-CL')}`));
+  } else {
+    log('ℹ️ No se encontró sección de Boletas de Honorarios en la CT.');
+  }
+
+  // 3. Calculate monthly average from last 6 months (Step 5 income)
+  let ingresoMensualPromedio: number | null = null;
+  if (boletasUltimos12Meses.length > 0) {
+    const last6 = boletasUltimos12Meses.slice(-6);
+    const total = last6.reduce((sum, b) => sum + b.honorarioBruto, 0);
+    ingresoMensualPromedio = Math.round(total / last6.length);
+    log(`💰 Ingreso mensual promedio (últimos ${last6.length} meses): $${ingresoMensualPromedio.toLocaleString('es-CL')}`);
+  }
+
+  return { fechaGeneracion, ingresoMensualPromedio, boletasUltimos12Meses };
 }

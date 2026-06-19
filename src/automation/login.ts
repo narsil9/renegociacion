@@ -46,7 +46,8 @@ export async function loginAndNavigateToStep1(
     await page.goto('https://www.superir.gob.cl/', { waitUntil: 'domcontentloaded' });
 
     const popup = page.locator('[data-dismiss="modal"]').first();
-    const popupVisible = await popup.isVisible({ timeout: 5000 }).catch(() => false);
+    // isVisible() no acepta timeout (resuelve inmediato); waitFor sí espera al pop-up.
+    const popupVisible = await popup.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
     if (popupVisible) {
       await popup.click();
       log('→ Pop-up cerrado.');

@@ -1,15 +1,15 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { launchBrowser } from './utils/browser';
-import { loginAndNavigateToStep1 } from './automation/login';
-import { fillStep1, ClientData } from './automation/step1_personal';
-import { supabase } from './utils/supabase';
-import { runDaemon } from './worker';
-import { fillAllSteps } from './automation/all_steps';
-import { getOptimizedPdfPath } from './utils/pdf_optimizer';
-import { analyzeTaxCategory } from './utils/pdf_analyzer';
-import { analyzeCmfPdf } from './utils/cmf_analyzer';
+import { launchBrowser } from '../src/utils/browser';
+import { loginAndNavigateToStep1 } from '../src/automation/login';
+import { fillStep1, ClientData } from '../src/automation/step1_personal';
+import { supabase } from './supabase';
+import { runDaemon } from '../src/worker';
+import { fillAllSteps } from '../src/automation/all_steps';
+import { getOptimizedPdfPath } from '../src/utils/pdf_optimizer';
+import { analyzeTaxCategory } from '../src/utils/pdf_analyzer';
+import { analyzeCmfPdf } from '../src/utils/cmf_analyzer';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -121,7 +121,7 @@ async function main() {
     
     const cmfResult = await analyzeCmfPdf(cmfLocalPath);
     if (!cmfResult.meets90DaysRequirement) {
-      console.error(`❌ Error: El cliente no tiene deuda con mora >= 90 días según el CMF.`);
+      console.error(`❌ Error: El cliente no tiene deuda con mora >= 91 días según el CMF.`);
       process.exit(1);
     }
     if (!cmfResult.meetsAmountRequirement) {

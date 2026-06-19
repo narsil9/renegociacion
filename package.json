@@ -5,9 +5,10 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node src/index.ts",
-    "automate": "ts-node src/index.ts",
+    "build:prod": "tsc -p tsconfig.build.json",
     "worker": "ts-node src/worker.ts",
+    "automate": "ts-node tools/index.ts",
+    "dev": "ts-node tools/index.ts",
     "test": "echo \"No tests yet\" && exit 0"
   },
   "dependencies": {

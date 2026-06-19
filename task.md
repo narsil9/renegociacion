@@ -5,7 +5,19 @@
 ## 🚀 PRIORIDAD — Camino a Producción
 
 > La cadena completa (Tributario→Centinela→Mapeador→Steps 1→4) fue validada en DRY_RUN con 9 casos el 2026-06-17.
-> El paso siguiente es probar con documentos reales y frescos, corregir los últimos gaps de catálogo, y conectar el worker al loop de producción.
+> Flujo E2E **dashboard de Vercel → Supabase sandbox → worker → portal Superir** validado el 2026-06-18 (borrador vivo, sin radicar).
+> Falta para el primer envío real (`DRY_RUN=false`): documentos frescos (<30d) + confirmación del abogado.
+
+### P0.b — Cierre de auditoría + producción-ready (2026-06-18/19)
+
+- [x] **Fixes de la auditoría (INFORME_AUDITORIA_2026-06-18.md)** — Aplicados todos menos B3:
+  - **renegociacion**: B1 (gate del abogado → `pending_review` en run real), B2 (conteo ≥2 incluye NO-CMF 260), A3 (alarma de flags bypass), A7 (F29 temprano antes del Centinela), M3 (alertas UUID sin tragar error), A1 (matching alias-aware `canonicalInstitutionKey`), A2 (aviso colisión de monto), M5 (aviso fecha placeholder Art.260), M6 (skip comuna no mapeada), M2 (sentinel `success` default), A5 (login waitFor), A6 (step1 .first()).
+  - **dashboard** (`rp_carga_documentos`): B4 (índice único + finalize maneja 23505), M8 (updates de path chequean error), A4 (`.limit(1)` en lookups por RUT), CT+Retenedores bloqueantes en el checklist.
+  - **DIFERIDOS**: **B3** (DRY_RUN como parámetro — el daemon es secuencial, riesgo nulo hoy) y **M9** (init atómico del dashboard — recuperable con retry). Hacer con re-test si se necesita.
+  - Validado: `tsc` limpio (ambos repos) + E2E de regresión `success` (Paso 3 5/5, B1/A3 disparando bien).
+- [x] **Reorganización `src/` = solo producción (2026-06-19)** — 52 scripts dev/diagnóstico + CLI legacy `index.ts` movidos de `src/` → **`tools/`** (imports reescritos). `src/utils/` quedó con los 13 módulos del grafo del worker. `tsconfig.build.json` + `npm run build:prod` (artefacto production-only). `.gitignore` y `package.json` actualizados. Producción byte-idéntica (sin regresión).
+- [x] **`INSTALL.md`** — guía completa para correr el worker en otra máquina (requisitos de sistema: poppler/tesseract/ghostscript; clone → npm install → playwright → `.env` → `scripts/sistema.sh start` → pm2).
+- [x] **`B4` índice único** — pendiente **correr `migration_sandbox_v4.sql`** en el SQL Editor (agrega `uq_active_job_per_client`).
 
 ### P0 — Desbloqueadores inmediatos
 

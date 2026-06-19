@@ -15,7 +15,11 @@
  *   - NO debe duplicar el crédito de consumo de Banco de Chile (sí está en el CMF)
  *
  * Uso:
- *   ENABLE_SENTINEL=true BYPASS_DATE_CHECK=true \
+ *   BYPASS_DATE_CHECK=true \
+ *     npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_reconciliacion.ts
+ *
+ * Para saltar el Centinela (sin gasto de créditos API):
+ *   DISABLE_SENTINEL=true BYPASS_DATE_CHECK=true \
  *     npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_reconciliacion.ts
  *
  * Requiere: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY en .env
@@ -39,9 +43,6 @@ async function main() {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !supabaseKey) throw new Error('Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en .env');
-  if (process.env.ENABLE_SENTINEL !== 'true') {
-    throw new Error('Este test necesita ENABLE_SENTINEL=true (de lo contrario el Centinela hace bypass).');
-  }
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('Falta ANTHROPIC_API_KEY en .env (el Centinela llama a Claude).');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

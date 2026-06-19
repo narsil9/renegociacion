@@ -9,7 +9,7 @@ Este documento detalla el análisis de elegibilidad y la documentación de respa
 Para iniciar una renegociación formal ante la Superir, la ley exige cumplir simultáneamente con el **doble requisito de morosidad**:
 1. **Requisito de Multiproducto (Artículo 260):** Al menos **dos (2) deudas o productos financieros** distintos con morosidad individual de **91 días o más** (más de 90 días corridos de atraso).
 2. **Requisito de Monto Mínimo:** Que el capital/cupo total de las deudas en mora (Art. 260) sume al menos **80 UF** (~$3.178.127 CLP al valor de la UF de $39.726,59).
-3. **Requisito Tributario:** No tener emisión de boletas de honorarios (segunda categoría) ni giros comerciales (primera categoría) con actividad en los últimos 12 y 24 meses respectivamente.
+3. **Requisito Tributario:** Sin actividad en Primera Categoría con movimientos en el F29 en los últimos 24 meses. Las boletas de honorarios (2ª cat.) no bloquean la postulación: se declaran como ingreso mensual en el Paso 5 (promedio de los últimos 6 meses de boletas emitidas).
 
 ### Tabla Resumen de los Productos Calificados (Artículo 260)
 

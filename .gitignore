@@ -24,20 +24,25 @@ outputs/verify_tmp/
 # Bitácoras de sesión (scratch, no forman parte del código)
 CHANGES_MADE.md
 
-# Scripts de diagnóstico/prueba en src/utils/ (deuda técnica, no se commitean)
-src/utils/analyze_*.ts
-src/utils/check_*.ts
-src/utils/debug_*.ts
-src/utils/get_view_definition.ts
-src/utils/insert_*.ts
-src/utils/inspect_*.ts
-src/utils/list_*.ts
-src/utils/migrate_*.ts
-src/utils/monitor_*.ts
-src/utils/queue_*.ts
-src/utils/reload_*.ts
-src/utils/run_*.ts
-src/utils/scan_*.ts
-src/utils/test_*.ts
-src/utils/upload_*.ts
+# Codex / agentes externos
+.codex/
+AGENTS.md
+
+# Scripts de diagnóstico/prueba en tools/ (deuda técnica, no se commitean).
+# (Antes vivían en src/utils/; se movieron a tools/ para dejar src/ solo con producción.)
+tools/analyze_*.ts
+tools/check_*.ts
+tools/debug_*.ts
+tools/get_view_definition.ts
+tools/insert_*.ts
+tools/inspect_*.ts
+tools/list_*.ts
+tools/migrate_*.ts
+tools/monitor_*.ts
+tools/queue_*.ts
+tools/reload_*.ts
+tools/run_*.ts
+tools/scan_*.ts
+tools/test_*.ts
+tools/upload_*.ts
 src/utils/verify_*.ts

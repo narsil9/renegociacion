@@ -15,10 +15,14 @@
  * Prerrequisitos:
  *   1. Tabla agent_runs creada en Supabase (pegar supabase/schema_agent_runs.sql en SQL Editor).
  *   2. Perfil de Alejandra en tabla `clients` (RUT 18.738.680-2) con CMF en storage.
- *   3. ENABLE_SENTINEL=true activo → gasta créditos de Claude (API Key #1).
+ *   3. ANTHROPIC_API_KEY en .env — gasta créditos de Claude (API Key #1).
  *
  * Uso:
- *   ENABLE_SENTINEL=true BYPASS_DATE_CHECK=true \
+ *   BYPASS_DATE_CHECK=true \
+ *     npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_centinela_agent.ts
+ *
+ * Para saltar el Centinela (sin gasto de créditos API):
+ *   DISABLE_SENTINEL=true BYPASS_DATE_CHECK=true \
  *     npx ts-node --transpile-only -r dotenv/config casos/alejandra_espinoza/test_centinela_agent.ts
  */
 
@@ -68,7 +72,6 @@ async function main() {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !supabaseKey) throw new Error('Falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en .env');
-  if (process.env.ENABLE_SENTINEL !== 'true') throw new Error('Requiere ENABLE_SENTINEL=true');
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('Falta ANTHROPIC_API_KEY en .env');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

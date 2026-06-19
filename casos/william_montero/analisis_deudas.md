@@ -9,7 +9,7 @@ Este documento detalla el análisis de elegibilidad y la documentación de respa
 Para iniciar una renegociación formal ante la Superir, la ley exige cumplir simultáneamente con el **triple requisito**:
 1. **Multiproducto (Art. 260):** ≥ 2 deudas/productos distintos con mora ≥ 91 días.
 2. **Monto Mínimo (Art. 260):** suma del `totalCredito` de esos productos ≥ 80 UF (~$3.15M CLP).
-3. **Tributario:** sin boletas de honorarios (2ª cat.) ni giros comerciales con actividad (1ª cat.) en los últimos 24 meses.
+3. **Tributario:** Sin actividad en Primera Categoría con movimientos en el F29 en los últimos 24 meses. Las boletas de honorarios (2ª cat.) no bloquean la postulación: se declaran como ingreso mensual en el Paso 5 (promedio de los últimos 6 meses de boletas emitidas).
 
 ### Tabla Resumen de los Productos Calificados (Artículo 260)
 

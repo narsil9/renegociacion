@@ -11,7 +11,7 @@ interface SimpleLogger {
 export async function fillStep2(
   page: Page,
   tributariaLocalPath: string,
-  retenedoresLocalPath: string,
+  retenedoresLocalPath: string | null,
   categoria: 'primera' | 'segunda' | 'ninguna',
   logger?: SimpleLogger
 ): Promise<void> {
@@ -28,7 +28,7 @@ export async function fillStep2(
   if (!fs.existsSync(tributariaLocalPath)) {
     throw new Error(`Carpeta tributaria local no encontrada: ${tributariaLocalPath}`);
   }
-  if (!fs.existsSync(retenedoresLocalPath)) {
+  if (retenedoresLocalPath !== null && !fs.existsSync(retenedoresLocalPath)) {
     throw new Error(`Archivo de agentes retenedores local no encontrado: ${retenedoresLocalPath}`);
   }
 
@@ -68,16 +68,20 @@ export async function fillStep2(
     await page.locator('#descargaCarpetaTributaria:not(.hidden)').waitFor({ state: 'attached', timeout: 45000 });
     log('✓ Carpeta Tributaria subida correctamente.');
 
-    // 3. Upload Agentes Retenedores
-    log('→ Seleccionando archivo de Agentes Retenedores...');
-    await page.locator('#informacionIngresosRetenedoresOtros').setInputFiles(retenedoresLocalPath);
-    
-    log('→ Presionando botón Subir Agentes Retenedores...');
-    await page.locator('#btnSubirInfoAgentesRetenedores').click();
-    
-    log('→ Esperando confirmación de subida de Agentes Retenedores...');
-    await page.locator('#descargaInformacionIngresos:not(.hidden)').waitFor({ state: 'attached', timeout: 45000 });
-    log('✓ Agentes Retenedores subido correctamente.');
+    // 3. Upload Agentes Retenedores (optional)
+    if (retenedoresLocalPath !== null) {
+      log('→ Seleccionando archivo de Agentes Retenedores...');
+      await page.locator('#informacionIngresosRetenedoresOtros').setInputFiles(retenedoresLocalPath);
+
+      log('→ Presionando botón Subir Agentes Retenedores...');
+      await page.locator('#btnSubirInfoAgentesRetenedores').click();
+
+      log('→ Esperando confirmación de subida de Agentes Retenedores...');
+      await page.locator('#descargaInformacionIngresos:not(.hidden)').waitFor({ state: 'attached', timeout: 45000 });
+      log('✓ Agentes Retenedores subido correctamente.');
+    } else {
+      log('⚠️ Sin archivo de Agentes Retenedores (no disponible para este cliente) — omitiendo subida.');
+    }
 
     // 4. Check radio: No ha sido notificado de demandas / juicios ejecutivos
     log('→ Declarando no notificación de demandas ejecutivas...');

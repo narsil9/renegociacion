@@ -66,6 +66,18 @@ export interface FechaClave {
   detalle: string;
 }
 
+/**
+ * Monto y fecha real extraídos por Claude del certificado de acreditación para
+ * un acreedor que ya aparece en el CMF con overdue90Days > 0 (Art.260 directo).
+ * Reemplaza el monto del CMF (desactualizado) y el placeholder dateDaysAgo(90).
+ */
+export interface Cmf260DirectOverride {
+  institucion_cmf: string;
+  monto_clp: number;
+  fecha_vencimiento: string;   // YYYY-MM-DD
+  document_filename: string;
+}
+
 export interface SentinelResult {
   success: boolean;
   errors: string[];
@@ -73,6 +85,8 @@ export interface SentinelResult {
   reclassifiedCreditors?: ReclassifiedCreditor[];
   identified261Creditors?: Identified261Creditor[];
   additionalCreditors?: AdditionalCreditor[];
+  /** Monto y fecha real desde certificado para Art.260 directos del CMF (overdue90Days > 0). */
+  cmf260DirectOverrides?: Cmf260DirectOverride[];
   fechasClave?: FechaClave[];
   details: {
     meets90DaysRequirement: boolean;
@@ -100,19 +114,19 @@ export interface SimpleLogger {
 
 /**
  * Executes API Key #1 (Sentinel) to analyze the CMF and certificates uploaded by the lawyer.
- * Bypassed by default if ENABLE_SENTINEL is not 'true'.
+ * Bypassed only if DISABLE_SENTINEL=true is set explicitly.
  */
 export async function runSentinelCheck(
   client: ClientProfile,
   supabase: SupabaseClient,
   logger: SimpleLogger
 ): Promise<SentinelResult> {
-  const isEnabled = process.env.ENABLE_SENTINEL === 'true';
+  const isDisabled = process.env.DISABLE_SENTINEL === 'true';
   const log = (msg: string) => logger.log(`🛡️ [Centinela] ${msg}`);
   const logError = (msg: string, err?: any) => logger.error(`🛡️ [Centinela] ${msg}`, err);
 
-  if (!isEnabled) {
-    log('🛡️ Modo Bypass activo (ENABLE_SENTINEL !== true). Omitiendo validación preventiva.');
+  if (isDisabled) {
+    log('🛡️ Modo Bypass activo (DISABLE_SENTINEL=true). Omitiendo validación preventiva.');
     return {
       success: true,
       errors: [],
@@ -253,29 +267,22 @@ export async function runSentinelCheck(
       } else {
         const fullText = await extractTextFromPdf(localPath).catch(() => '');
         if (fullText.trim().length < 50) {
-          doc.isImageDoc = true;
-          doc.imageMimeType = 'image/jpeg';
-          // Convertir primera página con GS si existe
-          const jpgPath = localPath.replace(/\.pdf$/i, '_p1.jpg');
-          if (!fs.existsSync(jpgPath)) {
-            try {
-              const { execFile: execFileCb } = await import('child_process');
-              const { promisify: prom } = await import('util');
-              const execFileAsync = prom(execFileCb);
-              await execFileAsync('/opt/homebrew/bin/gs', [
-                '-dNOPAUSE', '-dBATCH', '-sDEVICE=jpeg', '-r150',
-                `-sOutputFile=${jpgPath}`, '-dFirstPage=1', '-dLastPage=1',
-                localPath
-              ]);
-            } catch {}
+          // OCR multi-página (Tesseract) reemplaza GS+Vision: lee todas las páginas
+          const { extractTextWithOcrFallback } = await import('./ocr_helper');
+          const { text: ocrText } = await extractTextWithOcrFallback(localPath, 50);
+          if (ocrText.trim().length > 30) {
+            doc.isImageDoc = false;
+            doc.textContent = ocrText.substring(0, 4000);
+            log(`📄 OCR: ${doc.filename} (${doc.textContent.length} chars, todas las páginas)`);
+          } else {
+            // OCR también falló — sin contenido útil
+            doc.isImageDoc = false;
+            doc.textContent = '[PDF PROTEGIDO O NO CONVERTIBLE: sin texto extraíble. Verificar contraseña o calidad del archivo.]';
+            log(`⚠️ ${doc.filename}: OCR no produjo texto suficiente. Placeholder enviado a Claude.`);
           }
-          doc.imageBase64 = fs.existsSync(jpgPath)
-            ? fs.readFileSync(jpgPath).toString('base64')
-            : fs.readFileSync(localPath).toString('base64');
-          doc.textContent = '[PDF ESCANEADO: Claude analizará la imagen directamente]';
         } else {
           doc.isImageDoc = false;
-          doc.textContent = fullText.substring(0, 12000);
+          doc.textContent = fullText.substring(0, 4000);
         }
       }
     }
@@ -606,6 +613,21 @@ El pre-análisis TypeScript te entrega "nonCmfReconciliation": una fila por docu
 3. Devuélvelos en "additionalCreditors". NO los repitas en reclassifiedCreditors ni identified261Creditors (esos son SOLO para acreedores que ya están en el CMF). additionalCreditors es exclusivamente para los que NO están en el CMF.
 
 ---
+**REGLA 9 — Monto y fecha real para acreedores Art.260 directos del CMF**
+Algunos acreedores ya aparecen en el CMF con "overdue90Days > 0" (campo en el array "creditors" del pre-análisis). Estos NO requieren reclasificación. Sin embargo, el certificado de acreditación tiene el monto más actualizado y la fecha real de la primera cuota impaga — el portal debe recibir ese dato del documento, NO el del CMF.
+
+Para cada acreedor en el array "creditors" donde "overdue90Days > 0" Y cuyo nombre NO aparece en el array "reclassifiedCreditors" que acabas de construir:
+1. Localiza el certificado asociado (busca en el texto de los certificados por nombre de institución).
+2. Del documento, extrae:
+   - "monto_clp": el saldo total adeudado (Saldo Total, Saldo Insoluto, Capital Vigente, o Cupo Total para tarjetas).
+   - "fecha_vencimiento": la fecha de la primera cuota impaga en formato YYYY-MM-DD.
+     • Crédito de consumo: fecha de la cuota más antigua vencida (misma lógica Regla 2A).
+     • Tarjeta de crédito: fecha "PAGAR HASTA" del primer período incumplido.
+3. Si no hay certificado asociado, o el documento no contiene esta información, omite ese acreedor de "cmf260DirectOverrides".
+
+Devuelve los resultados en "cmf260DirectOverrides". NO repitas en reclassifiedCreditors a los acreedores que ya estaban en el CMF como Art.260 — solo van aquí.
+
+---
 **IMPORTANTE:** Si los documentos demuestran que los requisitos se cumplen aunque el CMF no lo refleje, el resultado puede ser "success": true con reclassifiedCreditors no vacío.
 
 Responde ÚNICAMENTE con un bloque JSON encerrado en <json>...</json>. Nada de texto fuera de esas etiquetas.
@@ -648,6 +670,14 @@ Esquema JSON esperado:
       "reason": "CPF de portabilidad: tarjeta Visa Platinium con cupo propio, NO listada en el CMF (el CMF solo trae el crédito de consumo de Banco de Chile). Sin morosidad → Art. 261.",
       "document_filename": "CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf",
       "needs_lawyer_confirmation": true
+    }
+  ],
+  "cmf260DirectOverrides": [
+    {
+      "institucion_cmf": "CAT S.A.",
+      "monto_clp": 11275392,
+      "fecha_vencimiento": "2025-09-05",
+      "document_filename": "cert_cat.pdf"
     }
   ],
   "details": {
@@ -702,15 +732,18 @@ Esquema JSON esperado:
 
     log(`Enviando consulta a Claude Sonnet 4.6 (${documents.length} certificado(s))...`);
 
-    const response = await anthropic.messages.create({
+    // Usar streaming — requerido cuando la respuesta supera los 10 min (muchos docs + thinking).
+    const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 16000,
       thinking: {
-        type: 'adaptive'
+        type: 'enabled',
+        budget_tokens: 8000,
       },
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessageParts }]
     });
+    const response = await stream.finalMessage();
 
     const respText = response.content.find(b => b.type === 'text');
     const contentText = respText?.type === 'text' ? respText.text : '';
@@ -752,11 +785,16 @@ Esquema JSON esperado:
     }
 
     const result: SentinelResult = {
-      success: raw.success,
+      // M2: no confiar ciego en raw.success. Si Claude omite el campo, inferir del
+      // shape (hay errores → false; sin errores → true) en vez de bloquear un caso válido.
+      success: typeof raw.success === 'boolean'
+        ? raw.success
+        : !(Array.isArray(raw.errors) && raw.errors.length > 0),
       errors: raw.errors || [],
       reclassifiedCreditors: raw.reclassifiedCreditors || [],
       identified261Creditors: raw.identified261Creditors || [],
       additionalCreditors,
+      cmf260DirectOverrides: raw.cmf260DirectOverrides || [],
       fechasClave,
       details: raw.details,
     };

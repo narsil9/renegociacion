@@ -1,0 +1,7 @@
+{
+  "//": "Build de PRODUCCIÓN: compila solo el grafo de imports desde worker.ts (el daemon).",
+  "//2": "Cualquier archivo no alcanzado por el worker (dev/diagnóstico) queda fuera del artefacto dist/.",
+  "extends": "./tsconfig.json",
+  "files": ["src/worker.ts"],
+  "include": []
+}

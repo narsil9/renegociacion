@@ -15,6 +15,7 @@ export type {
   Identified261Creditor,
   AdditionalCreditor,
   FechaClave,
+  Cmf260DirectOverride,
 } from '../utils/sentinel';
 export type { AcreditacionDoc, CmfDocumentOverride } from '../automation/step3_acreedores';
 export type { CognitiveAlert } from '../utils/cognitive_orchestrator';
@@ -34,6 +35,18 @@ export interface TributarioOutput {
    * Absent / empty array → no overdue contribuciones detected.
    */
   contribuciones_deuda?: import('../utils/pdf_analyzer').ContribucionProperty[];
+  /**
+   * CT generation date (DD/MM/YYYY) for the 30-day validation rule.
+   * Extracted from "Fecha de generación de la Carpeta:" in the new CT format.
+   */
+  fecha_generacion_ct?: string | null;
+  /**
+   * Monthly average income from boletas de honorarios (last 6 months).
+   * Used for Step 5 (Ingresos) income declaration. null if no boletas found.
+   */
+  ingreso_mensual_boletas?: number | null;
+  /** Raw boleta periods from the CT (last 12 months). */
+  boletas_ultimos_12_meses?: import('../utils/pdf_analyzer').BHEPeriod[];
 }
 
 // ---------------------------------------------------------------------------

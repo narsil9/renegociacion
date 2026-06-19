@@ -8,11 +8,14 @@
  *  - Validación con validateCentinelaOutput antes de completeRun.
  *  - Conversión SentinelResult → CentinelaOutput (interfaz tipada de la cadena).
  *
- * ENABLE_SENTINEL=true requerido para llamar a Claude. Si no está activo, devuelve
- * output vacío SIN escribir en agent_runs (preserva idempotencia para cuando se active).
+ * El Centinela corre por defecto en producción. Para saltarlo (sin detección NO-CMF)
+ * usar DISABLE_SENTINEL=true en .env. En ese caso devuelve output vacío SIN escribir
+ * en agent_runs (preserva idempotencia para cuando se reactive).
  *
- * cmfDocumentOverrides[] — en esta versión siempre vacío. Próxima iteración:
- * extraer monto+fecha de los documentos de los acreedores CMF directos Art. 260.
+ * cmfDocumentOverrides[] — poblado desde sentinelResult.cmf260DirectOverrides (REGLA 9
+ * del prompt del Centinela): monto y fecha real desde el certificado para cada Art.260
+ * directo del CMF (overdue90Days > 0, no reclasificado). Reemplaza monto del CMF y
+ * el placeholder dateDaysAgo(90) que se usaba antes.
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -43,7 +46,7 @@ const EMPTY_OUTPUT: CentinelaOutput = {
  * @param clientProfile   — perfil del cliente (incluye informe_cmf_path, rut, etc.)
  * @param cmfLocalPath    — CMF ya descargado localmente (se usa para el hash de idempotencia)
  * @param logger          — logger opcional
- * @returns CentinelaOutput persistido en agent_runs, o vacío si ENABLE_SENTINEL=false
+ * @returns CentinelaOutput persistido en agent_runs, o vacío si DISABLE_SENTINEL=true
  */
 export async function runCentinelaAgent(
   supabase: SupabaseClient,
@@ -61,9 +64,9 @@ export async function runCentinelaAgent(
     else console.error(`🛡️ [CentinelaAgent] ${msg}`, err);
   };
 
-  // Bypass: ENABLE_SENTINEL no activo → flujo sin Claude, sin escribir en agent_runs
-  if (process.env.ENABLE_SENTINEL !== 'true') {
-    log('Bypass activo (ENABLE_SENTINEL !== true) — omitiendo análisis preventivo.');
+  // Bypass explícito: DISABLE_SENTINEL=true → flujo sin Claude, sin escribir en agent_runs
+  if (process.env.DISABLE_SENTINEL === 'true') {
+    log('Bypass activo (DISABLE_SENTINEL=true) — omitiendo análisis preventivo. Los acreedores NO-CMF NO serán detectados.');
     return EMPTY_OUTPUT;
   }
 
@@ -92,21 +95,47 @@ export async function runCentinelaAgent(
 
     if (!sentinelResult.success) {
       const errors = sentinelResult.errors;
-      await failRun(supabase, runId, errors);
+      // Claude devuelve los errores como objetos {code, severity, message, filename}.
+      // Extraemos texto LEGIBLE (message + filename) en vez de volcar el JSON crudo,
+      // para que la alerta y error_message se lean claros en el panel del abogado.
+      const errorStrings = (errors as unknown[]).map(e => {
+        if (typeof e === 'string') return e;
+        if (e && typeof e === 'object' && 'message' in (e as Record<string, unknown>)) {
+          const o = e as { message?: unknown; filename?: unknown };
+          const fn = typeof o.filename === 'string' && o.filename ? ` (${o.filename})` : '';
+          return `${String(o.message)}${fn}`;
+        }
+        return JSON.stringify(e);
+      });
+
       if (sentinelResult.technicalError) {
         // Error técnico (API caída, créditos agotados, red): relanzar como Error genérico
         // para que el retry loop del worker reintente sin bloquear el caso.
-        throw new Error(`Error técnico del centinela (reintentable): ${errors.join('; ')}`);
+        await failRun(supabase, runId, errorStrings);
+        throw new Error(`Error técnico del centinela (reintentable): ${errorStrings.join('; ')}`);
       }
-      // Error semántico (docs deficientes, CMF no registrado): bloquear el caso
-      throw new CentinelaBlockedError(errors.join('; '));
+
+      // BYPASS: en modo de prueba con documentos vencidos, Claude dice RECHAZADO por
+      // fechas pero igual encontró acreedores válidos. Omitir el bloqueo y continuar.
+      if (process.env.BYPASS_DATE_CHECK === 'true' || process.env.BYPASS_DATE_VALIDATION === 'true') {
+        log(`⚠️ Centinela rechazó documentos pero BYPASS_DATE_CHECK activo — omitiendo bloqueo. Motivo: ${errorStrings.join('; ')}`);
+        // Fall through — build output from whatever Claude found
+      } else {
+        // Error semántico (docs deficientes, CMF no registrado): bloquear el caso
+        await failRun(supabase, runId, errorStrings);
+        throw new CentinelaBlockedError(errorStrings.join('; '));
+      }
     }
 
     const output: CentinelaOutput = {
       reclassifiedCreditors: sentinelResult.reclassifiedCreditors ?? [],
       identified261Creditors: sentinelResult.identified261Creditors ?? [],
       additionalCreditors: sentinelResult.additionalCreditors ?? [],
-      cmfDocumentOverrides: [], // TODO: extraer monto+fecha de docs de acreedores CMF 260 directos
+      cmfDocumentOverrides: (sentinelResult.cmf260DirectOverrides ?? []).map(o => ({
+        institucion_cmf: o.institucion_cmf,
+        monto_clp: o.monto_clp,
+        fecha_vencimiento: o.fecha_vencimiento,
+      })),
       fechasClave: sentinelResult.fechasClave ?? [],
     };
 
@@ -114,8 +143,13 @@ export async function runCentinelaAgent(
     logValidationResult(validation, 'centinela', log);
 
     if (!validation.valid) {
+      // Las fallas de validación del Centinela son SEMÁNTICAS (documentos vencidos,
+      // falta monto/fecha, categoría inválida) — no técnicas (red/API/créditos). Deben
+      // BLOQUEAR el caso con una alerta clara, no reintentarse ni reportarse como
+      // "error técnico genérico". Por eso se lanza CentinelaBlockedError (el worker lo
+      // captura, registra la alerta y marca el job como 'blocked').
       await failRun(supabase, runId, validation.errors);
-      throw new Error(`Validación centinela fallida: ${validation.errors.join('; ')}`);
+      throw new CentinelaBlockedError(validation.errors.join(' · '));
     }
 
     await completeRun(supabase, runId, output, validation.needsLawyerReview);

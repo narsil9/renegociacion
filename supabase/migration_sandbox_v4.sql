@@ -142,3 +142,13 @@ COMMENT ON COLUMN clients.informe_cmf_path         IS 'Paso 3. storage_path del 
 COMMENT ON COLUMN clients.acreditacion_documentos_json IS 'LEGACY. Reemplazado por la tabla client_documents. No usar para clientes nuevos.';
 COMMENT ON COLUMN clients.credential_error         IS 'Marca de error de login (la setea el worker/alerts). NULL si OK.';
 COMMENT ON COLUMN clients.airtable_id              IS 'SOLO producción: enlaza con renegociacion_overrides (ton...) para resolver ClaveÚnica. En sandbox-como-producción: dejar NULL.';
+
+-- -------------------------------------------------------------------------
+-- B4 — Índice único parcial: un solo job ACTIVO (pending/running) por cliente.
+-- Hace atómica la idempotencia del enqueue del dashboard (evita doble job por
+-- doble-click / reintento / llamada concurrente a /api/subir-caso?action=finalize).
+-- Requiere que NO haya hoy dos jobs activos del mismo cliente (en sandbox no hay).
+-- -------------------------------------------------------------------------
+CREATE UNIQUE INDEX IF NOT EXISTS uq_active_job_per_client
+  ON automation_jobs (client_id)
+  WHERE status IN ('pending', 'running');

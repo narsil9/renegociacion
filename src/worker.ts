@@ -4,7 +4,7 @@ dotenv.config({ override: true });
 import { launchBrowser, screenshotOnFailure } from './utils/browser';
 import { loginAndNavigateToStep1, CredentialError } from './automation/login';
 import { fillStep1, ClientData } from './automation/step1_personal';
-import { supabase } from './utils/supabaseWorker';
+import { supabase, prodSupabase } from './utils/supabaseWorker';
 import { RunnerLogger } from './utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -36,8 +36,6 @@ class BlockedError extends Error {
 const POLL_INTERVAL_MS = 5000;
 let keepRunning = true;
 
-// Determine queue mode and corresponding tables
-const queueMode = process.env.QUEUE_MODE || 'production';
 const CLIENTS_TABLE = 'clients';
 const JOBS_TABLE = 'automation_jobs';
 
@@ -79,6 +77,72 @@ async function uploadToStorage(
     logger.error(`Excepción capturada al subir archivo a Storage: ${err.message || err}`);
     return null;
   }
+}
+
+/**
+ * Obtiene las credenciales ClaveÚnica de un cliente.
+ *
+ * — Cliente de prueba (21917363-6 / recPatoPrueba): usa CLAVE_UNICA_PASSWORD del .env.
+ * — Cliente real: lee `clave_cu_override ?? airtable_clave_unica` de la tabla
+ *   `renegociacion_overrides` (unida por `airtable_id`).
+ *
+ * El RUT de login es siempre `client.rut` — en producción el cliente se autentica
+ * con su propio RUT, no con un RUT de portal de prueba.
+ */
+async function resolveClaveUnica(
+  client: any,
+  logger: RunnerLogger
+): Promise<{ claveUnicaRut: string; claveUnicaPassword: string }> {
+  const isTestClient = client.rut === '21917363-6' || client.airtable_id === 'recPatoPrueba';
+
+  if (isTestClient) {
+    const pwd = (process.env.CLAVE_UNICA_PASSWORD ?? '').trim();
+    if (!pwd) {
+      throw new Error('Falta CLAVE_UNICA_PASSWORD en .env para el cliente de prueba.');
+    }
+    return { claveUnicaRut: client.clave_unica_rut ?? client.rut, claveUnicaPassword: pwd };
+  }
+
+  // Si el cliente tiene airtable_id, buscar en renegociacion_overrides (fuente canónica en prod).
+  // OJO: `renegociacion_overrides` vive SOLO en producción (PROD_SUPABASE_URL), por eso se
+  // consulta con `prodSupabase`, NO con el cliente sandbox. Si no hay conexión a prod
+  // configurada, se omite el lookup y se cae al fallback de clients.clave_unica_password.
+  if (client.airtable_id && prodSupabase) {
+    const { data: overrides, error } = await prodSupabase
+      .from('renegociacion_overrides')
+      .select('clave_cu_override, airtable_clave_unica')
+      .eq('airtable_id', client.airtable_id)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(
+        `Error leyendo renegociacion_overrides para airtable_id=${client.airtable_id}: ${error.message}`
+      );
+    }
+    if (overrides) {
+      const pwd = ((overrides.clave_cu_override ?? overrides.airtable_clave_unica) ?? '').trim();
+      if (pwd) {
+        const source = overrides.clave_cu_override ? 'clave_cu_override' : 'airtable_clave_unica';
+        logger.log(`✓ ClaveÚnica obtenida de renegociacion_overrides (fuente: ${source}).`);
+        return { claveUnicaRut: client.clave_unica_rut ?? client.rut, claveUnicaPassword: pwd };
+      }
+    }
+    logger.log(`⚠️ renegociacion_overrides sin credenciales para airtable_id=${client.airtable_id}. Intentando fallback a clients.clave_unica_password.`);
+  } else if (client.airtable_id && !prodSupabase) {
+    logger.log(`⚠️ El cliente tiene airtable_id=${client.airtable_id} pero no hay conexión a producción (PROD_SUPABASE_URL/PROD_SUPABASE_SERVICE_ROLE_KEY) para leer renegociacion_overrides. Intentando fallback a clients.clave_unica_password.`);
+  }
+
+  // Fallback: clave_unica_password directo en la tabla clients
+  const directPwd = (client.clave_unica_password ?? '').trim();
+  if (directPwd) {
+    logger.log(`✓ ClaveÚnica obtenida de clients.clave_unica_password (fallback).`);
+    return { claveUnicaRut: client.clave_unica_rut ?? client.rut, claveUnicaPassword: directPwd };
+  }
+
+  throw new Error(
+    `No se pudo resolver ClaveÚnica para ${client.rut}: ` +
+    `sin airtable_id, sin renegociacion_overrides, y clave_unica_password vacío en clients.`
+  );
 }
 
 /**
@@ -135,6 +199,14 @@ async function processJob(job: any): Promise<void> {
   
   logger.log(`🤖 Iniciando procesamiento de Job ${job.id} para cliente ${client.name} (RUT ${client.rut})`);
 
+  // A3 — Alarma de flags de bypass activos (desactivan validaciones críticas). En
+  // producción NO deberían estar. Se loguea ruidoso para que quede en el registro del job.
+  const activeBypass = ['DISABLE_SENTINEL', 'BYPASS_DATE_CHECK', 'BYPASS_DATE_VALIDATION', 'BYPASS_RUT_CHECK', 'FORCE_VISION_MAPEADOR']
+    .filter((f) => process.env[f] === 'true');
+  if (activeBypass.length > 0) {
+    logger.log(`⚠️⚠️ FLAGS DE BYPASS ACTIVOS (solo para pruebas, NO producción): ${activeBypass.join(', ')}`);
+  }
+
   // Support steps 0, 1, 2, 3, and 4
   if (job.step !== 0 && job.step !== 1 && job.step !== 2 && job.step !== 3 && job.step !== 4) {
     const errorMsg = `Paso ${job.step} no está soportado. Actualmente solo se automatizan Pasos 0, 1, 2, 3 y 4.`;
@@ -146,6 +218,23 @@ async function processJob(job: any): Promise<void> {
         error_log: errorMsg,
         updated_at: new Date().toISOString(),
       })
+      .eq('id', job.id);
+    return;
+  }
+
+  // Resolver credenciales una sola vez — se reusan en el login principal y en la
+  // limpieza del borrador. Un fallo aquí falla el job sin reintentos (configuración inválida).
+  let resolvedClaveUnicaRut = '';
+  let resolvedClaveUnicaPassword = '';
+  try {
+    ({ claveUnicaRut: resolvedClaveUnicaRut, claveUnicaPassword: resolvedClaveUnicaPassword } =
+      await resolveClaveUnica(client, logger));
+  } catch (credErr: any) {
+    const msg = `No se pudieron resolver las credenciales ClaveÚnica: ${credErr.message}`;
+    logger.error(`❌ ${msg}`);
+    await supabase
+      .from(JOBS_TABLE)
+      .update({ status: 'failed', error_log: msg, updated_at: new Date().toISOString() })
       .eq('id', job.id);
     return;
   }
@@ -186,19 +275,12 @@ async function processJob(job: any): Promise<void> {
     const cleanupPortalDraftBestEffort = async () => {
       try {
         logger.log('⏳ Iniciando navegador y sesión para limpiar el borrador en el portal...');
-        const clave = (client.rut === '21917363-6' || client.airtable_id === 'recPatoPrueba')
-          ? (process.env.CLAVE_UNICA_PASSWORD || '')
-          : client.clave_unica_password;
-        if (clave) {
-          const { browser, page } = await launchBrowser();
-          browserInstance = browser;
-          await loginAndNavigateToStep1(page, client.clave_unica_rut, clave, logger, {
-            region: client.region, comuna: client.comuna, email: client.email, telefono: client.telefono,
-          });
-          await cleanupDraft(page, logger);
-        } else {
-          logger.log('⚠️ No se encontró ClaveÚnica en el perfil del cliente, omitiendo la limpieza automática.');
-        }
+        const { browser, page } = await launchBrowser();
+        browserInstance = browser;
+        await loginAndNavigateToStep1(page, resolvedClaveUnicaRut, resolvedClaveUnicaPassword, logger, {
+          region: client.region, comuna: client.comuna, email: client.email, telefono: client.telefono,
+        });
+        await cleanupDraft(page, logger);
       } catch (cleanupErr: any) {
         logger.error(`⚠️ No se pudo realizar la autolimpieza en el portal: ${cleanupErr.message || cleanupErr}`);
       }
@@ -214,6 +296,37 @@ async function processJob(job: any): Promise<void> {
         const tempDir = path.join(process.cwd(), 'outputs');
         if (!fs.existsSync(tempDir)) {
           fs.mkdirSync(tempDir, { recursive: true });
+        }
+
+        // A7 — En step:0, chequear F29 (Agente Tributario) ANTES del Centinela/Mapeador,
+        // que gastan créditos de API. Si es Primera Categoría con actividad F29, se bloquea
+        // temprano (sin gastar la cadena de acreedores). El Tributario es idempotente
+        // (hash del PDF), así que la corrida posterior en all-steps reusa el cache.
+        if (job.step === 0 && client.carpeta_tributaria_path) {
+          const ctEarlyPath = path.join(tempDir, `tributaria_early_${job.id}.pdf`);
+          const { data: ctBlob, error: ctErr } = await supabase.storage
+            .from('documentos')
+            .download(client.carpeta_tributaria_path);
+          if (!ctErr && ctBlob) {
+            fs.writeFileSync(ctEarlyPath, Buffer.from(await ctBlob.arrayBuffer()));
+            const tribEarly = await runTributarioAgent(supabase, client.id, ctEarlyPath, logger);
+            fs.existsSync(ctEarlyPath) && fs.unlinkSync(ctEarlyPath);
+            if (tribEarly.f29_meses_con_actividad.length > 0) {
+              const meses = tribEarly.f29_meses_con_actividad.join(', ');
+              const alertDesc = `Paso 2 bloqueado (pre-chequeo A7): primera categoría con actividad F29 en ${tribEarly.f29_meses_con_actividad.length} mes(es): ${meses}`;
+              logger.log(`🚫 ${alertDesc} — bloqueando antes de gastar el Centinela.`);
+              const { error: insertErr } = await supabase.from('automation_alerts').insert({
+                job_id: job.id, client_id: client.id, step: 2, alert_type: 'blocked', description: alertDesc,
+              });
+              if (insertErr) logger.error('⚠️ No se pudo registrar alerta F29:', insertErr.message);
+              await supabase.from(JOBS_TABLE).update({
+                status: 'blocked',
+                error_log: logger.getBufferText() + `\n\n🚫 ${alertDesc}`,
+                updated_at: new Date().toISOString(),
+              }).eq('id', job.id);
+              throw new BlockedError(alertDesc);
+            }
+          }
         }
 
         cmfLocalPath = path.join(tempDir, `cmf_raw_${job.id}.pdf`);
@@ -238,31 +351,42 @@ async function processJob(job: any): Promise<void> {
           centinelaOutput = await runCentinelaAgent(supabase, client.id, client, cmfLocalPath, logger);
         } catch (centinelaErr: any) {
           if (centinelaErr instanceof CentinelaBlockedError) {
-            const errorMsg = `Centinela bloqueó el caso: ${centinelaErr.message}`;
-            logger.error(errorMsg);
-            try {
-              await supabase.from('automation_alerts').insert({
-                job_id: job.id, client_id: String(client.id), step: job.step,
-                alert_type: 'blocked', description: errorMsg,
-              });
-            } catch {}
+            // Bloqueo SEMÁNTICO (documentos vencidos/incompletos): motivo claro y
+            // accionable por el abogado. Estado real = 'blocked' (no 'failed'), con
+            // alerta + error_message para que el panel muestre el motivo exacto,
+            // no "falló sin alerta registrada".
+            const reason = centinelaErr.message;
+            logger.error(`🚫 Centinela bloqueó el caso: ${reason}`);
+            const { error: alertErr } = await supabase.from('automation_alerts').insert({
+              job_id: job.id, client_id: client.id, step: job.step,
+              alert_type: 'blocked', description: reason,
+            });
+            if (alertErr) logger.error('⚠️ No se pudo registrar alerta de bloqueo del Centinela:', alertErr.message);
             await supabase.from(JOBS_TABLE).update({
-              status: 'failed',
-              error_log: logger.getBufferText() + `\n\n❌ CENTINELA BLOQUEÓ: ${errorMsg}`,
+              status: 'blocked',
+              error_message: reason,
+              error_log: logger.getBufferText() + `\n\n🚫 CENTINELA BLOQUEÓ: ${reason}`,
               updated_at: new Date().toISOString(),
             }).eq('id', job.id);
             return;
           }
-          // Error técnico del centinela — solo bloquea si ENABLE_SENTINEL está activo
-          logger.error(`⚠️ Excepción en Centinela de Carga: ${centinelaErr.message || centinelaErr}`);
-          if (process.env.ENABLE_SENTINEL === 'true') {
-            await supabase.from(JOBS_TABLE).update({
-              status: 'failed',
-              error_log: logger.getBufferText() + `\n\n❌ EXCEPCIÓN CENTINELA: ${centinelaErr.message}`,
-              updated_at: new Date().toISOString(),
-            }).eq('id', job.id);
-            return;
-          }
+          // Error TÉCNICO del centinela (red, créditos API) — distinto del bloqueo
+          // semántico. El job queda 'failed', pero igual registramos alerta + error_message
+          // para que el panel no muestre "falló sin alerta registrada".
+          const techMsg = `Error técnico del Centinela (red, API o créditos): ${centinelaErr?.message || centinelaErr}`;
+          logger.error(`⚠️ ${techMsg}`);
+          const { error: techAlertErr } = await supabase.from('automation_alerts').insert({
+            job_id: job.id, client_id: client.id, step: job.step,
+            alert_type: 'failed', description: techMsg,
+          });
+          if (techAlertErr) logger.error('⚠️ No se pudo registrar alerta técnica del Centinela:', techAlertErr.message);
+          await supabase.from(JOBS_TABLE).update({
+            status: 'failed',
+            error_message: techMsg,
+            error_log: logger.getBufferText() + `\n\n❌ EXCEPCIÓN CENTINELA: ${centinelaErr?.message || centinelaErr}`,
+            updated_at: new Date().toISOString(),
+          }).eq('id', job.id);
+          return;
         }
 
         // 4. Run Mapeador Agent (API #2) — mapea documentos a acreedores
@@ -272,19 +396,25 @@ async function processJob(job: any): Promise<void> {
         );
         mappedAcreditacionDocs = mapeadorOutput.mappedDocs;
 
-        // El Paso 3 SOLO se completa si el cliente CALIFICA (atraso 90+ días) Y los DOCUMENTOS
+        // El Paso 3 SOLO se completa si el cliente CALIFICA (atraso 91+ días) Y los DOCUMENTOS
         // pasan la auditoría cognitiva. La regla de 80 UF genera solo una advertencia, no bloquea.
         if (cmfResult.meets90DaysRequirement && !cmfResult.meetsAmountRequirement) {
           logger.log(`⚠️  ADVERTENCIA: Suma del total del crédito de acreedores con 90+d ($${cmfResult.totalCreditoOf90PlusCreditors.toLocaleString('es-CL')}) no alcanza 80 UF ($${cmfResult.requiredAmountCLP.toLocaleString('es-CL')}). El flujo continúa; revisar documentos adicionales si aplica.`);
         }
 
-        const totalQualifyingCount = (cmfResult.qualifying90PlusCount || 0) + centinelaOutput.reclassifiedCreditors.length;
+        // B2: contar también los acreedores NO-CMF Art.260 (patrón William/TGR) — un
+        // cliente que califica gracias a una deuda NO-CMF 260 NO debe quedar fuera.
+        const nonCmf260Count = (centinelaOutput.additionalCreditors || []).filter(
+          (a) => a.categoria_articulo === 260
+        ).length;
+        const totalQualifyingCount =
+          (cmfResult.qualifying90PlusCount || 0) + centinelaOutput.reclassifiedCreditors.length + nonCmf260Count;
         const noCalifica = totalQualifyingCount < 2;
         const { blocked: docsInvalidos, reason: docsInvalidosReason } = mapeadorHasBlockers(mapeadorOutput);
 
         if (noCalifica || docsInvalidos) {
           const motivo = noCalifica
-            ? `El cliente no cumple los requisitos de fondo para la renegociación. No se detectó deuda con mora >= 90 días en el CMF.`
+            ? `El cliente no cumple los requisitos de fondo para la renegociación. No se detectó deuda con mora >= 91 días en el CMF.`
             : (docsInvalidosReason || 'Los documentos de acreditación del Paso 3 no cumplen los requisitos.');
 
           if (job.step === 0) {
@@ -293,7 +423,7 @@ async function processJob(job: any): Promise<void> {
             try {
               const { error: insertErr } = await supabase.from('automation_alerts').insert({
                 job_id: job.id,
-                client_id: String(client.id),
+                client_id: client.id,
                 step: 3,
                 alert_type: 'blocked',
                 description: `Paso 3 omitido (no cumple requisitos): ${motivo}`,
@@ -317,13 +447,52 @@ async function processJob(job: any): Promise<void> {
           }
         } else {
           logger.log('✓ El cliente califica y los documentos del Paso 3 son válidos. Se completarán los 4 pasos.');
+
+          // B1 — Gate del abogado. Señales de revisión pendiente que NO son bloqueo duro
+          // (los duros —missing_document/rut_mismatch— ya cayeron a 'failed' arriba):
+          //  • acreedores NO-CMF (siempre requieren confirmación del abogado), y
+          //  • monto divergente (amount_mismatch) detectado por el Mapeador.
+          const needsReviewSignals: string[] = [];
+          const nonCmfToConfirm = (centinelaOutput.additionalCreditors || []).filter((a) => a.needs_lawyer_confirmation);
+          if (nonCmfToConfirm.length > 0) {
+            needsReviewSignals.push(`${nonCmfToConfirm.length} acreedor(es) NO-CMF a confirmar (${nonCmfToConfirm.map((a) => a.institucion_cmf).join(', ')})`);
+          }
+          const amountAlerts = mapeadorOutput.alerts.filter((a) => a.type === 'amount_mismatch');
+          if (amountAlerts.length > 0) {
+            needsReviewSignals.push(`monto divergente: ${amountAlerts.map((a) => a.message).join('; ')}`);
+          }
+
+          if (needsReviewSignals.length > 0) {
+            const reviewMsg = `Revisión del abogado requerida: ${needsReviewSignals.join(' · ')}.`;
+            // Registrar siempre (visibilidad para el dashboard) — sin tragar el error (M3).
+            const { error: alertErr } = await supabase.from('automation_alerts').insert({
+              job_id: job.id, client_id: client.id, step: 3,
+              alert_type: 'needs_review', description: reviewMsg,
+            });
+            if (alertErr) logger.error('⚠️ No se pudo registrar alerta needs_review:', alertErr.message);
+
+            if (job.dry_run === false) {
+              // Run real autónomo: NO presentar/llenar el portal sin confirmación.
+              logger.log(`🛑 ${reviewMsg} — run real detenido en 'pending_review' (no se corre Playwright).`);
+              await supabase.from(JOBS_TABLE).update({
+                status: 'pending_review',
+                needs_lawyer_review: true,
+                error_log: logger.getBufferText() + `\n\n🛑 PENDING REVIEW: ${reviewMsg}`,
+                updated_at: new Date().toISOString(),
+              }).eq('id', job.id);
+              return;
+            }
+            // Supervisado (dry_run): se llena el borrador para que el abogado lo revise; se marca el flag.
+            logger.log(`⚠️ ${reviewMsg} — DRY_RUN: se llena el borrador para revisión; se marca needs_lawyer_review.`);
+            await supabase.from(JOBS_TABLE).update({ needs_lawyer_review: true }).eq('id', job.id);
+          }
         }
       }
 
       if (job.step === 2 || job.step === 0) {
         logger.log('⏳ Iniciando preparación de PDFs para el Paso 2...');
         if (!client.carpeta_tributaria_path || !client.carpeta_retenedores_path) {
-          throw new Error('Error: Falta registrar la ruta de Carpeta Tributaria o de Agentes Retenedores en la tabla clients.');
+          throw new Error('Faltan documentos obligatorios: la Carpeta Tributaria y los Agentes Retenedores (ambos requeridos para el Paso 2) deben estar registrados en la tabla clients.');
         }
 
         const tempDir = path.join(process.cwd(), 'outputs');
@@ -369,26 +538,12 @@ async function processJob(job: any): Promise<void> {
       process.env.DRY_RUN = job.dry_run === false ? 'false' : 'true';
       logger.log(`⚙️  Configurando DRY_RUN para esta ejecución: ${process.env.DRY_RUN}`);
 
-      // Retrieve ClaveÚnica password from local Sandbox clients table or env fallback
-      let claveUnicaPassword = '';
-      if (client.rut === '21917363-6' || client.airtable_id === 'recPatoPrueba') {
-        claveUnicaPassword = process.env.CLAVE_UNICA_PASSWORD || '';
-        if (!claveUnicaPassword) {
-          throw new Error('Error: Falta la variable de entorno CLAVE_UNICA_PASSWORD en el archivo .env para el cliente de prueba.');
-        }
-      } else {
-        claveUnicaPassword = client.clave_unica_password;
-        if (!claveUnicaPassword) {
-          throw new Error('Falta clave_unica_password en la tabla clients del Sandbox.');
-        }
-      }
-
       logger.log('🚀 Iniciando navegador Playwright (Headless)...');
       const { browser, page } = await launchBrowser();
       browserInstance = browser;
 
       logger.log('🔒 Intentando iniciar sesión con ClaveÚnica...');
-      await loginAndNavigateToStep1(page, client.clave_unica_rut, claveUnicaPassword, logger, {
+      await loginAndNavigateToStep1(page, resolvedClaveUnicaRut, resolvedClaveUnicaPassword, logger, {
         region: client.region,
         comuna: client.comuna,
         email: client.email,
@@ -433,7 +588,7 @@ async function processJob(job: any): Promise<void> {
           try {
             const { error: insertErr } = await supabase.from('automation_alerts').insert({
               job_id: job.id,
-              client_id: String(client.id),
+              client_id: client.id,
               step: 2,
               alert_type: 'blocked',
               description: alertDesc
@@ -497,7 +652,7 @@ async function processJob(job: any): Promise<void> {
           try {
             const { error: insertErr } = await supabase.from('automation_alerts').insert({
               job_id: job.id,
-              client_id: String(client.id),
+              client_id: client.id,
               step: 2,
               alert_type: 'blocked',
               description: alertDesc
@@ -735,7 +890,7 @@ async function processJob(job: any): Promise<void> {
  */
 export async function runDaemon(): Promise<void> {
   console.log('\n======================================================');
-  console.log(`🤖 DAEMON WORKER INICIADO (Modo: ${queueMode.toUpperCase()})`);
+  console.log(`🤖 DAEMON WORKER INICIADO`);
   console.log(`📋 Tabla Clientes: ${CLIENTS_TABLE}`);
   console.log(`📋 Tabla Trabajos: ${JOBS_TABLE}`);
   console.log(`📡 Intervalo de sondeo: ${POLL_INTERVAL_MS / 1000}s`);

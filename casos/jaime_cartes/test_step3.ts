@@ -48,7 +48,7 @@ runStep3Case({
   planLines: [
     'CMF: Santander-Chile + Tenpo Payments + Coopeuch indirecto.',
     'Santander-Chile se recorta al saldo real de la tarjeta 2982.',
-    'El caso sigue bloqueado por boletas y monto historico, pero se prueba el Paso 3.',
+    'Monto con docs de nov/2025 ~76,4 UF (<80 UF). Certs actualizados necesarios. Se prueba el Paso 3.',
   ],
 }).catch((err) => {
   console.error('ERROR FATAL:', (err as Error).message);

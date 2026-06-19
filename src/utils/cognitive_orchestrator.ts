@@ -504,31 +504,24 @@ export async function runCognitiveOrchestrator(
         const fullText = await extractTextFromPdf(localPath);
         const TEXT_THRESHOLD = 50; // chars — below this = scanned/image PDF
         if (fullText.trim().length < TEXT_THRESHOLD) {
-          // PDF is actually a scanned image — treat as image (BUG-03 note: non-fatal, continues loop)
-          doc.isImageDoc = true;
-          doc.imageMimeType = 'image/jpeg'; // Ghostscript renders to JPEG
-          // Convert first page of PDF to JPEG using Ghostscript (already installed)
-          const jpgPath = localPath.replace(/\.pdf$/i, '_p1.jpg');
-          if (!fs.existsSync(jpgPath)) {
-            log(`🖼️ ${doc.filename}: PDF escaneado detectado (${fullText.trim().length} chars). Convirtiendo con Ghostscript...`);
-            const { execFile: execFileCb } = await import('child_process');
-            const { promisify: prom } = await import('util');
-            const execFileAsync2 = prom(execFileCb);
-            await execFileAsync2('/opt/homebrew/bin/gs', [
-              '-dNOPAUSE', '-dBATCH', '-sDEVICE=jpeg', '-r150',
-              `-sOutputFile=${jpgPath}`, '-dFirstPage=1', '-dLastPage=1',
-              localPath
-            ]);
+          // OCR multi-página (Tesseract) reemplaza GS+Vision: lee todas las páginas
+          log(`📄 ${doc.filename}: PDF escaneado (${fullText.trim().length} chars). Ejecutando OCR local...`);
+          const { extractTextWithOcrFallback } = await import('./ocr_helper');
+          const { text: ocrText } = await extractTextWithOcrFallback(localPath, TEXT_THRESHOLD);
+          if (ocrText.trim().length > 30) {
+            doc.isImageDoc = false;
+            doc.textContent = ocrText.substring(0, 4000);
+            log(`📄 OCR: ${doc.filename} (${doc.textContent.length} chars, todas las páginas)`);
+          } else {
+            // OCR también falló — sin contenido útil
+            doc.isImageDoc = false;
+            doc.textContent = '[PDF PROTEGIDO O NO CONVERTIBLE: sin texto extraíble. Verificar contraseña o calidad del archivo.]';
+            log(`⚠️ ${doc.filename}: OCR no produjo texto suficiente. Placeholder enviado a Claude.`);
           }
-          doc.imageBase64 = fs.existsSync(jpgPath)
-            ? fs.readFileSync(jpgPath).toString('base64')
-            : fs.readFileSync(localPath).toString('base64'); // raw PDF fallback
-          doc.textContent = '[PDF ESCANEADO: TypeScript no pudo extraer texto (<50 chars). Claude analizará la imagen directamente.]';
-          log(`🖼️ ${doc.filename} convertido a imagen para Claude Vision.`);
         } else {
           // Normal text PDF
           doc.isImageDoc = false;
-          doc.textContent = fullText.substring(0, 20000);
+          doc.textContent = fullText.substring(0, 4000);
           log(`📄 Texto extraído de ${doc.filename} (${doc.textContent.length} chars).`);
         }
       } catch (err: any) {
@@ -781,11 +774,11 @@ export async function runCognitiveOrchestrator(
   }
 
   // 5c. Renegotiation requirements check
-  // The 90-day requirement IS blocking (no creditors with 90+d mora → cannot proceed).
+  // The 91-day requirement IS blocking (no creditors with 91+d mora → cannot proceed).
   // The 80 UF threshold is informational ONLY — must never produce status: "error".
   const totalCreditoOf90Plus = cmfResult ? cmfResult.totalCreditoOf90PlusCreditors : 0;
   const qualifying90PlusCount = cmfResult ? cmfResult.qualifying90PlusCount : 0;
-  const cumpleRequisito90Dias = cmfResult ? cmfResult.meets90DaysRequirement : false;
+  const cumpleRequisito91Dias = cmfResult ? cmfResult.meets90DaysRequirement : false;
   const sumaObligaciones90DiasMayor80UF = totalCreditoOf90Plus >= 3253000;
 
   // 5d. CMF validation
@@ -858,10 +851,10 @@ export async function runCognitiveOrchestrator(
     },
     requisitosSesion: {
       qualifying90PlusCount,
-      cumpleRequisito90Dias,
-      resultadoCheck90Dias: cumpleRequisito90Dias
-        ? `CUMPLE REQUISITO DE MORA (se detectaron ${qualifying90PlusCount} productos con mora de 90+ días, cumple el mínimo de 2)`
-        : `NO CUMPLE REQUISITO DE MORA (se detectaron ${qualifying90PlusCount} productos con mora de 90+ días, se requieren al menos 2) — esto SÍ puede impedir la sesión`,
+      cumpleRequisito91Dias,
+      resultadoCheck91Dias: cumpleRequisito91Dias
+        ? `CUMPLE REQUISITO DE MORA (se detectaron ${qualifying90PlusCount} productos con mora de 91+ días, cumple el mínimo de 2)`
+        : `NO CUMPLE REQUISITO DE MORA (se detectaron ${qualifying90PlusCount} productos con mora de 91+ días, se requieren al menos 2) — esto SÍ puede impedir la sesión`,
       alerta80UF: {
         sumaTotalCreditoAcreedores90Dias: totalCreditoOf90Plus,
         supera80UF: sumaObligaciones90DiasMayor80UF,
@@ -929,7 +922,7 @@ REGLAS DE AUDITORÍA QUE DEBES CORROBORAR RIGUROSAMENTE:
    - Si la antigüedad de un documento NO exento supera los 30 días, debes establecer obligatoriamente el campo 'status' como 'error', detallar el problema en 'reason' y emitir la alerta 'expired_cmf' o 'expired_certificate'.
 
 2. **Doble Verificación de Deudas Art. 260**:
-   - Para las deudas clasificadas como Artículo 260 (morosidad >= 91 días / mayor a 90 días en CMF): Corrobora en el CMF que realmente tengan mora de 91 días o más.
+   - Para las deudas clasificadas como Artículo 260 (morosidad >= 91 días en CMF): Corrobora en el CMF que realmente tengan mora de 91 días o más.
    - Identifica y asocia los nombres de archivo de los certificados correspondientes con los que se debe acreditar tanto Monto como Vencimiento.
    - Re-verifica rigurosamente que las fechas de emisión de estos certificados no superen los 30 días respecto a Hoy (${todayStr}). Recuerda: si el certificado tiene acreditacion_tipo "estado_cuenta", está exento de este límite.
 
@@ -953,8 +946,8 @@ REGLAS DE AUDITORÍA QUE DEBES CORROBORAR RIGUROSAMENTE:
    - Estos datos tienen PRIORIDAD sobre la clasificación CMF cuando haya discrepancia.
 
 6. **Regla de 80 UF y Multiproducto — NO es bloqueante para la auditoría de documentos (Auditor Técnico)**:
-   - El campo "alerta80UF" y "cumpleRequisito90Dias" del análisis TypeScript son informativos para ti (aunque sí son evaluados por el orquestador general).
-   - "cumpleRequisito90Dias" indica si el cliente tiene al menos 2 productos en mora >= 91 días en el CMF.
+   - El campo "alerta80UF" y "cumpleRequisito91Dias" del análisis TypeScript son informativos para ti (aunque sí son evaluados por el orquestador general).
+   - "cumpleRequisito91Dias" indica si el cliente tiene al menos 2 productos en mora >= 91 días en el CMF.
    - Si no se cumplen los 80 UF o el mínimo de 2 productos con mora >= 91 días, debes incluir una alerta de tipo "other" con el detalle, pero NUNCA establecer "status" como "error" por esta razón. La auditoría de documentos se enfoca en verificar que los archivos de acreditación provistos sean correctos y vigentes.
 
 7. **Salida y Filenames**:
@@ -1051,15 +1044,19 @@ Esquema JSON esperado:
   const imageDocs = documents.filter(d => d.isImageDoc);
   log(`Enviando análisis cognitivo a Claude Sonnet 4.6 (${textDocsPayload.length} PDF(s) texto + ${imageDocs.length} imagen(es))...`);
   try {
-    const response = await anthropic.messages.create({
+    // Usar streaming — requerido cuando la respuesta supera los 10 min (muchos docs + thinking).
+    // budget_tokens fijo para que Claude no consuma todo el espacio en thinking y no deje espacio al JSON.
+    const stream = anthropic.messages.stream({
       model: modelName,
       max_tokens: 16000,
       thinking: {
-        type: 'adaptive'
+        type: 'enabled',
+        budget_tokens: 8000,
       },
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessageParts as any }]
     });
+    const response = await stream.finalMessage();
 
     const respText = response.content.find(b => b.type === 'text');
     const contentText = respText?.type === 'text' ? respText.text : '';

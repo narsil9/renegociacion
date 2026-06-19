@@ -13,6 +13,7 @@ import {
   isValidRut,
   extractRutsFromText,
   findCatalogEntryByRut,
+  canonicalInstitutionKey,
 } from '../utils/acreedor_matcher';
 import { extractTextFromPdf } from '../utils/pdf_analyzer';
 import * as fs from 'fs';
@@ -317,11 +318,22 @@ export async function fillStep3(
       }
       if (fechaVenc) log(`   📅 Vencimiento según documento: ${fechaVenc}.`);
 
+      // M6: si es empresa y la comuna del catálogo no mapea a una región, el alta va a
+      // fallar SIEMPRE (selectRegionAndComuna lanza). Es NO recuperable → saltar acá en
+      // vez de gastar 3 reintentos garantizados a fallar.
+      const isPersonaEntry = entry.tipo?.toLowerCase().includes('persona') === true;
+      if (!isPersonaEntry && entry.comuna && !getRegionValue(entry.comuna)) {
+        const reason = `Comuna sin mapeo a región: "${entry.comuna}" (no recuperable).`;
+        log(`   ⏭️ "${entry.nombre}" omitido: ${reason}`);
+        report.skipped.push({ institucion: creditor.institucion, reason });
+        continue;
+      }
+
       try {
         await withRetry(
           async () => {
             // Idempotency: if already in table (from a previous attempt), skip the add.
-            if (await isCreditorAlreadyInTable(page, creditorEff.totalCredito, isOtros)) {
+            if (await isCreditorAlreadyInTable(page, creditorEff.totalCredito, isOtros, log)) {
               log(`   ℹ️ "${entry.nombre}" ya existe en la tabla — omitiendo add.`);
               return;
             }
@@ -368,11 +380,13 @@ export async function fillStep3(
     if (additionalCreditors && additionalCreditors.length > 0) {
       log(`→ Acreedores NO-CMF detectados por el Centinela: ${additionalCreditors.length} (requieren confirmación del abogado).`);
       for (const ac of additionalCreditors) {
-        const match = matchAcreedor(ac.institucion_cmf, catalog);
+        // NO-CMF creditors may have null institucion_cmf (not in CMF) — fall back to bank name
+        const institutionName = ac.institucion_cmf ?? ac.bank;
+        const match = matchAcreedor(institutionName, catalog);
         if (match.status !== 'matched' || !match.entry) {
           const reason = match.status === 'ambiguous'
-            ? `NO-CMF: múltiples candidatos en el catálogo para "${ac.institucion_cmf}".`
-            : `NO-CMF: "${ac.institucion_cmf}" no existe en acreedores_canonicos (sin RUT para el portal).`;
+            ? `NO-CMF: múltiples candidatos en el catálogo para "${institutionName}".`
+            : `NO-CMF: "${institutionName}" no existe en acreedores_canonicos (sin RUT para el portal).`;
           log(`⏭️  Saltando acreedor NO-CMF "${ac.bank}": ${reason}`);
           report.skipped.push({ institucion: ac.bank, reason });
           continue;
@@ -383,7 +397,7 @@ export async function fillStep3(
         const fechaVenc = ac.categoria_articulo === 260 ? toPortalDate(ac.delinquency_start_date) : undefined;
         // CmfCreditor sintético: monto = total del documento (ya es el monto a declarar).
         const synthCreditor: CmfCreditor = {
-          institucion: ac.institucion_cmf,
+          institucion: institutionName,
           tipoCredito: ac.product_type,
           totalCredito: ac.total_credito_clp,
           vigente: ac.categoria_articulo === 261 ? ac.total_credito_clp : 0,
@@ -395,7 +409,7 @@ export async function fillStep3(
         try {
           await withRetry(
             async () => {
-              if (await isCreditorAlreadyInTable(page, synthCreditor.totalCredito, isOtros)) {
+              if (await isCreditorAlreadyInTable(page, synthCreditor.totalCredito, isOtros, log)) {
                 log(`   ℹ️ NO-CMF "${entry.nombre}" ya existe en la tabla — omitiendo add.`);
                 return;
               }
@@ -459,7 +473,7 @@ export async function fillStep3(
 
           const isOtros = creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor);
           if (isOtros && doc.tipo_documento !== 22) {
-            log(`   ℹ️ Omitiendo documento tipo ${doc.tipo_documento} para "${creditor.institucion}" porque es Otros Acreedores (morosidad <= 90 días).`);
+            log(`   ℹ️ Omitiendo documento tipo ${doc.tipo_documento} para "${creditor.institucion}" porque es Otros Acreedores (morosidad < 91 días).`);
             continue;
           }
 
@@ -612,6 +626,11 @@ async function addEmpresaAcreedor(
 
   // Vencimiento — obligatorio. Usa la fecha real del documento si está disponible,
   // si no, el placeholder de 90 días. Intentamos 3 métodos en cascada.
+  // M5: para Art.260 (Obligaciones) la fecha de cuota impaga debe ser REAL; si falta el
+  // override, avisamos antes de usar el placeholder (no inventar fecha de mora en silencio).
+  if (!isOtros && !fechaVencimientoOverride) {
+    log(`⚠️ Art.260 "${entry.nombre}" sin fecha de cuota impaga real → se usa placeholder. Verificar la fecha de mora antes de presentar.`);
+  }
   const dateStr = fechaVencimientoOverride ?? dateDaysAgo(90);
   await fillDateField(page, '#empresaAcreedorFchCuotaImpaga', dateStr, log);
 
@@ -813,6 +832,10 @@ async function addPersonaAcreedor(
 
   await locByName(page, 'personaAcreedor.deudaMonto').fill(truncate(String(creditor.totalCredito), MAX.monto));
   // Vencimiento — obligatorio en el modal real.
+  // M5: Art.260 sin fecha real → avisar antes del placeholder (no inventar en silencio).
+  if (!isOtros && !fechaVencimientoOverride) {
+    log(`⚠️ Art.260 "${entry.nombre}" sin fecha de cuota impaga real → se usa placeholder. Verificar la fecha de mora antes de presentar.`);
+  }
   await clearAndFill(page, '#personaFechaCuotaImpaga', fechaVencimientoOverride ?? dateDaysAgo(90));
 
   await page.locator('#btnGuardarPersona').click();
@@ -878,9 +901,14 @@ function findAcreditacionDocs(
 ): AcreditacionDoc[] {
   if (!docs.length) return [];
   const target = normInst(institucion);
+  const targetKey = canonicalInstitutionKey(institucion); // A1: alias-aware
   return docs.filter((d) => {
     const n = normInst(d.institucion_cmf);
-    return n === target || target.includes(n) || n.includes(target);
+    if (n === target || target.includes(n) || n.includes(target)) return true;
+    // A1: fallback alias-aware — el doc puede traer el nombre canónico del catálogo
+    // ("CAR S.A. (Tarjeta Ripley)") y el acreedor el del CMF ("CAR - Ripley").
+    const key = canonicalInstitutionKey(d.institucion_cmf);
+    return key !== '' && key === targetKey;
   });
 }
 
@@ -1251,20 +1279,28 @@ async function withRetry<T>(
 async function isCreditorAlreadyInTable(
   page: Page,
   monto: number,
-  isOtros: boolean
+  isOtros: boolean,
+  log?: (m: string) => void
 ): Promise<boolean> {
   const tableId = isOtros ? '#tablaOtrosAcreedores' : '#tablaAcreedores';
   const rows = page.locator(`${tableId} tbody tr`);
   const count = await rows.count().catch(() => 0);
+  // A2: contar coincidencias por monto. La idempotencia matchea SOLO por monto;
+  // si dos acreedores distintos tienen el mismo monto, hay riesgo de falso "ya existe"
+  // y de cruce de certificados. Al menos lo advertimos.
+  let matches = 0;
   for (let i = 0; i < count; i++) {
     const cols = rows.nth(i).locator('td');
     const colCount = await cols.count().catch(() => 0);
     if (colCount < 3) continue;
     const montoText = await cols.nth(2).textContent().catch(() => '');
     const cleanMonto = parseInt(montoText?.replace(/[^0-9]/g, '') ?? '0', 10);
-    if (cleanMonto === monto) return true;
+    if (cleanMonto === monto) matches++;
   }
-  return false;
+  if (matches > 1 && log) {
+    log(`⚠️ ${matches} filas con el mismo monto ($${monto.toLocaleString('es-CL')}) en ${tableId}: la idempotencia/adjunción por monto puede confundirlas. Revisar.`);
+  }
+  return matches > 0;
 }
 
 /**

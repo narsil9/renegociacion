@@ -9,7 +9,7 @@ Este documento detalla el análisis de elegibilidad y la documentación de respa
 Para iniciar una renegociación formal ante la Superir, la ley exige cumplir simultáneamente con el **triple requisito**:
 1. **Multiproducto (Art. 260):** ≥ 2 deudas/productos distintos con mora ≥ 91 días.
 2. **Monto Mínimo (Art. 260):** suma de `totalCredito` de esos productos ≥ 80 UF (~$3.253.000 CLP).
-3. **Tributario:** sin boletas de honorarios (2ª cat.) ni giros comerciales con actividad (1ª cat.) en los últimos 24 meses.
+3. **Tributario:** Sin actividad en Primera Categoría con movimientos en el F29 en los últimos 24 meses. Las boletas de honorarios (2ª cat.) no bloquean la postulación: se declaran como ingreso mensual en el Paso 5 (promedio de los últimos 6 meses de boletas emitidas).
 
 ### Tabla Resumen de los Productos Calificados (Artículo 260)
 
@@ -19,7 +19,7 @@ Para iniciar una renegociación formal ante la Superir, la ley exige cumplir sim
 | Crédito social (`062000152616`) / **La Araucana C.C.A.F.** | **$9.536.311 CLP** *(monto solicitado referencial; falta saldo liquidado actual)* | **31/07/2025** | **132 días** | Vencimiento acreditado, monto insuficiente | **PARCIAL** (`certificado_detalle_credito_vigente (1).pdf`) |
 | **TOTAL MORA ART. 260** | **$23.061.231 CLP referenciales** | — | — | **80 UF (~$3.253.000)** | **CUMPLE EN MONTO / NO CUMPLE EN ELEGIBILIDAD GLOBAL** |
 
-> **Diagnóstico de Elegibilidad:** **NO califica hoy para presentar la renegociación.** El bloqueo es **tributario**, no financiero: la Carpeta Tributaria y el Informe Anual de Boletas muestran emisión de boletas de honorarios en **enero, abril, septiembre, octubre y noviembre de 2025**, por lo que incumple el requisito de Segunda Categoría. En lo financiero, la carpeta sí muestra al menos un Art. 260 plenamente acreditado (Banco de Chile) y un segundo Art. 260 no-CMF jurídicamente válido (La Araucana), pero este último requiere un certificado de saldo/prepago para quedar listo para el portal. Además, **CAR Ripley cruza a Art. 260 el 15/12/2025** y **BancoEstado cruza a Art. 260 el 31/12/2025** si la postulación se difiere.
+> **Diagnóstico de Elegibilidad:** **NO califica hoy para presentar la renegociación, pero el impedimento es documental, no tributario.** Las boletas de honorarios (ene, abr, sep, oct, nov 2025) **no bloquean la postulación** — se declaran como ingreso en el Paso 5. No registra actividad en F29 (Primera Categoría), por lo que tributariamente está libre. El bloqueo real es que **La Araucana carece de certificado de saldo de deuda** (el actual solo muestra detalle de crédito vigente, insuficiente para Art. 260) y **Forum no tiene ningún certificado**. En lo financiero, la carpeta sí muestra un Art. 260 plenamente acreditado (Banco de Chile) y un segundo Art. 260 no-CMF jurídicamente válido (La Araucana) pendiente de certificado. Además, **CAR Ripley cruza a Art. 260 el 15/12/2025** y **BancoEstado cruza a Art. 260 el 31/12/2025** si la postulación se difiere.
 
 ---
 
@@ -158,7 +158,7 @@ Para iniciar una renegociación formal ante la Superir, la ley exige cumplir sim
 * **Promedio líquido mensual (4 meses):** **$1.749.712 CLP**
 * **Cotizaciones AFP:** AFP Habitat acredita cotizaciones pagadas entre noviembre 2024 y septiembre 2025, con empleadores `EMBALAJES TROYA SPA` (RUT **76.166.472-7**) y luego `PRESTACIONES MEDICAS E INVERSIONES ACAM S.A.`.
 
-### Bloqueo tributario
+### Análisis Tributario
 * La clienta mantiene inicio de actividades en **Segunda Categoría** (`960909 OTRAS ACTIVIDADES DE SERVICIOS PERSONALES N.C.P.`).
 * El **Informe Anual de Boletas de Honorarios Electrónicas 2025** registra emisión en:
   * Enero 2025: **$350.877**
@@ -167,13 +167,13 @@ Para iniciar una renegociación formal ante la Superir, la ley exige cumplir sim
   * Octubre 2025: **$701.754**
   * Noviembre 2025: **$1.052.631**
 * Además, `MISII.pdf` muestra participación societaria histórica del **50%** en `COMERCIAL LORCA & SALINAS LIMITADA`, aunque con **término de giro = SI**.
-* **Conclusión tributaria:** la existencia de boletas emitidas dentro de los últimos 12 meses **bloquea la elegibilidad legal hoy**, aunque no haya formularios F29 con actividad.
+* **Conclusión tributaria:** Las boletas de honorarios **no bloquean** la renegociación. La clienta **no tiene actividad en F29** (Primera Categoría) — tributariamente libre para postular. Los ingresos de boletas se declaran en el **Paso 5**: promedio de los últimos 6 meses emitidos ÷ 6 = ingreso mensual.
 
 ---
 
 ## VII. Instrucciones Técnicas para el Ingreso en el Portal Superir
 
-> **No se recomienda cargar este caso hoy al portal** mientras subsista el bloqueo tributario por boletas de honorarios y mientras no se complemente la documentación de La Araucana y Forum. Si el abogado decide reabrirlo más adelante, estas son las referencias operativas:
+> **No se recomienda cargar este caso hoy al portal** mientras no se complete la documentación de La Araucana (falta cert de saldo/liquidación) y Forum (falta cert de deuda vigente). Tributariamente está libre para postular. Si el abogado obtiene esos documentos, estas son las referencias operativas:
 
 ### Acreedores listos o casi listos
 1. **Banco de Chile — Consumo (`1136`)**
@@ -239,12 +239,11 @@ Para iniciar una renegociación formal ante la Superir, la ley exige cumplir sim
 
 ## IX. Conclusión del Análisis
 
-1. **Elegibilidad legal hoy:** **RECHAZADA / NO ADMISIBLE** por incumplimiento tributario. Las boletas de honorarios emitidas en 2025 bloquean la renegociación, aunque la clienta hoy sea trabajadora dependiente.
-2. **Lado financiero:** La carpeta sí contiene un **Art. 260 plenamente acreditado** (Banco de Chile) y un segundo **Art. 260 real pero mal acreditado en monto** (La Araucana). Además, CAR Ripley y BancoEstado están a días de cruzar a Art. 260, lo que mejora la estructura del caso si se regulariza el frente tributario.
+1. **Elegibilidad legal hoy:** **PENDIENTE — documentación incompleta.** Tributariamente libre (sin F29 con actividad). El impedimento es documental: falta cert de saldo/liquidación de La Araucana C.C.A.F. y cert de deuda vigente de Forum. Una vez obtenidos esos documentos, el caso puede presentarse.
+2. **Lado financiero:** La carpeta sí contiene un **Art. 260 plenamente acreditado** (Banco de Chile) y un segundo **Art. 260 real pero mal acreditado en monto** (La Araucana). Además, CAR Ripley y BancoEstado están a días de cruzar a Art. 260, lo que mejora la estructura del caso una vez regularizado el frente documental.
 3. **Acreedores NO-CMF relevantes:** Banco de Chile tiene dos productos adicionales fuera del CMF (línea `3570` y tarjeta `9782`), Forum aparece por la prenda automotriz y La Araucana por el crédito social moroso.
 4. **Bienes y activos:** No se acreditan inmuebles; sí existe un vehículo propio con prenda Forum, saldos líquidos en BancoEstado y una inversión pequeña en Mercado Pago/BICE por **$18.734**.
 5. **Acciones críticas para el abogado antes de cualquier uso del robot:**
-   * esperar a que el cliente quede limpia tributariamente por 12 meses sin boletas, o descartar la vía de renegociación por ahora;
-   * pedir **certificado de liquidación/saldo vigente** de **La Araucana**;
+   * pedir **certificado de liquidación/saldo vigente** de **La Araucana** (impedimento principal);
    * pedir **certificado de deuda vigente/prepago** de **Forum**;
    * verificar con certificados formales la **ausencia de TGR y multas impagas**, ya que la carpeta no los trae.

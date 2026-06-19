@@ -9,7 +9,7 @@ Este documento detalla el análisis de elegibilidad y la documentación de respa
 Para iniciar una renegociación formal ante la Superir, la ley exige cumplir simultáneamente con el **triple requisito**:
 1. **Multiproducto (Art. 260):** Al menos dos (2) deudas/productos distintos con mora $\ge$ 91 días (más de 90 días corridos).
 2. **Monto Mínimo (Art. 260):** Suma del Monto Total del Crédito (insoluto/cupo utilizado con intereses y recargos) de esos productos $\ge$ 80 UF (~$3.171.487 CLP al valor de la UF de $39.643,59).
-3. **Tributario:** Sin boletas de honorarios en los últimos 12 meses ni F29 con actividad comercial en los últimos 24 meses.
+3. **Tributario:** Sin actividad en Primera Categoría con movimientos en el F29 en los últimos 24 meses. Las boletas de honorarios (2ª cat.) no bloquean la postulación: se declaran como ingreso mensual en el Paso 5 (promedio de los últimos 6 meses de boletas emitidas).
 
 ### Tabla Resumen de los Productos Calificados (Artículo 260)
 
@@ -24,10 +24,8 @@ Para iniciar una renegociación formal ante la Superir, la ley exige cumplir sim
 > 
 > **Vía de Solución:** Dado que la fecha de análisis actual es **15/06/2026** (7 meses después de la emisión de los documentos de la carpeta) y el cliente ha permanecido en mora en ambas tarjetas, **los intereses acumulados habrán hecho que la deuda supere con creces las 80 UF**. Sin embargo, **es obligatorio solicitar certificados de deuda actualizados** de Santander y Tenpo para acreditar el monto actual y cumplir con la vigencia administrativa requerida por la Superir (menor a 30 días).
 
-> [!IMPORTANT]
-> **Diagnóstico Crítico de Elegibilidad (Tributario):** El cliente emitió 4 boletas de honorarios electrónicas en el año 2025 (folios 95 al 98, de abril a julio de 2025) a favor de Laboratorio Clínico Del Norte Ltda. La última boleta (Folio 98) fue autorizada el **12/07/2025**.
-> * Al **15/06/2026** (fecha actual), el cliente aún registra emisión de boletas en los últimos 12 meses, lo cual bloquea su postulación.
-> * **Fecha de Viabilidad:** El cliente será **tributariamente elegible a partir del 13/07/2026**, una vez transcurridos los 12 meses reglamentarios sin emisión de boletas de honorarios.
+> [!NOTE]
+> **Situación Tributaria:** El cliente emitió 4 boletas de honorarios en 2025 (folios 95–98, de abril a julio de 2025) a favor de Laboratorio Clínico Del Norte Ltda. Las boletas de honorarios **no bloquean la postulación**. Se declaran como ingreso en el **Paso 5**: sumar los montos de los últimos 6 meses de boletas emitidas y dividir por 6 para obtener el ingreso mensual declarado. No registra actividad en F29 (Primera Categoría), por lo que el cliente está **tributariamente libre** para postular.
 
 ---
 
@@ -155,8 +153,8 @@ El cliente no posee descuentos de préstamos sociales obligatorios por planilla,
 
 ## X. Conclusión del Análisis
 
-El caso de **Jaime Hernán Cartes Fuentes** presenta dos bloqueos críticos que impiden una postulación viable inmediata:
+El caso de **Jaime Hernán Cartes Fuentes** presenta un único impedimento para la postulación inmediata:
 1. **Monto de Mora Insuficiente (< 80 UF):** Las deudas morosas activas documentadas suman **$3.029.231 CLP** (~76,4 UF), debido a que los créditos de consumo Santander (Op. `8004` y `8140`) fueron pagados en su totalidad. **Acción obligatoria:** Solicitar certificados actualizados de deuda a Santander y Tenpo para reflejar los intereses devengados hasta hoy (Junio 2026), lo que elevará el monto real por sobre las 80 UF.
-2. **Incompatibilidad Tributaria Activa:** El cliente registra boletas de honorarios en los últimos 12 meses (última emitida en Julio 2025). **Acción obligatoria:** Postergar la postulación oficial en el portal de la Superir hasta el **13/07/2026**, fecha en que se cumple el año calendario sin actividad independiente.
+2. **Tributariamente libre:** El cliente no tiene actividad en F29 (Primera Categoría). Las boletas de honorarios (últimas en abr–jul 2025) **no bloquean** la renegociación — se declararán en el Paso 5 como ingreso mensual (promedio de los últimos 6 meses de boletas emitidas ÷ 6).
 
 *Se verificó la totalidad de los pasivos (bancarios CMF, fiscales TGR, municipales y no-CMF); no quedan deudas sin declarar.*
