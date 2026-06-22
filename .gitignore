@@ -21,6 +21,11 @@ JORGE ANDRES ROMERO*/
 casos/*/documentos/
 outputs/verify_tmp/
 
+# Screenshots/PDFs sueltos en el root (datos de clientes, no van a git)
+/Captura de pantalla*.png
+/*.png
+/*.pdf
+
 # Bitácoras de sesión (scratch, no forman parte del código)
 CHANGES_MADE.md
 
