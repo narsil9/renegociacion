@@ -46,11 +46,17 @@ Esta skill condensa las reglas legales **más** los descubrimientos operativos d
 
 | Artículo | Condición | Qué hay que acreditar | Tipo doc (`client_documents`) |
 |---|---|---|---|
-| **Art. 260** | Mora ≥ 91 días | **Monto total** + **fecha de la cuota impaga más antigua** | 22 (monto) + 23 (venc.) separados, **o** 24 (un doc acredita ambos) |
-| **Art. 261** | Al día o mora < 91 días | **Solo monto total** | 22 (monto) |
+| **Art. 260** | Mora ≥ 91 días **Y** hay documento que acredita **monto Y vencimiento** | **Monto total** + **fecha de la cuota impaga más antigua** | 22 (monto) + 23 (venc.) separados, **o** 24 (un doc acredita ambos) |
+| **Art. 261** | Al día, mora < 91 días, **o** mora ≥ 91d **sin** forma de acreditar vencimiento y/o monto | **Solo monto total** (o el monto del CMF si no hay doc de monto) | 22 (monto) |
 
 - **Categorías del portal en Art. 261:** Categoría 1 = tarjetas y líneas de crédito; Categoría 12 = créditos de consumo/otros.
 - **Línea de crédito con saldo $0 utilizado → NO se declara** (ej. Betzy, línea BdCh $0).
+
+### ⚖️ REGLA DECISIVA 260 vs 261 — la acreditación manda (confirmada por el abogado 2026-06-22)
+Una deuda con mora ≥ 91 días va a **Art. 260 SOLO SI existe documento que acredite AMBOS: monto Y vencimiento**. **Si tiene mora ≥ 91d pero NO se puede acreditar el vencimiento y/o el monto → va a Art. 261.** El flag "90+ días" del CMF NO basta por sí solo: sin la acreditación de vencimiento, la deuda no puede entrar en 260.
+- **Por qué los abogados suelen poner solo 2 en 260:** el mínimo para que la solicitud califique es **2 productos con mora ≥ 91d que sumen ≥ 80 UF** (ver "Resumen ejecutivo de elegibilidad"). El abogado elige 2 productos **acreditables** (con monto+vencimiento) para el 260 y deja el resto en 261. Ahorra tiempo, pero lo legalmente completo sería declarar en 260 toda deuda 90+d que se pueda acreditar.
+- **Caso testigo (Néctor Ruiz):** Banco Estado figura con $2.093.625 en mora 90+d en el CMF, pero su único documento es un "Certificado de **Deudas Vigentes**" que **no acredita un vencimiento** → se declara en **Art. 261**, no en 260. (Lo mismo hizo la abogada.) Falabella + CMR, que sí tienen certificado de monto+vencimiento y suman ~130 UF, van a 260 y cubren el requisito de calificación.
+- **No declarar en 260 una deuda 90+d sin documento de vencimiento** "porque el CMF dice 90+d": quedaría una fila imposible de acreditar. Mejor 261 (con su monto) + nota para el abogado.
 
 ### Desfase del Informe CMF (regla crítica de reclasificación)
 El CMF corta datos con **2–3 semanas de retraso**. Si el CMF muestra $0 en mora 90+ pero un certificado/EECC posterior prueba que la deuda ya cruzó los 91 días corridos → **reclasificar de Art. 261 a Art. 260**. Casos: Claudia (BdCh consumo 91d, Ripley 100d), María Paz (tarjeta Itaú cruzó a 91d), Betzy (ambas BdCh).
@@ -59,6 +65,10 @@ El CMF corta datos con **2–3 semanas de retraso**. Si el CMF muestra $0 en mor
 Si el documento no indica explícitamente la fecha de la cuota impaga más antigua, reconstrúyela:
 - **Consumo:** `fecha cuota impaga más antigua = Fecha Próximo Pago − (N cuotas vencidas × ~30 días)`. Ej. Claudia: próximo pago 03/12, 3 cuotas vencidas → cuota 4 venció 03/09/2024 = 91 días.
 - **Tarjetas:** revisar el histórico mes a mes; identificar el primer ciclo donde el pago fue menor al mínimo (o $0). La fecha "Pagar hasta el" de ese ciclo es el inicio de mora.
+
+### 💬 Capturas de WhatsApp / chats de cobranza → SOLO acreditan vencimiento
+Una captura de conversación (WhatsApp con un ejecutivo de cobranza) **NO es fuente de monto ni crea un acreedor.** Un cobrador puede mencionar cifras sueltas ("la línea de sobregiro debe $3.685.837", "tiene 259 días de mora") que NO son productos a declarar. El chat se usa **exclusivamente como fuente de la fecha / días de mora (vencimiento)** de productos que YA están en el CMF o en un certificado formal — y un mismo chat puede acreditar el vencimiento de **varios** acreedores a la vez. **El monto siempre sale del certificado formal.**
+- **Caso testigo (Néctor Ruiz):** la abogada usó el WhatsApp para acreditar el **vencimiento de AMBOS** Banco Falabella y Promotora CMR Falabella; el **monto** de cada uno lo sacó del *Certificado de Deuda Banco Falabella* (que cubre los dos productos: "Monto Utilizado $2.988.488" = Banco Falabella consumo; "Deuda Total $2.296.733" = Tarjeta CMR). El "$3.685.837" del chat **no se declaró** (es ruido de la conversación). Error a evitar: que la IA cree un producto fantasma de $3.685.837 desde el chat.
 
 ### ⭐ Regla de los 4 estados de cuenta consecutivos (tarjetas Art. 260)
 Para acreditar **monto + vencimiento** de una tarjeta vía estados de cuenta (EECC), la Superir exige los **últimos 4 EECC mensuales consecutivos** (prueban la cadena ininterrumpida de mora). El más reciente acredita el **monto**; el "Aviso de Cobranza" dentro del EECC certifica la **fecha de la cuota impaga más antigua**.

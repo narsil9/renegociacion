@@ -75,7 +75,7 @@ const FILENAME_KEYWORDS: { keys: string[]; target: string }[] = [
   { keys: ['mercadopago', 'mercado pago'], target: 'MERCADO PAGO' },
   { keys: ['coopeuch'], target: 'COOPEUCH' },
   { keys: ['los andes'], target: 'CCAF LOS ANDES' },
-  { keys: ['la araucana'], target: 'CCAF LA ARAUCANA' },
+  { keys: ['la araucana', 'laaraucana'], target: 'CCAF LA ARAUCANA' },
   { keys: ['los heroes', 'los héroes'], target: 'CCAF LOS HEROES' },
   { keys: ['18 de septiembre'], target: 'CCAF 18 DE SEPTIEMBRE' },
   { keys: ['presto', 'lider', 'líder'], target: 'TARJETA LIDER' },
@@ -141,7 +141,9 @@ export async function resolveCertInstitutions(
     return result;
   }
 
-  const tmpDir = path.join(process.cwd(), 'outputs', 'acreditaciones_tmp');
+  // Aislado por client.id (igual que el orquestador y el Centinela): en ejecuciones
+  // concurrentes evita que certificados de igual nombre de distintos clientes se pisen.
+  const tmpDir = path.join(process.cwd(), 'outputs', 'acreditaciones_tmp', client.id);
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 
   log(`Resolviendo institución de ${docs.length} certificado(s) por RUT (fallback: nombre de archivo)...`);

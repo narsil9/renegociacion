@@ -177,21 +177,51 @@ export async function buildMappedDocsDeterministic(
   const reclassifiedNormSet = new Set(
     centinelaOutput.reclassifiedCreditors.map(r => normInst(r.institucion_cmf))
   );
+  // REGLA 10: productos que el CMF marca 90+d pero el certificado certifica vigentes
+  // (260→261). NO son Art.260 directos: no requieren doc de vencimiento y se declaran
+  // como Art.261 (su monto/doc viaja por identified261Creditors). Sin excluirlos acá,
+  // el Mapeador exige un doc 260 inexistente → "documento faltante" → se omite el Paso 3.
+  // Matching por CONTENCIÓN (no igualdad exacta): el acreedor del CMF trae el sufijo
+  // de producto pegado (ej. "Banco del Estado de Chile Consum"), mientras que el
+  // de-reclasificado usa el nombre limpio ("Banco del Estado de Chile"). Un Set.has()
+  // exacto nunca matchea → hay que comparar con includes en ambos sentidos (igual que
+  // step3.getReclassifiedMatch).
+  const deReclassifiedNorms = (centinelaOutput.deReclassified261Creditors ?? [])
+    .map(r => normInst(r.institucion_cmf))
+    .filter(Boolean);
+  const isDeReclassified261 = (c: { institucion: string }): boolean => {
+    const ni = normInst(c.institucion);
+    return deReclassifiedNorms.some(dr => ni.includes(dr) || dr.includes(ni));
+  };
   // Acreedores ya cubiertos por el Centinela (para no duplicar con la fase 5)
   const centinelaHandledNorm = new Set([
     ...centinelaOutput.reclassifiedCreditors.map(r => normInst(r.institucion_cmf)),
     ...centinelaOutput.identified261Creditors.map(c => normInst(c.institucion_cmf)),
     ...centinelaOutput.additionalCreditors.map(a => normInst(a.institucion_cmf ?? a.bank)),
+    ...(centinelaOutput.deReclassified261Creditors ?? []).map(r => normInst(r.institucion_cmf)),
   ]);
 
-  const direct260 = cmfCreditors.filter(c => c.overdue90Days > 0);
+  const direct260 = cmfCreditors.filter(
+    c => c.overdue90Days > 0 && !isDeReclassified261(c)
+  );
   log(`Procesando ${direct260.length} acreedores Art.260 directos del CMF...`);
   for (const c of direct260) {
     // Saltar si el Centinela ya los cubrió como reclasificados (overdue90Days === 0 en CMF)
     // En la práctica no debería pasar (260 directo ≠ reclasificado), pero por seguridad:
     if (reclassifiedNormSet.has(normInst(c.institucion))) continue;
 
-    const docsForInst = findDocsByInstitution(c.institucion, clientDocuments, reservedNonCmfFilenames);
+    let docsForInst = findDocsByInstitution(c.institucion, clientDocuments, reservedNonCmfFilenames);
+    if (docsForInst.length === 0) {
+      // El cert puede estar RESERVADO a un acreedor NO-CMF del MISMO banco que comparte
+      // el documento. Caso real (Miguel): un certificado multiproducto de Banco de Chile
+      // ("Estado de Deuda") cubre 3 líneas del CMF (Consumo/Tarjeta/Línea) Y un 4º producto
+      // "VARIOS DEUDORES" Op.97000 que Claude clasificó como NO-CMF → su filename quedó
+      // reservado → los 3 productos CMF se quedaban sin documento y se bloqueaba el Paso 3.
+      // Si excluir los reservados deja al acreedor CMF SIN documento, se reusa el cert
+      // compartido (mismo criterio que la fase de adjunción de step3). El attach matchea
+      // por monto, así que cada fila toma su monto del cert sin pisarse.
+      docsForInst = findDocsByInstitution(c.institucion, clientDocuments, new Set<string>());
+    }
     if (docsForInst.length === 0) {
       alerts.push({
         type: 'missing_document',

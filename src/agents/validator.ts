@@ -229,6 +229,18 @@ export function validateCentinelaOutput(output: CentinelaOutput): ValidationResu
     );
   }
 
+  // Gate de acreditación Art. 260: un override 260 directo del CMF sin fecha de vencimiento
+  // no acredita el vencimiento. NO es error bloqueante (el backstop del Centinela ya lo
+  // degrada a 261); solo advertencia + revisión del abogado.
+  for (const o of output.cmfDocumentOverrides ?? []) {
+    if (!o.fecha_vencimiento || String(o.fecha_vencimiento).trim().length === 0) {
+      warnings.push(
+        `Override Art.260 "${o.institucion_cmf}" sin fecha de vencimiento — revisar (debería declararse en Art. 261).`
+      );
+      needsLawyerReview = true;
+    }
+  }
+
   const expiredCmfClave = output.fechasClave.find(f => f.tipo === 'expiracion_cmf' && f.diasRestantes < 0);
   if (expiredCmfClave) {
     const msg = `CMF vencido: ${expiredCmfClave.detalle}`;

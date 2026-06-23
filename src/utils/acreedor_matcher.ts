@@ -44,6 +44,28 @@ export function normalizeText(value: string): string {
 }
 
 /**
+ * El parser del CMF PEGA/INSERTA el tipo de cr\u00e9dito dentro del nombre de la
+ * instituci\u00f3n, truncado a la fila: "Consumo"\u2192"Consum", "Tarjeta"\u2192"Tarjet",
+ * "Cr\u00e9dito"\u2192"Credit", "Vivienda"\u2192"Vivien", "L\u00ednea"\u2192"Linea". Eso rompe el match
+ * contra el cat\u00e1logo (ej. "Banco del Estado de Chile Consum" no contiene como
+ * subsecuencia a "Banco Estado"). Se quitan como TOKENS EXACTOS.
+ *
+ * \u26a0\ufe0f NO incluir "credito" (romper\u00eda "Banco de Cr\u00e9dito e Inversiones" / BCI) ni
+ * "tarjeta"/"tarjetas" (romper\u00eda "... Administradora de Tarjetas"). Solo las
+ * formas TRUNCADAS que el parser inyecta, que no colisionan con nombres reales.
+ */
+const CREDIT_TYPE_TOKENS = new Set([
+  'consum', 'consumo', 'tarjet', 'linea', 'vivien', 'vivienda', 'credit',
+]);
+export function stripCreditTypeTokens(normalized: string): string {
+  return normalized
+    .split(' ')
+    .filter((t) => t && !CREDIT_TYPE_TOKENS.has(t))
+    .join(' ')
+    .trim();
+}
+
+/**
  * Normalizes a Chilean RUT to the portal-friendly form: no dots, single dash
  * before the verifier digit, uppercase K. "6.434.569-9" -> "6434569-9".
  */
@@ -265,6 +287,7 @@ const ALIASES: Record<string, string> = {
   'bci': 'banco de credito e inversiones',
   'santander': 'banco santander',
   'santander chile': 'banco santander', // CMF escribe "Santander-Chile" (banco) → distinto de "Santander Consumer"
+  'banco santander chile': 'banco santander', // variante con prefijo "Banco"
   'car ripley': 'car s a tarjeta ripley',
   'car': 'car s a tarjeta ripley',
   // CCAF: los documentos usan "Caja de Compensación X" pero el catálogo registra "CCAF X".
@@ -287,6 +310,16 @@ const ALIASES: Record<string, string> = {
   // puede devolver "La Polar" o "Lapolar". Ambas → "Empresas La Polar S.A." (RUT 96874030-K).
   'lapolar': 'empresas la polar',
   'la polar': 'empresas la polar',
+  // El CMF usa el nombre legal largo "Banco del Estado de Chile"; el catálogo, "Banco Estado".
+  'banco del estado de chile': 'banco estado',
+  'banco estado de chile': 'banco estado',
+  // La Araucana: el CMF la escribe "Caja de Compensación de Asignación Familiar La Araucana".
+  'caja de compensacion de asignacion familiar la araucana': 'ccaf la araucana',
+  'caja de compensacion asignacion familiar la araucana': 'ccaf la araucana',
+  // CAT / Cencosud: el CMF dice "CAT Administradora de Tarjetas S.A."; el catálogo registra
+  // "Cencosud Administradora de Tarjetas S.A." (mismo RUT 99500840-8 que "CAT (ex CENCOSUD)").
+  'cat administradora de tarjetas s a': 'cencosud administradora de tarjetas s a',
+  'cat administradora de tarjetas': 'cencosud administradora de tarjetas s a',
 };
 
 /**
@@ -303,7 +336,9 @@ export function matchAcreedor(
   cmfName: string,
   catalog: AcreedorCatalogEntry[]
 ): MatchResult {
-  let target = normalizeText(cmfName);
+  // Quitar los tokens de tipo de crédito que el parser del CMF inyecta en el nombre,
+  // ANTES de buscar alias/catálogo (sino "Banco del Estado de Chile Consum" nunca matchea).
+  let target = stripCreditTypeTokens(normalizeText(cmfName));
   if (ALIASES[target]) {
     target = ALIASES[target];
   }
@@ -344,7 +379,10 @@ export function matchAcreedor(
  */
 export function canonicalInstitutionKey(name: string | null | undefined): string {
   if (!name) return '';
-  const norm = normalizeText(name);
+  // Quitar el sufijo de producto entre paréntesis (multiproducto: "Banco X (Consumo …)")
+  // y los tokens de tipo de crédito que el parser del CMF pega al nombre, ANTES del alias,
+  // para que "Banco del Estado de Chile Consum" y "Banco Estado" colapsen a la misma clave.
+  const norm = stripCreditTypeTokens(normalizeText(name.replace(/\s*\(.*$/s, '')));
   return ALIASES[norm] ?? norm;
 }
 

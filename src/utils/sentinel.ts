@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { extractTextFromPdf } from './pdf_analyzer';
 import { getCurrentChileDate, getDaysDifference, parseDateString } from './date_helper';
-import { analyzeCmfPdf } from './cmf_analyzer';
+import { analyzeCmfPdf, CmfCreditor } from './cmf_analyzer';
 import {
   fetchAcreedoresCatalog,
   matchAcreedor,
@@ -10,6 +10,7 @@ import {
   normalizeText,
   extractRutsFromText,
   findCatalogEntryByRut,
+  canonicalInstitutionKey,
   AcreedorCatalogEntry,
 } from './acreedor_matcher';
 import { extractDatesFromText, extractEmissionDateFromText } from './cognitive_orchestrator';
@@ -35,6 +36,58 @@ export interface Identified261Creditor {
   total_credito_clp: number;
   reason: string;
   document_filename: string;
+}
+
+export interface DeReclassified261Creditor {
+  bank: string;
+  institucion_cmf: string;
+  total_credito_clp: number;
+  reason: string;
+  document_filename: string;
+}
+
+interface InstitutionSlots {
+  total: number;
+  credito_consumo: number;
+  tarjeta_credito: number;
+  otro: number;
+}
+
+function emptyInstitutionSlots(): InstitutionSlots {
+  return { total: 0, credito_consumo: 0, tarjeta_credito: 0, otro: 0 };
+}
+
+function getCmfProductBucket(c: CmfCreditor): keyof Omit<InstitutionSlots, 'total'> {
+  if (c.tipoCredito === 'credito_consumo' || c.tipoCredito === 'tarjeta_credito') {
+    return c.tipoCredito;
+  }
+  return 'otro';
+}
+
+function getIdentified261ProductBucket(c: Identified261Creditor): keyof Omit<InstitutionSlots, 'total'> {
+  if (c.product_type === 'credito_consumo' || c.product_type === 'tarjeta_credito') {
+    return c.product_type;
+  }
+  return 'otro';
+}
+
+export function isChatDocument(textContent: string | null | undefined, filename: string): boolean {
+  if (!textContent) return false;
+  const textLower = textContent.toLowerCase();
+  const nameLower = filename.toLowerCase();
+  if (
+    nameLower.includes('chat') ||
+    nameLower.includes('whatsapp') ||
+    nameLower.includes('captura') ||
+    textLower.includes('[whatsapp]') ||
+    textLower.includes('escribió:') ||
+    textLower.includes('escribio:') ||
+    textLower.includes('mensajes de whatsapp') ||
+    /(\[?\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?\s*m\.?)?\]?)/i.test(textContent)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -87,6 +140,8 @@ export interface SentinelResult {
   additionalCreditors?: AdditionalCreditor[];
   /** Monto y fecha real desde certificado para Art.260 directos del CMF (overdue90Days > 0). */
   cmf260DirectOverrides?: Cmf260DirectOverride[];
+  /** Productos que el CMF marca 90+d pero cuyo certificado los certifica vigentes → 260→261. */
+  deReclassified261Creditors?: DeReclassified261Creditor[];
   fechasClave?: FechaClave[];
   details: {
     meets90DaysRequirement: boolean;
@@ -646,6 +701,13 @@ El pre-análisis TypeScript te entrega "nonCmfReconciliation": una fila por docu
 
 5. Devuélvelos en "additionalCreditors". NO los repitas en reclassifiedCreditors ni identified261Creditors (esos son SOLO para acreedores que ya están en el CMF). additionalCreditors es exclusivamente para los que NO están en el CMF.
 
+6. **RECONCILIA POR OPERACIÓN, no por institución (regla general — aplica aunque el banco ya esté en el CMF).** Un MISMO certificado puede listar VARIAS operaciones de un banco (cada una con su N° de Operación / N° CRE / N° de crédito y su propio saldo a pagar), mientras que el CMF lista MENOS líneas de esa institución. El CMF puede estar incompleto: una operación real puede no figurar. Procede así:
+   a. Enumera TODAS las operaciones DISTINTAS que el certificado muestra para esa institución (identifícalas por su número de operación/CRE; si no hay número, por su monto).
+   b. Empareja cada operación del certificado con una línea del CMF de esa institución (por número de operación si está; si no, por monto aproximado).
+   c. Por CADA operación del certificado que NO quede emparejada con ninguna línea del CMF → **declárala como producto adicional** en "additionalCreditors", con su artículo 260/261 según su mora (260 si mora ≥91d con vencimiento acreditable; 261 si está al día o sin vencimiento acreditable). Es deuda real que el CMF no reportó. Pon en "reason" que es una operación adicional del banco no representada por ninguna línea del CMF.
+   ⚠️ **NO confundir con CONSOLIDACIÓN (no dividir).** Si el certificado descompone UN ÚNICO crédito del CMF en varias sub-partidas (cuotas, capital + intereses + seguros, abonos parciales) cuya SUMA ≈ el monto de esa única línea del CMF, es UN solo producto → NO crees varias filas. El criterio de decisión: ¿cada operación del certificado es un crédito INDEPENDIENTE con su propio saldo a liquidar (→ filas separadas), o son COMPONENTES de un mismo payoff que ya está en una línea del CMF (→ una sola fila)? Ej. de consolidación (NO dividir): el CMF trae 1 crédito de consumo de $11.6M y el certificado lo detalla en 3 operaciones que suman ~$11.6M → 1 fila.
+   Ej. de operación adicional (SÍ declarar): el certificado de BancoEstado lista 3 operaciones — CRE-00039038355 $36.130.323, CRE-00040145148 $389.848 y CRE-00040166973 $553.350 — pero el CMF solo trae 2 líneas de BancoEstado. La 3ª (CRE-00040166973 $553.350) no está en el CMF → va a "additionalCreditors" (Art. 261 si está al día), creando una fila extra en el portal.
+
 ---
 **REGLA 9 — Monto y fecha real para acreedores Art.260 directos del CMF**
 Algunos acreedores ya aparecen en el CMF con "overdue90Days > 0" (campo en el array "creditors" del pre-análisis). Estos NO requieren reclasificación. Sin embargo, el certificado de acreditación tiene el monto más actualizado y la fecha real de la primera cuota impaga — el portal debe recibir ese dato del documento, NO el del CMF.
@@ -653,14 +715,18 @@ Algunos acreedores ya aparecen en el CMF con "overdue90Days > 0" (campo en el ar
 Para cada acreedor en el array "creditors" donde "overdue90Days > 0" Y cuyo nombre NO aparece en el array "reclassifiedCreditors" que acabas de construir:
 1. Localiza el certificado asociado (busca en el texto de los certificados por nombre de institución).
 2. Del documento, extrae:
-   - "monto_clp": el **MONTO TOTAL A PAGAR para poner término / liquidar el producto** (lo que el deudor debe declarar). En certificados de liquidación/portabilidad suele estar rotulado como "Monto total a pagar", "Es la suma de:", "Total a pagar", "Monto de prepago" o "Deuda total". ⚠️ **NO uses el "Saldo del crédito" / "Saldo insoluto" / "Capital vigente"** cuando el documento ALSO muestra un "Monto total a pagar" mayor: el saldo es el capital sin intereses/seguros y subdeclara la deuda. Para tarjetas, usa el cupo utilizado / deuda total facturada.
+   - "monto_clp": la **DEUDA ACTUAL del producto** (lo que el deudor debe declarar). Elige el campo con esta PRIORIDAD (regla general — vale para CUALQUIER banco/institución, no un caso puntual):
+       1. **PAYOFF / monto para liquidar** (el MEJOR dato si existe): rótulos "Monto total a pagar", "Total a pagar", "Deuda total", "Monto de prepago", "Saldo total a pagar", "Es la suma de:". Incluye capital + intereses + seguros/recargos.
+       2. Si NO hay payoff: **"Saldo Insoluto" / "Saldo deudor" / "Saldo de la deuda" / "Capital adeudado"** (lo que queda debiendo HOY). Para tarjetas: cupo utilizado / deuda total facturada del período más reciente.
+       ⛔ **NUNCA uses el MONTO ORIGINAL del crédito**: los rótulos "Monto", "Monto Aprobado", "Monto Cursado", "Monto Otorgado", "Monto Contratado", "Monto Inicial/Original" (o la cifra junto a "Inicio / Término / Moneda") son el capital prestado al ORIGEN, NO la deuda actual → SOBRE-declaran. En un crédito amortizado el monto original es MAYOR que la deuda vigente; si ves dos cifras y una es claramente "lo aprobado/otorgado" y otra "lo que se debe", declara la segunda.
+       🎯 **ANCLA OBLIGATORIA EN EL CMF**: el campo "totalCredito" del CMF para ese producto (está en el pre-análisis "creditors") es la deuda VIGENTE que la institución reporta hoy. Tu "monto_clp" debe ser COHERENTE con ese valor: difiere solo por intereses de mora / costas de cobranza (lo sube un poco) o por pagos recientes (lo baja). Si tu candidato es claramente MAYOR que el "totalCredito" del CMF y el documento NO muestra cobranza judicial/recargos que lo expliquen, casi seguro tomaste el MONTO ORIGINAL → descártalo, busca el Saldo Insoluto / payoff y corrige. Ejemplo del modo de fallo a evitar: cert con "Monto" $8.183.872 (original) y "Saldo Insoluto" $6.756.287 (deuda real), CMF $7.263.340 → declara **$6.756.287** (coherente con el CMF), NUNCA $8.183.872.
    - "fecha_vencimiento": la fecha en que la deuda entró en mora / se hizo exigible, en formato YYYY-MM-DD. PRIORIDAD de la fuente en el documento:
      1. Si el certificado trae una fecha explícita de inicio de mora/cobranza — rótulos como **"Cobranza Judicial iniciada"**, "Fecha inicio mora", "Fecha de mora", "Fecha primera cuota impaga", "En cobranza desde" — **usa ESA** (es la que usa el abogado). En liquidaciones con varios productos suele ser la MISMA fecha para todos.
      • Crédito de consumo (si no hay rótulo de mora): fecha de la cuota más antigua vencida (misma lógica Regla 2A).
      • Tarjeta de crédito (si no hay rótulo de mora): fecha "PAGAR HASTA" del primer período incumplido.
      ⚠️ NO uses la "Fecha de Contratación"/"Fecha de inicio del crédito" ni el "Próximo Pago" como vencimiento — esos NO son la fecha de mora.
 3. **Un certificado que cubre VARIOS productos de la misma institución** (ej. un certificado de liquidación Santander con 3 créditos de consumo) → emite **un override POR CADA producto**, cada uno con el "Monto total a pagar" y la fecha de ESE producto. Distingue cada uno en "institucion_cmf" agregando el identificador del producto entre paréntesis (tipo + fecha + N° de operación), ej. "Banco Santander-Chile (Consumo 05/06/2025 — Op. 650052258302)". Es CRÍTICO: cada producto se declara como una fila separada en el portal, así que NO consolides los montos en uno solo ni repitas el mismo monto en varios productos.
-   ⚠️ **EXCLUYE** los productos que NO son deuda INDIVIDUAL del deudor: los rotulados **"VARIOS DEUDORES"**, "OTROS DEUDORES", codeudor, fiador o aval (son deudas compartidas, no propias), y los de **monto trivial (< 1 UF ≈ $40.000)** que suelen ser remanentes/comisiones. Declara SOLO los créditos a nombre del deudor (Consumo, Tarjeta, Línea de Crédito, Hipotecario). Ej.: si el certificado lista 3 consumos + 2 "VARIOS DEUDORES" de $19.216 y $11, emite SOLO 3 overrides (los consumos).
+   ✅ **DECLARA las deudas rotuladas "VARIOS DEUDORES" / "OTROS DEUDORES"**: son deuda DIRECTA del deudor (figura como titular junto a otras personas) y SIEMPRE se declaran (regla del abogado, 2026-06-23). Emite su override igual que cualquier otro producto, con su "Monto total a pagar" y su fecha. ⚠️ **EXCLUYE solo**: (a) la deuda INDIRECTA donde el deudor es **codeudor / fiador / aval de un TERCERO** (garantía de deuda ajena — el CMF la lista en su sección "Deuda Indirecta" aparte), y (b) los **montos triviales (< 1 UF ≈ $40.000)** que son remanentes/comisiones residuales, NO un producto real. Ej.: si el certificado lista 3 consumos + 1 "VARIOS DEUDORES" de $45.798, emite **4 overrides** (incluido el varios deudores). Solo omitirías un "VARIOS DEUDORES" si su monto fuera trivial (< 1 UF, ej. $11).
 4. Si no hay certificado asociado, o el documento no contiene esta información, omite ese acreedor de "cmf260DirectOverrides".
 
 Devuelve los resultados en "cmf260DirectOverrides". NO repitas en reclassifiedCreditors a los acreedores que ya estaban en el CMF como Art.260 — solo van aquí.
@@ -795,11 +861,26 @@ Esquema JSON esperado:
     }
 
     const raw = JSON.parse(jsonMatch[1].trim());
-    // Garantizar el flag de confirmación en cada acreedor no-CMF (fase actual: siempre true).
-    const additionalCreditors: AdditionalCreditor[] = (raw.additionalCreditors || []).map((a: any) => ({
-      ...a,
-      needs_lawyer_confirmation: true,
-    }));
+    const docTextByName = new Map<string, string | undefined>(
+      documents.map((d) => [d.filename, d.textContent])
+    );
+    const additionalCreditors: AdditionalCreditor[] = (raw.additionalCreditors || [])
+      .filter((a: any) => {
+        const isChat = isChatDocument(docTextByName.get(a.document_filename), a.document_filename);
+        if (isChat) {
+          log(
+            `⚠️ Ignorando acreedor NO-CMF "${a.bank}" ($${(a.total_credito_clp ?? a.monto_clp ?? 0).toLocaleString('es-CL')}) ` +
+            `extraído de un CHAT (${a.document_filename}): un WhatsApp/conversación NO acredita monto ni crea ` +
+            `producto — solo aporta la fecha de mora (vencimiento) de productos ya existentes.`
+          );
+        }
+        return !isChat;
+      })
+      .map((a: any) => ({
+        ...a,
+        total_credito_clp: a.total_credito_clp ?? a.monto_clp ?? 0,
+        needs_lawyer_confirmation: true,
+      }));
 
     // Fecha clave: cruce 261 → 260 (mora alcanza 91 días). Solo futuros (útiles para el abogado).
     const crossoverSources: { ref: string; start?: string }[] = [
@@ -822,6 +903,19 @@ Esquema JSON esperado:
       });
     }
 
+    const reclassifiedCreditors = (raw.reclassifiedCreditors || []).map((r: any) => ({
+      ...r,
+      total_credito_clp: r.total_credito_clp ?? r.monto_clp ?? 0,
+    }));
+    const identified261Creditors = (raw.identified261Creditors || []).map((i: any) => ({
+      ...i,
+      total_credito_clp: i.total_credito_clp ?? i.monto_clp ?? 0,
+    }));
+    const deReclassified261Creditors = (raw.deReclassified261Creditors || []).map((r: any) => ({
+      ...r,
+      total_credito_clp: r.total_credito_clp ?? r.monto_clp ?? 0,
+    }));
+
     const result: SentinelResult = {
       // M2: no confiar ciego en raw.success. Si Claude omite el campo, inferir del
       // shape (hay errores → false; sin errores → true) en vez de bloquear un caso válido.
@@ -829,13 +923,123 @@ Esquema JSON esperado:
         ? raw.success
         : !(Array.isArray(raw.errors) && raw.errors.length > 0),
       errors: raw.errors || [],
-      reclassifiedCreditors: raw.reclassifiedCreditors || [],
-      identified261Creditors: raw.identified261Creditors || [],
+      reclassifiedCreditors,
+      identified261Creditors,
       additionalCreditors,
       cmf260DirectOverrides: raw.cmf260DirectOverrides || [],
+      deReclassified261Creditors,
       fechasClave,
       details: raw.details,
     };
+
+    // --- Backstop determinista: gate de acreditación Art. 260 (degradar 260→261) ---
+    // Regla de fondo (abogado 2026-06-22): una deuda con mora 90+d va a Obligaciones 260
+    // SOLO si se acredita MONTO Y VENCIMIENTO. La señal de "vencimiento acreditado" es que
+    // el Centinela emitió un cmf260DirectOverride CON fecha_vencimiento (solo lo hace si leyó
+    // una fecha de mora/cobranza real en el documento). Si un acreedor del CMF con
+    // overdue90Days>0 NO tiene override-con-fecha, y no fue reclasificado (261→260) ni ya
+    // de-reclasificado (REGLA 10), se DEGRADA a Art. 261 con su monto del CMF + alerta.
+    // Es DETERMINISTA: garantiza la regla aunque el LLM no dispare la de-reclasificación.
+    // NO se salta con BYPASS_DATE_CHECK (es regla de fondo, no de antigüedad de 30 días).
+    {
+      const keysWithVenc = (result.cmf260DirectOverrides ?? [])
+        .filter((o) => o.fecha_vencimiento && String(o.fecha_vencimiento).trim().length > 0)
+        .map((o) => canonicalInstitutionKey(o.institucion_cmf));
+      const reclassKeys = (result.reclassifiedCreditors ?? []).map((r) => canonicalInstitutionKey(r.institucion_cmf));
+      const deReclKeys = (result.deReclassified261Creditors ?? []).map((r) => canonicalInstitutionKey(r.institucion_cmf));
+      for (const c of cmfResult.creditors) {
+        if (c.overdue90Days <= 0) continue;
+        const k = canonicalInstitutionKey(c.institucion);
+        if (!k) continue;
+        if (keysWithVenc.includes(k) || reclassKeys.includes(k) || deReclKeys.includes(k)) continue;
+        const assocDoc = documents.find((d) => d.institucion_cmf && canonicalInstitutionKey(d.institucion_cmf) === k);
+
+        // --- Rescate por CHAT (acepta WhatsApp como acreditación de vencimiento) ---
+        // Si un CHAT adjunto menciona ESE banco (token distintivo del nombre) y "N días de
+        // mora" (≥91), el producto SÍ tiene mora acreditada → se mantiene en Art. 260 con
+        // un vencimiento ESTIMADO (fecha del chat − N días). El monto sigue siendo el del
+        // CMF/cert. Determinista (no depende del LLM). ⚠️ La fecha es estimada: el chat
+        // puede traer varios "N días" para distintos productos del mismo banco; usamos el
+        // mayor (mora más antigua) y SIEMPRE alertamos para que el abogado fije la exacta.
+        const distinctiveTokens = k.split(' ').filter((tok) => tok.length >= 7);
+        if (distinctiveTokens.length > 0) {
+          let bestN = 0;
+          let chatFile = '';
+          let chatRef: Date | null = null;
+          for (const d of documents) {
+            if (!isChatDocument(d.textContent, d.filename)) continue;
+            const ct = (d.textContent || '').toLowerCase();
+            if (!distinctiveTokens.some((tok) => ct.includes(tok))) continue;
+            const matches = [...ct.matchAll(/(\d{2,4})\s*d[ií]as?\s+(?:de\s+)?(?:mora|demora|atraso)/g)];
+            for (const m of matches) {
+              const n = parseInt(m[1], 10);
+              if (Number.isFinite(n) && n >= 91 && n > bestN) { bestN = n; chatFile = d.filename; }
+            }
+            if (bestN > 0) {
+              const dm = ct.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+              if (dm) chatRef = new Date(Number(dm[3]), Number(dm[2]) - 1, Number(dm[1]));
+            }
+          }
+          if (bestN > 0) {
+            const ref = chatRef ?? todayDate;
+            const fechaEstimada = fmt(addDays(ref, -bestN));
+            result.cmf260DirectOverrides!.push({
+              institucion_cmf: c.institucion,
+              monto_clp: c.totalCredito,
+              fecha_vencimiento: fechaEstimada,
+              document_filename: assocDoc?.filename ?? chatFile,
+            });
+            log(
+              `🛡️ [Chat→260] "${c.institucion}" (mora 90+d $${c.overdue90Days.toLocaleString('es-CL')}): el chat ` +
+              `${chatFile} indica ${bestN} días de mora → se mantiene en Art. 260 con vencimiento ESTIMADO ` +
+              `${fechaEstimada}. ⚠️ Fecha estimada desde un chat — el abogado DEBE verificar la fecha exacta de mora.`
+            );
+            continue;
+          }
+        }
+
+        // Mora 90+d sin vencimiento acreditable (ni cert ni chat) → degradar a Art. 261.
+        const motivo =
+          'Mora 90+d en el CMF SIN documento que acredite el VENCIMIENTO → declarada en ' +
+          'Otros Acreedores (Art. 261) por el backstop determinista. Revisar antes de presentar.';
+        
+        const matches = (result.cmf260DirectOverrides ?? []).filter(o => {
+          const ok = canonicalInstitutionKey(o.institucion_cmf);
+          return ok === k && Math.abs((o.monto_clp ?? 0) - c.totalCredito) / Math.max(o.monto_clp ?? 1, c.totalCredito) <= 0.30;
+        });
+        const assocOverride = matches.length > 0
+          ? matches.reduce((best, o) => Math.abs((o.monto_clp ?? 0) - c.totalCredito) < Math.abs((best.monto_clp ?? 0) - c.totalCredito) ? o : best)
+          : undefined;
+        const montoDegradado = assocOverride ? assocOverride.monto_clp : c.totalCredito;
+        const filenameDegradado = assocOverride?.document_filename ?? assocDoc?.filename ?? '';
+
+        result.deReclassified261Creditors!.push({
+          bank: c.institucion,
+          institucion_cmf: c.institucion,
+          total_credito_clp: montoDegradado,
+          reason: motivo,
+          document_filename: filenameDegradado,
+        });
+        result.identified261Creditors!.push({
+          bank: c.institucion,
+          product_type: c.tipoCredito === 'tarjeta_credito' || c.tipoCredito === 'credito_consumo' ? c.tipoCredito : 'otro',
+          institucion_cmf: c.institucion,
+          total_credito_clp: montoDegradado,
+          reason: motivo,
+          document_filename: filenameDegradado,
+        });
+        log(
+          `🛡️ [Backstop 260→261] "${c.institucion}" (mora 90+d $${c.overdue90Days.toLocaleString('es-CL')}) ` +
+          `sin vencimiento acreditable → Art. 261 ($${montoDegradado.toLocaleString('es-CL')}).`
+        );
+      }
+    }
+
+    // Si un mismo certificado de una institución genera MÁS productos 261 que las
+    // líneas que esa institución tiene en el CMF, los excedentes deben viajar como
+    // NO-CMF para que step3 cree filas extra. Sin esta promoción, step3 solo ajusta
+    // montos de filas CMF existentes y el producto extra se pierde.
+    promoteOverflowIdentified261ToAdditional(result, cmfResult.creditors, documents, log);
 
     log(`Centinela de Carga completó la verificación. Resultado: ${result.success ? '✅ PASÓ' : '❌ RECHAZADO'}`);
     if (result.reclassifiedCreditors && result.reclassifiedCreditors.length > 0) {
@@ -854,6 +1058,12 @@ Esquema JSON esperado:
       log(`📋 ${result.additionalCreditors.length} acreedor(es) NO-CMF detectado(s) (requieren confirmación del abogado):`);
       result.additionalCreditors.forEach(a =>
         log(`   - ${a.bank} (${a.product_type}) [Art. ${a.categoria_articulo}]: $${a.total_credito_clp.toLocaleString('es-CL')} — ${a.reason}`)
+      );
+    }
+    if (result.deReclassified261Creditors && result.deReclassified261Creditors.length > 0) {
+      log(`📋 ${result.deReclassified261Creditors.length} producto(s) de-reclasificado(s) 260→261 (certificado vigente sobre CMF):`);
+      result.deReclassified261Creditors.forEach(r =>
+        log(`   - ${r.bank}: $${r.total_credito_clp.toLocaleString('es-CL')} — ${r.reason}`)
       );
     }
     if (result.fechasClave && result.fechasClave.length > 0) {
@@ -886,4 +1096,89 @@ Esquema JSON esperado:
       if (fs.existsSync(cmfLocalPath)) fs.unlinkSync(cmfLocalPath);
     } catch {}
   }
+}
+
+/**
+ * en step3 desde el loop CMF. Debe viajar como additionalCreditor para que step3
+ * cree una fila extra. Caso testigo: BancoEstado de Néctor (3 CRE en el certificado,
+ * pero solo 2 líneas BancoEstado en el CMF).
+ */
+function promoteOverflowIdentified261ToAdditional(
+  result: SentinelResult,
+  cmfCreditors: CmfCreditor[],
+  documents: Array<{ filename: string; textContent?: string | null }>,
+  log: (msg: string) => void
+): void {
+  if (!result.identified261Creditors || result.identified261Creditors.length === 0) return;
+
+  const slotsByInstitution = new Map<string, InstitutionSlots>();
+  for (const creditor of cmfCreditors) {
+    const key = canonicalInstitutionKey(creditor.institucion);
+    if (!key) continue;
+    const slots = slotsByInstitution.get(key) ?? emptyInstitutionSlots();
+    slots.total += 1;
+    slots[getCmfProductBucket(creditor)] += 1;
+    slotsByInstitution.set(key, slots);
+  }
+
+  const docsByFilename = new Map(documents.map((d) => [d.filename, d]));
+  const usageByInstitution = new Map<string, InstitutionSlots>();
+  const existingAdditional = new Set(
+    (result.additionalCreditors ?? []).map((a) =>
+      `${canonicalInstitutionKey(a.institucion_cmf || a.bank)}|${a.document_filename}|${a.total_credito_clp}|${a.categoria_articulo}`
+    )
+  );
+
+  const keptIdentified: Identified261Creditor[] = [];
+  const promoted: AdditionalCreditor[] = [];
+
+  for (const creditor of result.identified261Creditors) {
+    const key = canonicalInstitutionKey(creditor.institucion_cmf || creditor.bank);
+    const slots = slotsByInstitution.get(key);
+    const usage = usageByInstitution.get(key) ?? emptyInstitutionSlots();
+    const bucket = getIdentified261ProductBucket(creditor);
+    const sourceDoc = docsByFilename.get(creditor.document_filename);
+    const comesFromChat = isChatDocument(sourceDoc?.textContent, creditor.document_filename);
+
+    const hasExactBucketSlot = !!slots && usage[bucket] < slots[bucket];
+    const hasAnyInstitutionSlot = !!slots && usage.total < slots.total;
+
+    if (!comesFromChat && (!slots || slots.total === 0 || !hasAnyInstitutionSlot)) {
+      const promotedCreditor: AdditionalCreditor = {
+        bank: creditor.bank,
+        institucion_cmf: creditor.institucion_cmf,
+        product_type: creditor.product_type === 'credito_consumo' || creditor.product_type === 'tarjeta_credito'
+          ? creditor.product_type
+          : 'otro',
+        categoria_articulo: 261,
+        total_credito_clp: creditor.total_credito_clp,
+        reason:
+          `${creditor.reason} Producto adicional de una institución que ya aparece en el CMF, ` +
+          'pero no está representado por una línea propia del CMF; se promueve a NO-CMF para crear una fila extra en el portal.',
+        document_filename: creditor.document_filename,
+        needs_lawyer_confirmation: true,
+      };
+      const dedupeKey =
+        `${canonicalInstitutionKey(promotedCreditor.institucion_cmf || promotedCreditor.bank)}|` +
+        `${promotedCreditor.document_filename}|${promotedCreditor.total_credito_clp}|261`;
+      if (!existingAdditional.has(dedupeKey)) {
+        promoted.push(promotedCreditor);
+        existingAdditional.add(dedupeKey);
+        log(
+          `🔀 [Promoción a NO-CMF] "${creditor.bank}" ($${creditor.total_credito_clp.toLocaleString('es-CL')}) ` +
+          `sale de identified261 → additionalCreditors: la institución ya agotó sus ${slots?.total ?? 0} línea(s) CMF.`
+        );
+      }
+      continue;
+    }
+
+    keptIdentified.push(creditor);
+    usage.total += 1;
+    if (hasExactBucketSlot) usage[bucket] += 1;
+    usageByInstitution.set(key, usage);
+  }
+
+  if (promoted.length === 0) return;
+  result.identified261Creditors = keptIdentified;
+  result.additionalCreditors = [...(result.additionalCreditors ?? []), ...promoted];
 }

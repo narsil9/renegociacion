@@ -4,7 +4,7 @@ import { fillStep1, ClientData } from './step1_personal';
 import { fillStep2 } from './step2_declaraciones';
 import { fillStep3, AcreditacionDoc, CmfDocumentOverride } from './step3_acreedores';
 import { fillStep4 } from './step4_apoderado';
-import { ReclassifiedCreditor, AdditionalCreditor, Identified261Creditor } from '../utils/sentinel';
+import { ReclassifiedCreditor, AdditionalCreditor, Identified261Creditor, DeReclassified261Creditor } from '../utils/sentinel';
 
 interface SimpleLogger {
   log(msg: string): void;
@@ -32,7 +32,11 @@ export async function fillAllSteps(
   reclassifiedCreditors?: ReclassifiedCreditor[],
   additionalCreditors?: AdditionalCreditor[],
   cmfDocumentOverrides?: CmfDocumentOverride[],
-  identified261Creditors?: Identified261Creditor[]
+  identified261Creditors?: Identified261Creditor[],
+  deReclassified261Creditors?: DeReclassified261Creditor[],
+  // Callback opcional de progreso "en vivo" para el panel del dashboard. Recibe un
+  // texto en lenguaje claro al iniciar cada paso. Best-effort: nunca interrumpe el flujo.
+  onProgress?: (msg: string) => void | Promise<void>
 ): Promise<void> {
   const log = (msg: string) => {
     if (logger) {
@@ -43,10 +47,19 @@ export async function fillAllSteps(
     }
   };
 
+  const reportStep = async (msg: string) => {
+    try {
+      await onProgress?.(msg);
+    } catch {
+      /* el progreso es informativo: no romper el run si falla */
+    }
+  };
+
   log('🚀 Iniciando flujo secuencial de todos los pasos (Pasos 1 al 4)...');
 
   // --- PASO 1 ---
   log('\n📝 === INICIANDO PASO 1 (Información Personal) ===');
+  await reportStep('Completando los datos personales (Paso 1)…');
   await fillStep1(page, clientData, logger);
   log('✓ Paso 1 completado.');
 
@@ -56,6 +69,7 @@ export async function fillAllSteps(
 
   // --- PASO 2 ---
   log('\n📝 === INICIANDO PASO 2 (Declaraciones y PDFs) ===');
+  await reportStep('Completando las declaraciones (Paso 2)…');
   const step2Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verDeclaraciones`;
   if (!page.url().includes('verDeclaraciones')) {
     log(`→ Navegando a Paso 2: ${step2Url}`);
@@ -74,6 +88,7 @@ export async function fillAllSteps(
     log('   Se guardan los Pasos 1, 2 y 4; el Paso 3 queda sin completar para revisión/corrección.');
   } else {
     log('\n📝 === INICIANDO PASO 3 (Acreedores) ===');
+    await reportStep('Cargando las deudas y los acreedores en el portal (Paso 3)…');
     const step3Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verAcreedores`;
     if (!page.url().includes('verAcreedores')) {
       log(`→ Navegando a Paso 3: ${step3Url}`);
@@ -81,12 +96,13 @@ export async function fillAllSteps(
     } else {
       log('→ Ya redirigido a la página de Paso 3.');
     }
-    await fillStep3(page, cmfLocalPath, supabase, logger, undefined, acreditacionDocs, reclassifiedCreditors, additionalCreditors, cmfDocumentOverrides, identified261Creditors);
+    await fillStep3(page, cmfLocalPath, supabase, logger, undefined, acreditacionDocs, reclassifiedCreditors, additionalCreditors, cmfDocumentOverrides, identified261Creditors, deReclassified261Creditors);
     log('✓ Paso 3 completado.');
   }
 
   // --- PASO 4 ---
   log('\n📝 === INICIANDO PASO 4 (Apoderado) ===');
+  await reportStep('Completando el apoderado (Paso 4)…');
   const step4Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verApoderado`;
   if (!page.url().includes('verApoderado')) {
     log(`→ Navegando a Paso 4: ${step4Url}`);

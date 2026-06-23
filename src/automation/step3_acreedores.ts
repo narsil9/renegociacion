@@ -2,7 +2,7 @@ import { Page } from 'playwright';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { screenshotOnFailure } from '../utils/browser';
 import { extractCreditors, CmfCreditor } from '../utils/cmf_analyzer';
-import { ReclassifiedCreditor, AdditionalCreditor, Identified261Creditor } from '../utils/sentinel';
+import { ReclassifiedCreditor, AdditionalCreditor, Identified261Creditor, DeReclassified261Creditor } from '../utils/sentinel';
 import {
   fetchAcreedoresCatalog,
   matchAcreedor,
@@ -118,7 +118,8 @@ export async function fillStep3(
   reclassifiedCreditors?: ReclassifiedCreditor[],
   additionalCreditors?: AdditionalCreditor[],
   cmfDocumentOverrides?: CmfDocumentOverride[],
-  identified261Creditors?: Identified261Creditor[]
+  identified261Creditors?: Identified261Creditor[],
+  deReclassified261Creditors?: DeReclassified261Creditor[]
 ): Promise<Step3Report> {
   const log = (msg: string) => {
     if (logger) {
@@ -249,6 +250,31 @@ export async function fillStep3(
     };
     const isReclassifiedTo260 = (c: CmfCreditor): boolean => !!getReclassifiedMatch(c);
 
+    // De-reclasificación 260 → 261 (REGLA 10 del Centinela): el CMF marca un
+    // producto con mora 90+d, pero su certificado (más reciente que el CMF) lo
+    // certifica VIGENTE → se declara como Otro Acreedor (Art. 261, solo monto).
+    // Camino inverso a getReclassifiedMatch. Match por nombre con desempate por
+    // monto más cercano + guarda del 30% (igual criterio), para apuntar al
+    // producto correcto cuando el banco tiene varias líneas.
+    const getDeReclassified261Match = (c: CmfCreditor): DeReclassified261Creditor | undefined => {
+      if (!deReclassified261Creditors || deReclassified261Creditors.length === 0) return undefined;
+      const normInst = normalizeText(c.institucion);
+      const matches = deReclassified261Creditors.filter(r => {
+        const normR = normalizeText(r.institucion_cmf);
+        return !!normR && (normInst.includes(normR) || normR.includes(normInst));
+      });
+      if (matches.length === 0) return undefined;
+      const best = matches.reduce((b, r) =>
+        Math.abs(r.total_credito_clp - c.totalCredito) < Math.abs(b.total_credito_clp - c.totalCredito) ? r : b
+      );
+      const larger = Math.max(best.total_credito_clp, c.totalCredito);
+      if (larger > 0 && Math.abs(best.total_credito_clp - c.totalCredito) / larger > 0.30) {
+        return undefined;
+      }
+      return best;
+    };
+    const isDeReclassifiedTo261 = (c: CmfCreditor): boolean => !!getDeReclassified261Match(c);
+
     const getCmfOverride = (c: CmfCreditor): CmfDocumentOverride | undefined => {
       if (!cmfDocumentOverrides || cmfDocumentOverrides.length === 0) return undefined;
       const normInst = normalizeText(c.institucion);
@@ -271,9 +297,24 @@ export async function fillStep3(
         return (!!normR && (normInst.includes(normR) || normR.includes(normInst)));
       });
       if (matches.length === 0) return undefined;
-      return matches.reduce((b, r) =>
+      const best = matches.reduce((b, r) =>
         Math.abs(r.total_credito_clp - c.totalCredito) < Math.abs(b.total_credito_clp - c.totalCredito) ? r : b
       );
+      // Match 1:1 INEQUÍVOCO: un solo producto del cert para la institución (matches.length===1)
+      // Y una sola línea de esa institución en el CMF → el monto del cert MANDA aunque difiera
+      // >30% del CMF. Es el caso "deuda muy pagada": Tenpo cert $6.180 vs CMF $409.690 (el
+      // cliente pagó casi todo). El guard del 30% solo tiene sentido para DESAMBIGUAR cuando
+      // la institución tiene varias líneas (ahí un monto lejano sugiere match al producto
+      // equivocado). Se cuenta por canonicalInstitutionKey para que multiproducto (ej. Itaú,
+      // 3 líneas con sufijo de tipo distinto) NO se confunda con un 1:1.
+      const instKey = canonicalInstitutionKey(c.institucion);
+      const cmfLinesSameInst = creditors.filter(x => canonicalInstitutionKey(x.institucion) === instKey).length;
+      if (matches.length === 1 && cmfLinesSameInst === 1) return best;
+      const larger = Math.max(best.total_credito_clp, c.totalCredito);
+      if (larger > 0 && Math.abs(best.total_credito_clp - c.totalCredito) / larger > 0.30) {
+        return undefined;
+      }
+      return best;
     };
 
     // Fix #3 — Instituciones MULTIPRODUCTO. Cuando el Centinela emite VARIOS
@@ -298,8 +339,8 @@ export async function fillStep3(
     const isMultiProductOverrideInstitution = (c: CmfCreditor): boolean =>
       multiProductBases.has(normalizeText(c.institucion));
 
-    const obligaciones260 = creditors.filter((c) => c.overdue90Days > 0 || isReclassifiedTo260(c));
-    const otrosAcreedores = creditors.filter((c) => c.overdue90Days === 0 && !isReclassifiedTo260(c));
+    const obligaciones260 = creditors.filter((c) => (c.overdue90Days > 0 || isReclassifiedTo260(c)) && !isDeReclassifiedTo261(c));
+    const otrosAcreedores = creditors.filter((c) => (c.overdue90Days === 0 && !isReclassifiedTo260(c)) || isDeReclassifiedTo261(c));
     const total90Days = obligaciones260.reduce((sum, c) => sum + c.totalCredito, 0);
 
     log('→ Clasificación de acreedores:');
@@ -350,8 +391,18 @@ export async function fillStep3(
 
     for (const creditor of creditors) {
       // Fix #3 — si la institución es multiproducto (varios overrides del mismo
-      // certificado), se declara una fila por producto en la fase dedicada de abajo.
-      if (isMultiProductOverrideInstitution(creditor)) continue;
+      // certificado), sus productos Art.260 se declaran una fila por override en la
+      // fase dedicada de abajo, así que se saltan acá. PERO los productos Art.261 de
+      // esa misma institución (overdue90Days === 0, sin reclasificar) NO están cubiertos
+      // por ningún override → deben seguir el flujo normal y entrar a Otros Acreedores.
+      // Sin esta condición se perdían: ej. la Línea de crédito Itaú $500.000 (al día)
+      // junto a 2 productos Itaú en mora caía en el vacío. Solo se saltan los 260.
+      // Debe coincidir con la clasificación 260 de arriba, que incluye la
+      // de-reclasificación de la REGLA 10: un producto de la institución multiproducto
+      // que el certificado de-reclasificó a 261 NO es 260 → NO se saltea acá (sigue el
+      // flujo normal y entra a Otros Acreedores en vez de perderse).
+      const esObligacion260 = (creditor.overdue90Days > 0 || isReclassifiedTo260(creditor)) && !isDeReclassifiedTo261(creditor);
+      if (isMultiProductOverrideInstitution(creditor) && esObligacion260) continue;
 
       let entry: AcreedorCatalogEntry | null = null;
 
@@ -405,22 +456,32 @@ export async function fillStep3(
 
         entry = match.entry!;
       }
-      const isOtros = creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor);
+      const isOtros = (creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor)) || isDeReclassifiedTo261(creditor);
 
       // Monto y vencimiento "según el documento de acreditación" (más actuales que el CMF):
       // los reclasificados traen sus propios datos; los 260 directos del CMF se
       // sobrescriben vía cmfDocumentOverrides. El monto efectivo se propaga a la
       // idempotencia y a la adjunción de documentos (que matchean por monto).
       const rec = getReclassifiedMatch(creditor);
-      const cmfOv = getCmfOverride(creditor);
+      // cmfDocumentOverrides son SOLO para productos Art.260 (mora 90+d). Un producto
+      // Art.261 (isOtros) NUNCA debe tomar un override 260: en instituciones
+      // multiproducto (ej. Itaú con 2 overrides 260 + 1 línea 261) getCmfOverride
+      // matchea por nombre y le encajaría un monto 260 ajeno ($8.183.872 a la línea de
+      // $500.000). Los 261 usan id261/deRecl; los 260 usan rec/cmfOv.
+      const cmfOv = !isOtros ? getCmfOverride(creditor) : undefined;
       // Art.261 del CMF: usar el monto del documento (período más reciente) que extrajo
       // el Centinela, en vez del monto del CMF (desactualizado). Solo aplica a 261 (isOtros);
       // los 260 ya usan rec/cmfOv arriba.
       const id261 = isOtros ? getIdentified261Match(creditor) : undefined;
+      // De-reclasificados (REGLA 10): el monto a declarar es el del certificado
+      // (deReclassified261Creditors.total_credito_clp), no el del CMF (desactualizado:
+      // el CMF aún lo marca 90+d mientras el cert lo certifica vigente).
+      const deRecl = isOtros ? getDeReclassified261Match(creditor) : undefined;
       const montoEfectivo =
         rec?.total_credito_clp && rec.total_credito_clp > 0 ? rec.total_credito_clp :
         cmfOv?.monto_clp && cmfOv.monto_clp > 0 ? cmfOv.monto_clp :
         id261?.total_credito_clp && id261.total_credito_clp > 0 ? id261.total_credito_clp :
+        deRecl?.total_credito_clp && deRecl.total_credito_clp > 0 ? deRecl.total_credito_clp :
         creditor.totalCredito;
       const fechaVenc = toPortalDate(rec?.delinquency_start_date) ?? toPortalDate(cmfOv?.fecha_vencimiento);
       const creditorEff: CmfCreditor =
@@ -516,16 +577,26 @@ export async function fillStep3(
           log(`   ⏭️ Producto "${ov.institucion_cmf}" sin monto válido — omitiendo.`);
           continue;
         }
-        // Backstop — NO declarar sub-productos que no son deuda INDIVIDUAL del deudor:
-        // "VARIOS DEUDORES"/codeudor/fiador/aval (deuda compartida) o triviales (< 1 UF,
-        // remanentes/comisiones). Igual criterio que el abogado (declara solo sus créditos).
+        // "VARIOS DEUDORES"/"OTROS DEUDORES" SÍ se declaran: son deuda DIRECTA del deudor
+        // (titular junto a otras personas), regla del abogado (2026-06-23). Solo se excluye
+        // la deuda INDIRECTA (codeudor/fiador/aval de un TERCERO) y los montos triviales
+        // (< 1 UF, remanentes/comisiones residuales que no son un producto real a declarar).
         const label = (ov.institucion_cmf || '').toLowerCase();
-        const esCompartida = /varios deudores|otros deudores|co-?deudor|fiador|aval/.test(label);
-        if (esCompartida || monto < UF_1_CLP) {
-          log(`   ⏭️ Producto "${ov.institucion_cmf}" ($${monto.toLocaleString('es-CL')}) omitido: ${esCompartida ? 'deuda compartida (varios deudores/codeudor)' : 'monto trivial < 1 UF'} — no es deuda individual a declarar.`);
+        const esIndirecta = /co-?deudor|fiador|aval/.test(label);
+        if (esIndirecta || monto < UF_1_CLP) {
+          log(`   ⏭️ Producto "${ov.institucion_cmf}" ($${monto.toLocaleString('es-CL')}) omitido: ${esIndirecta ? 'deuda indirecta (codeudor/fiador/aval de un tercero)' : 'monto trivial < 1 UF'} — no se declara.`);
           continue;
         }
         const fechaVenc = toPortalDate(ov.fecha_vencimiento);
+        // Un producto 260 SIN fecha de vencimiento no se puede acreditar → no cargarlo en 260
+        // (no inventar placeholder). Se omite con alerta; el backstop del Centinela debería
+        // haberlo degradado a 261 antes de llegar acá.
+        if (!fechaVenc) {
+          const reason = `Producto 260 "${ov.institucion_cmf}" sin fecha de vencimiento acreditable — omitido de Obligaciones 260 (debe ir a Art. 261).`;
+          log(`   ⏭️ ${reason}`);
+          report.skipped.push({ institucion: ov.institucion_cmf, reason });
+          continue;
+        }
         // CmfCreditor sintético: monto = "Monto total a pagar" del producto (del cert);
         // overdue90Days > 0 → cae en Obligaciones 260. institucion conserva el sufijo
         // de producto solo para logs/dedup; el alta usa `entry` (nombre + RUT del catálogo).
@@ -697,17 +768,27 @@ export async function fillStep3(
       for (const { entry, creditor, nonCmfDocFilename } of addedDocs) {
         // NO-CMF → matchear el documento exacto por filename.
         // CMF    → matchear por institución, excluyendo los reservados a NO-CMF.
-        const creditorDocs = nonCmfDocFilename
-          ? docs.filter((d) => d.filename === nonCmfDocFilename)
-          : findAcreditacionDocs(creditor.institucion, docs).filter(
-              (d) => !d.filename || !reservedNonCmfFilenames.has(d.filename)
-            );
+        let creditorDocs: AcreditacionDoc[];
+        if (nonCmfDocFilename) {
+          creditorDocs = docs.filter((d) => d.filename === nonCmfDocFilename);
+        } else {
+          // PERO si excluir los reservados deja al acreedor CMF SIN ningún documento, es
+          // porque el MISMO certificado cubre un producto CMF y uno NO-CMF del mismo banco
+          // (ej. cert BCI: consumo $14.830.069 en CMF + cuenta corriente $615 NO-CMF). En
+          // ese caso se reusa el cert compartido (el adjunto se asocia por monto a cada
+          // fila), en vez de dejar al producto CMF sin acreditación.
+          const allInstDocs = findAcreditacionDocs(creditor.institucion, docs);
+          const noReservados = allInstDocs.filter(
+            (d) => !d.filename || !reservedNonCmfFilenames.has(d.filename)
+          );
+          creditorDocs = noReservados.length > 0 ? noReservados : allInstDocs;
+        }
         if (nonCmfDocFilename && creditorDocs.length === 0) {
           log(`   ⚠️ Acreedor NO-CMF "${entry.nombre}": no se encontró el documento "${nonCmfDocFilename}" en los mappedDocs (¿el orquestador pobló filename?). No se adjunta.`);
         }
         if (creditorDocs.length === 0) continue;
 
-        const isOtros = creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor);
+        const isOtros = (creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor)) || isDeReclassifiedTo261(creditor);
         // Art. 260 → acredita MONTO (22) Y VENCIMIENTO (23): se sube el MISMO documento
         // DOS veces, una por cada tipo (así lo hace el abogado), NO como tipo 24 ni doble monto.
         // Art. 261 → solo MONTO (22).
@@ -877,13 +958,17 @@ async function addEmpresaAcreedor(
   if (isOtros) {
     log(`   ℹ️ Art.261 "${entry.nombre}": sin fecha de vencimiento (Otros Acreedores no la acredita).`);
   } else {
-    // M5: para Art.260 la fecha de cuota impaga debe ser REAL; si falta el override,
-    // avisamos antes de usar el placeholder (no inventar fecha de mora en silencio).
+    // Art.260 requiere fecha de cuota impaga REAL. NUNCA inventar con placeholder:
+    // un 260 sin vencimiento acreditable debe haberse degradado a Art.261 aguas arriba
+    // (backstop del Centinela). Si igual llega acá sin fecha, es un bug → abortar este
+    // acreedor (el loop lo reporta como skipped y sigue) en vez de cargar una fecha falsa.
     if (!fechaVencimientoOverride) {
-      log(`⚠️ Art.260 "${entry.nombre}" sin fecha de cuota impaga real → se usa placeholder. Verificar la fecha de mora antes de presentar.`);
+      throw new Error(
+        `Art.260 "${entry.nombre}" sin fecha de vencimiento real: no se carga en 260 con placeholder. ` +
+        `Debió degradarse a Art.261 (sin acreditación de vencimiento).`
+      );
     }
-    const dateStr = fechaVencimientoOverride ?? dateDaysAgo(90);
-    await fillDateField(page, '#empresaAcreedorFchCuotaImpaga', dateStr, log);
+    await fillDateField(page, '#empresaAcreedorFchCuotaImpaga', fechaVencimientoOverride, log);
   }
 
   // Dismiss any overlay dialog blocking clicks (e.g. #dlgImportante after rep modal closes)
@@ -1087,11 +1172,14 @@ async function addPersonaAcreedor(
   if (isOtros) {
     log(`   ℹ️ Art.261 "${entry.nombre}": sin fecha de vencimiento (Otros Acreedores no la acredita).`);
   } else {
-    // M5: Art.260 sin fecha real → avisar antes del placeholder (no inventar en silencio).
+    // Art.260 requiere fecha de vencimiento REAL — nunca placeholder (ver addEmpresaAcreedor).
     if (!fechaVencimientoOverride) {
-      log(`⚠️ Art.260 "${entry.nombre}" sin fecha de cuota impaga real → se usa placeholder. Verificar la fecha de mora antes de presentar.`);
+      throw new Error(
+        `Art.260 "${entry.nombre}" sin fecha de vencimiento real: no se carga en 260 con placeholder. ` +
+        `Debió degradarse a Art.261 (sin acreditación de vencimiento).`
+      );
     }
-    await clearAndFill(page, '#personaFechaCuotaImpaga', fechaVencimientoOverride ?? dateDaysAgo(90));
+    await clearAndFill(page, '#personaFechaCuotaImpaga', fechaVencimientoOverride);
   }
 
   await page.locator('#btnGuardarPersona').click();

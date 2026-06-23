@@ -81,6 +81,12 @@ export interface CentinelaOutput {
    * can pass them to fillStep3 without re-reading PDFs.
    */
   cmfDocumentOverrides: import('../automation/step3_acreedores').CmfDocumentOverride[];
+  /**
+   * Productos del CMF con overdue90Days > 0 cuyo certificado (más reciente que el
+   * CMF) los certifica VIGENTES → se declaran como Art. 261 (260→261). Opcional
+   * para compatibilidad con runs persistidos antes de la REGLA 10.
+   */
+  deReclassified261Creditors?: import('../utils/sentinel').DeReclassified261Creditor[];
   fechasClave: import('../utils/sentinel').FechaClave[];
 }
 

@@ -447,7 +447,12 @@ export async function runCognitiveOrchestrator(
   }
 
   // 2. Download and process each certificate (text PDF or image)
-  const tmpDir = path.join(process.cwd(), 'outputs', 'acreditaciones_tmp');
+  // Aislado por client.id: en ejecuciones concurrentes (varios clientes a la vez)
+  // dos certificados de igual "slug" (ej. dos cert_banco_estado.pdf) compartirían
+  // el mismo path y se sobrescribirían → se adjuntaría el documento equivocado en
+  // el portal. El índice uq_active_job_per_client garantiza ≤1 job activo por
+  // cliente, así que client.id es una llave única por ejecución concurrente.
+  const tmpDir = path.join(process.cwd(), 'outputs', 'acreditaciones_tmp', client.id);
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 
   /** Determine MIME type from file extension */

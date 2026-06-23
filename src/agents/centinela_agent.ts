@@ -35,6 +35,7 @@ const EMPTY_OUTPUT: CentinelaOutput = {
   identified261Creditors: [],
   additionalCreditors: [],
   cmfDocumentOverrides: [],
+  deReclassified261Creditors: [],
   fechasClave: [],
 };
 
@@ -71,7 +72,10 @@ export async function runCentinelaAgent(
   }
 
   // --- Idempotencia ---
-  const inputHash = hashFile(cmfLocalPath);
+  // El sufijo de versión invalida los runs cacheados cuando cambia la LÓGICA del Centinela
+  // (no solo el CMF). Subir al cambiar reglas como el backstop de acreditación 260→261.
+  const CENTINELA_LOGIC_VERSION = 'v10-monto-deuda-actual-ancla-cmf';
+  const inputHash = `${hashFile(cmfLocalPath)}:${CENTINELA_LOGIC_VERSION}`;
   const existing = await getLatestRun<CentinelaOutput>(supabase, clientId, 'centinela');
   if (existing?.input_hash === inputHash && existing.output_json) {
     log(`Reutilizando run centinela existente (${existing.id}) — CMF sin cambios.`);
@@ -136,6 +140,7 @@ export async function runCentinelaAgent(
         monto_clp: o.monto_clp,
         fecha_vencimiento: o.fecha_vencimiento,
       })),
+      deReclassified261Creditors: sentinelResult.deReclassified261Creditors ?? [],
       fechasClave: sentinelResult.fechasClave ?? [],
     };
 

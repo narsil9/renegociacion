@@ -98,7 +98,7 @@ El CMF separa por tipo (`Vivienda` vs. `Consumo`), generando dos filas y dos ent
 
 **Patrón C — Un certificado de liquidación cubre N créditos del mismo banco (multiproducto)**
 Un certificado de liquidación/portabilidad puede listar VARIOS créditos del deudor (ej. Santander: 3 créditos de consumo). El Centinela (REGLA 9) emite **un `cmfDocumentOverride` por producto** (sufijo del producto entre paréntesis en `institucion_cmf`). `step3` agrupa por institución base (`overrideBaseKey`); si hay ≥2 overrides → **multiproducto**: omite la institución en el loop principal y crea **una fila 260 por producto** con su "Monto total a pagar" (NO un monto consolidado, NO el "Saldo del crédito").
-- **Excluir** productos que no son deuda individual: "VARIOS DEUDORES"/codeudor/fiador/aval y montos triviales (< 1 UF).
+- **"VARIOS DEUDORES"/"OTROS DEUDORES" SÍ se declaran** (deuda directa del deudor como titular junto a otros — regla del abogado, 2026-06-23). **Excluir** solo la deuda **indirecta** (codeudor/fiador/aval de un *tercero*) y los montos **triviales** (< 1 UF, remanentes/comisiones).
 - ⚠️ **CMF parte un crédito en 2 filas**: la misma operación puede aparecer como `mora` + `vigente` (misma fecha de otorgamiento). Es UN crédito → se declara UNA vez al payoff total. Declarar la porción vigente aparte = doble conteo. (Caso Gabriel Santander: op ...258302 = $2.929.423 mora + $8.665.385 vigente → 1 fila a $12.821.458.)
 - **`clearExistingAcreedores`** corre al inicio del llenado: borra ambas tablas para que cada corrida REEMPLACE en vez de APILAR (montos levemente distintos entre runs burlaban el dedup por monto).
 

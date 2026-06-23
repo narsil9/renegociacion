@@ -173,6 +173,26 @@ async function cleanupOrphanJobs(): Promise<void> {
 /**
  * Processes a single automation job.
  */
+/**
+ * Escribe un mensaje de progreso en lenguaje claro (NO técnico) en automation_jobs
+ * para que el panel del dashboard muestre, en vivo, qué está haciendo el robot ahora
+ * mismo. También bumpea updated_at para que el caso "en proceso" quede arriba y su
+ * "hace X" se sienta vivo. Best-effort: si la columna no existe todavía (migración v6
+ * sin correr) o falla la red, NO interrumpe el run — el progreso es informativo.
+ */
+async function reportProgress(jobId: string, message: string): Promise<void> {
+  try {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from(JOBS_TABLE)
+      .update({ progress_message: message, progress_updated_at: now, updated_at: now })
+      .eq('id', jobId);
+    if (error) console.warn(`[progress] no se pudo guardar (${error.message}); se continúa.`);
+  } catch (err: any) {
+    console.warn(`[progress] excepción al guardar (${err?.message || err}); se continúa.`);
+  }
+}
+
 async function processJob(job: any): Promise<void> {
   // 1. Fetch client data associated with this job
   const { data: clients, error: clientError } = await supabase
@@ -199,6 +219,7 @@ async function processJob(job: any): Promise<void> {
   const logger = new RunnerLogger(client.rut, job.step);
   
   logger.log(`🤖 Iniciando procesamiento de Job ${job.id} para cliente ${client.name} (RUT ${client.rut})`);
+  await reportProgress(job.id, 'El robot tomó el caso y está preparando todo…');
 
   // A3 — Alarma de flags de bypass activos (desactivan validaciones críticas). En
   // producción NO deberían estar. Se loguea ruidoso para que quede en el registro del job.
@@ -265,7 +286,8 @@ async function processJob(job: any): Promise<void> {
     let mappedAcreditacionDocs: AcreditacionDoc[] = [];
     let centinelaOutput: CentinelaOutput = {
       reclassifiedCreditors: [], identified261Creditors: [],
-      additionalCreditors: [], cmfDocumentOverrides: [], fechasClave: [],
+      additionalCreditors: [], cmfDocumentOverrides: [],
+      deReclassified261Creditors: [], fechasClave: [],
     };
     // Si queda con motivo: el cliente califica pero los documentos del Paso 3 no
     // cumplen → en el flujo completo (step:0) se omite SOLO el Paso 3 y se guardan 1, 2 y 4.
@@ -290,6 +312,7 @@ async function processJob(job: any): Promise<void> {
     try {
       if (job.step === 3 || job.step === 0) {
         logger.log('⏳ Iniciando validación legal de Informe de Deudas CMF para el Paso 3...');
+        await reportProgress(job.id, 'Revisando el Informe de Deudas (CMF)…');
         if (!client.informe_cmf_path) {
           throw new Error('Error: No se encontró la ruta del informe CMF en el perfil del cliente para el Paso 3.');
         }
@@ -343,6 +366,7 @@ async function processJob(job: any): Promise<void> {
         }
         fs.writeFileSync(cmfLocalPath, Buffer.from(await cmfBlob.arrayBuffer()));
         logger.log('✓ Informe CMF descargado.');
+        await reportProgress(job.id, 'Analizando las deudas del Informe CMF…');
 
         // 2. Analyze CMF PDF (result also passed into cognitive orchestrator to avoid double-parse)
         const cmfResult = await analyzeCmfPdf(cmfLocalPath, logger);
@@ -357,6 +381,7 @@ async function processJob(job: any): Promise<void> {
         );
 
         // 3. Run Centinela Agent (API #1) — ahora aquí, después del CMF descargado
+        await reportProgress(job.id, 'Revisando los documentos de cada deuda y clasificándolas (con mora vs. al día)…');
         try {
           centinelaOutput = await runCentinelaAgent(supabase, client.id, client, cmfLocalPath, logger);
         } catch (centinelaErr: any) {
@@ -401,6 +426,7 @@ async function processJob(job: any): Promise<void> {
 
         // 4. Run Mapeador Agent (API #2) — mapea documentos a acreedores
         logger.log('🗺️ Ejecutando Agente Mapeador (Orquestador Cognitivo) para mapear documentos...');
+        await reportProgress(job.id, 'Emparejando cada certificado con su deuda…');
         const mapeadorOutput = await runMapeadorAgent(
           supabase, client.id, client, cmfLocalPath, centinelaOutput, logger
         );
@@ -421,14 +447,36 @@ async function processJob(job: any): Promise<void> {
         const nonCmf260Count = (centinelaOutput.additionalCreditors || []).filter(
           (a) => a.categoria_articulo === 260
         ).length;
-        const totalQualifyingCount = cmf90PlusCount + reclassifiedCount + nonCmf260Count;
+        // REGLA 10: productos que el CMF marcaba 90+d pero el certificado certifica
+        // vigentes (260→261) ya NO cuentan para el requisito de 2 productos en mora.
+        const deReclassifiedCount = (centinelaOutput.deReclassified261Creditors || []).length;
+        const totalQualifyingCount =
+          Math.max(0, cmf90PlusCount - deReclassifiedCount) + reclassifiedCount + nonCmf260Count;
+
+        // Alerta (no bloqueante): deudas con mora 90+d que se declararon en Art. 261 por NO
+        // poder acreditar el vencimiento (backstop determinista) o por certificado "vigente"
+        // (REGLA 10). El abogado debe revisarlas antes de presentar.
+        if ((centinelaOutput.deReclassified261Creditors || []).length > 0) {
+          const lista = centinelaOutput.deReclassified261Creditors!
+            .map((d) => `${d.institucion_cmf} ($${(d.total_credito_clp || 0).toLocaleString('es-CL')})`)
+            .join('; ');
+          const desc =
+            `${centinelaOutput.deReclassified261Creditors!.length} deuda(s) con mora 90+d declarada(s) en ` +
+            `Otros Acreedores (Art. 261) por no acreditar vencimiento: ${lista}. Revisar antes de presentar.`;
+          const { error: drAlertErr } = await supabase.from('automation_alerts').insert({
+            job_id: job.id, client_id: client.id, step: 3, alert_type: 'needs_review', description: desc,
+          });
+          if (drAlertErr) logger.error('⚠️ No se pudo registrar alerta de de-reclasificación 260→261:', drAlertErr.message);
+          logger.log(`🔔 ${desc}`);
+        }
+
         const noCalifica = totalQualifyingCount < 2;
         const { blocked: docsInvalidos, reason: docsInvalidosReason } = mapeadorHasBlockers(mapeadorOutput);
 
         if (noCalifica || docsInvalidos) {
           const motivo = noCalifica
             ? `El cliente no cumple el requisito de fondo de la renegociación: se requieren al menos 2 productos con mora ≥ 91 días y se detectó(aron) ${totalQualifyingCount} ` +
-              `(CMF: ${cmf90PlusCount}, reclasificados por el Centinela: ${reclassifiedCount}, NO-CMF Art. 260: ${nonCmf260Count}). ` +
+              `(CMF: ${cmf90PlusCount}, reclasificados por el Centinela: ${reclassifiedCount}, NO-CMF Art. 260: ${nonCmf260Count}, de-reclasificados 260→261: ${deReclassifiedCount}). ` +
               `Revisar el Informe CMF y los documentos de acreditación; si el cliente igual debiera calificar, verificar que las deudas con mora estén bien clasificadas.`
             : (docsInvalidosReason || 'Los documentos de acreditación del Paso 3 no cumplen los requisitos.');
 
@@ -546,10 +594,12 @@ async function processJob(job: any): Promise<void> {
       logger.log(`⚙️  Configurando DRY_RUN para esta ejecución: ${process.env.DRY_RUN}`);
 
       logger.log('🚀 Iniciando navegador Playwright (Headless)...');
+      await reportProgress(job.id, 'Abriendo el portal de la Superintendencia…');
       const { browser, page } = await launchBrowser();
       browserInstance = browser;
 
       logger.log('🔒 Intentando iniciar sesión con ClaveÚnica...');
+      await reportProgress(job.id, 'Iniciando sesión con la ClaveÚnica del cliente…');
       await loginAndNavigateToStep1(page, resolvedClaveUnicaRut, resolvedClaveUnicaPassword, logger, {
         region: client.region,
         comuna: client.comuna,
@@ -562,6 +612,7 @@ async function processJob(job: any): Promise<void> {
 
       if (job.step === 1) {
         logger.log('📝 Llenando el Paso 1 (Información Personal)...');
+        await reportProgress(job.id, 'Completando los datos personales (Paso 1)…');
         
         const clientData: ClientData = {
           nacionalidad: client.nacionalidad,
@@ -581,8 +632,10 @@ async function processJob(job: any): Promise<void> {
         await fillStep1(page, clientData, logger);
       } else if (job.step === 2) {
         logger.log('📝 Navegando e ingresando información de Paso 2...');
-        
+        await reportProgress(job.id, 'Completando las declaraciones (Paso 2)…');
+
         logger.log('🕵️‍♂️ Agente Tributario — analizando Carpeta Tributaria...');
+        await reportProgress(job.id, 'Revisando la situación tributaria del cliente (SII)…');
         const tributariaOutput2 = await runTributarioAgent(supabase, client.id, tributariaLocalPath, logger);
         const categoria = tributariaOutput2.categoria;
 
@@ -624,7 +677,8 @@ async function processJob(job: any): Promise<void> {
         await fillStep2(page, tributariaOptimizedPath, retenedoresOptimizedPath, categoria, logger);
       } else if (job.step === 3) {
         logger.log('📝 Navegando e ingresando información de Paso 3...');
-        
+        await reportProgress(job.id, 'Cargando las deudas y los acreedores en el portal (Paso 3)…');
+
         const currentUrl = page.url();
         const baseUrl = new URL(currentUrl).origin;
         const step3Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verAcreedores`;
@@ -633,10 +687,12 @@ async function processJob(job: any): Promise<void> {
 
         await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs,
           centinelaOutput.reclassifiedCreditors, centinelaOutput.additionalCreditors,
-          centinelaOutput.cmfDocumentOverrides, centinelaOutput.identified261Creditors);
+          centinelaOutput.cmfDocumentOverrides, centinelaOutput.identified261Creditors,
+          centinelaOutput.deReclassified261Creditors);
       } else if (job.step === 4) {
         logger.log('📝 Navegando e ingresando información de Paso 4...');
-        
+        await reportProgress(job.id, 'Completando el apoderado (Paso 4)…');
+
         const currentUrl = page.url();
         const baseUrl = new URL(currentUrl).origin;
         const step4Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verApoderado`;
@@ -648,6 +704,7 @@ async function processJob(job: any): Promise<void> {
         logger.log('📝 Llenando Todos los Pasos (Secuencia Completa 1 a 4)...');
         
         logger.log('🕵️‍♂️ Agente Tributario — analizando Carpeta Tributaria...');
+        await reportProgress(job.id, 'Revisando la situación tributaria del cliente (SII)…');
         const tributariaOutput0 = await runTributarioAgent(supabase, client.id, tributariaLocalPath, logger);
         const categoria = tributariaOutput0.categoria;
 
@@ -707,15 +764,35 @@ async function processJob(job: any): Promise<void> {
           centinelaOutput.reclassifiedCreditors,
           centinelaOutput.additionalCreditors,
           centinelaOutput.cmfDocumentOverrides,
-          centinelaOutput.identified261Creditors
+          centinelaOutput.identified261Creditors,
+          centinelaOutput.deReclassified261Creditors,
+          (msg: string) => reportProgress(job.id, msg)
         );
       }
 
       logger.log('📸 Guardando captura de éxito...');
       const successDir = path.join(process.cwd(), 'outputs');
       let localSuccessPath = '';
-      
-      if (job.step === 1) {
+
+      // Captura job-scoped desde la página activa. Los módulos de paso escriben
+      // nombres FIJOS (stepN_success.png) que colisionan entre ejecuciones
+      // concurrentes (el upload de un job tomaría el screenshot de otro). Tomar
+      // una captura propia con el job.id en el nombre elimina esa carrera. Si
+      // falla (página cerrada, etc.), cae al archivo de nombre fijo de abajo.
+      try {
+        const activePage = browserInstance?.contexts?.()[0]?.pages?.()[0];
+        if (activePage) {
+          const scopedPath = path.join(successDir, `success_local_${job.id}.png`);
+          await activePage.screenshot({ path: scopedPath, fullPage: true });
+          if (fs.existsSync(scopedPath)) localSuccessPath = scopedPath;
+        }
+      } catch {
+        /* best-effort: si no se pudo capturar, se usa el fallback por nombre fijo */
+      }
+
+      if (localSuccessPath) {
+        // ya capturado job-scoped arriba
+      } else if (job.step === 1) {
         localSuccessPath = path.join(successDir, 'step1_success.png');
         if (!fs.existsSync(localSuccessPath)) {
           const files = fs.readdirSync(successDir);
@@ -782,6 +859,9 @@ async function processJob(job: any): Promise<void> {
           updated_at: new Date().toISOString(),
         })
         .eq('id', job.id);
+      // Mensaje de progreso final (best-effort, en su propio update para no arriesgar
+      // el status='success' si la columna de progreso aún no existe en la DB).
+      await reportProgress(job.id, 'Listo: borrador cargado en el portal. Revisar y presentar.');
 
       success = true;
       break;
@@ -918,9 +998,27 @@ export async function runDaemon(): Promise<void> {
   // 1. Cleanup orphan jobs from previous crashes
   await cleanupOrphanJobs();
 
-  // 2. Poll loop
+  // 2. Poll loop — soporta hasta WORKER_CONCURRENCY jobs en paralelo (default 1 →
+  // idéntico al comportamiento secuencial previo). El lock atómico
+  // (update … where status='pending') garantiza que cada job lo toma una sola
+  // iteración; el pool despacha sin bloquear el sondeo. SEGURO en paralelo solo
+  // con clientes de ClaveÚnica DISTINTA (solicitudes de portal separadas): los
+  // temporales ya están aislados por job.id / client.id. NO usar >1 para el modo
+  // comparación (todos comparten la ClaveÚnica de Pato = un solo borrador).
+  const MAX_CONCURRENCY = Math.max(1, parseInt(process.env.WORKER_CONCURRENCY || '1', 10) || 1);
+  if (MAX_CONCURRENCY > 1) {
+    console.log(`⚙️  Concurrencia del worker: hasta ${MAX_CONCURRENCY} jobs en paralelo (WORKER_CONCURRENCY).`);
+  }
+  const inFlight = new Set<Promise<void>>();
+
   while (keepRunning) {
     try {
+      // Pool lleno → esperar a que se libere un slot antes de sondear.
+      if (inFlight.size >= MAX_CONCURRENCY) {
+        await Promise.race(inFlight);
+        continue;
+      }
+
       // Fetch oldest pending job and update it atomically to 'running'
       const { data: pendingJobs, error: pollError } = await supabase
         .from(JOBS_TABLE)
@@ -952,17 +1050,37 @@ export async function runDaemon(): Promise<void> {
         if (lockError) {
           console.error(`❌ Error intentando bloquear el job ${job.id}:`, lockError.message);
         } else if (lockedJobs && lockedJobs.length > 0) {
-          // Locked successfully! Execute the job
-          await processJob(job);
+          // Locked successfully! Despachar SIN await — el pool lo trackea. Con
+          // MAX_CONCURRENCY=1 la próxima iteración espera en Promise.race (secuencial).
+          const run = processJob(job).catch((err) =>
+            console.error(`🚨 Excepción no controlada en el job ${job.id}:`, err)
+          );
+          inFlight.add(run);
+          run.finally(() => inFlight.delete(run));
+          // Si quedan slots libres y hay más pendientes, seguir despachando ya.
+          continue;
         }
+      } else if (inFlight.size > 0) {
+        // Sin pendientes pero con jobs corriendo: esperar a que termine alguno o
+        // al próximo intervalo de sondeo (lo que ocurra primero).
+        await Promise.race([
+          Promise.race(inFlight),
+          new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS)),
+        ]);
       } else {
-        // Queue is empty, wait
+        // Cola vacía y nada en vuelo: esperar el intervalo.
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       }
     } catch (loopErr) {
       console.error('🚨 Excepción en el bucle principal:', loopErr);
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
+  }
+
+  // Apagado ordenado: esperar a que terminen los jobs en vuelo.
+  if (inFlight.size > 0) {
+    console.log(`⏳ Esperando ${inFlight.size} job(s) en vuelo antes de apagar...`);
+    await Promise.allSettled(inFlight);
   }
 
   console.log('👋 Daemon worker apagado.');
