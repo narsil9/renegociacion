@@ -278,44 +278,80 @@ export async function fillStep3(
     const getCmfOverride = (c: CmfCreditor): CmfDocumentOverride | undefined => {
       if (!cmfDocumentOverrides || cmfDocumentOverrides.length === 0) return undefined;
       const normInst = normalizeText(c.institucion);
-      return cmfDocumentOverrides.find(o => {
+      const keyInst = canonicalInstitutionKey(c.institucion);
+      const matches = cmfDocumentOverrides.filter(o => {
+        // Match canónico (alias-aware + strippea tokens de tipo de crédito y sufijo de
+        // producto): resuelve el caso en que el parser CMF manglea el nombre ("Tarjet
+        // Promotora CMR Falabella S.A. crédit") y el override viene con el nombre limpio
+        // ("Promotora CMR Falabella S.A. (Tarjeta CMR …)") → un substring crudo no matchea.
+        if (keyInst && canonicalInstitutionKey(o.institucion_cmf) === keyInst) return true;
+        // Fallback: substring crudo (compatibilidad con el comportamiento previo).
         const normO = normalizeText(o.institucion_cmf);
         return normInst.includes(normO) || normO.includes(normInst);
       });
+      if (matches.length === 0) return undefined;
+      // El Centinela puede emitir DOS overrides para el mismo producto: uno del LLM SIN
+      // fecha (ej. "Cartera Vencida" sin día exacto) y otro del rescate chat→260 CON fecha
+      // estimada. Un .find() tomaba el primero (sin fecha) → el 260 se degradaba a 261 por
+      // falta de vencimiento. Preferir SIEMPRE un override con fecha_vencimiento (acredita el
+      // 260); entre varios, desempatar por monto más cercano al del CMF.
+      const withDate = matches.filter(o => o.fecha_vencimiento);
+      const pool = withDate.length > 0 ? withDate : matches;
+      return pool.reduce((best, o) =>
+        Math.abs((o.monto_clp ?? 0) - c.totalCredito) < Math.abs((best.monto_clp ?? 0) - c.totalCredito) ? o : best
+      );
     };
 
     // Fix — monto del DOCUMENTO para acreedores Art.261 del CMF. El Centinela ya
     // extrajo el monto real del estado de cuenta en identified261Creditors[].total_credito_clp
     // (período más reciente). step3 declaraba el monto del CMF (desactualizado) →
-    // subdeclaraba/sobredeclaraba. Match por institución (igual que reclasificados),
-    // desempate por monto más cercano al del CMF.
-    const getIdentified261Match = (c: CmfCreditor): Identified261Creditor | undefined => {
-      if (!identified261Creditors || identified261Creditors.length === 0) return undefined;
-      const normInst = normalizeText(c.institucion);
-      const matches = identified261Creditors.filter(r => {
-        const normR = normalizeText(r.institucion_cmf);
-        return (!!normR && (normInst.includes(normR) || normR.includes(normInst)));
-      });
-      if (matches.length === 0) return undefined;
-      const best = matches.reduce((b, r) =>
-        Math.abs(r.total_credito_clp - c.totalCredito) < Math.abs(b.total_credito_clp - c.totalCredito) ? r : b
+    // subdeclaraba/sobredeclaraba.
+    //
+    // Emparejamiento 1:1 GLOBAL por institución CANÓNICA (alias-aware + strippea los tokens
+    // de tipo de crédito que el parser CMF inyecta DENTRO del nombre: "CAT Administradora de
+    // Tarjetas **Tarjet** S.A. **crédit**", "**Linea** Banco de Chile **Crédit**"). El match
+    // previo usaba un substring crudo de normalizeText → con esos tokens NO matcheaba el
+    // override del cert (CAT caía a $816 del CMF en vez de $105.185 del estado de cuenta).
+    // Dentro de cada institución con varios productos (ej. Banco de Chile: consumo + 2
+    // tarjetas + línea + hipotecario), los identified261 se asignan greedily de MAYOR a menor
+    // a la fila del CMF de monto más cercano, consumiendo cada fila una sola vez. Para el par
+    // asignado el monto del cert MANDA (sin guard del 30%): el Centinela es la fuente de verdad
+    // por producto. Las filas del CMF que quedan SIN par (líneas remanentes triviales <1 UF
+    // sin documento) se filtran luego en el loop principal (no se pierde ninguna deuda real).
+    const id261Assignment = new Map<CmfCreditor, Identified261Creditor>();
+    {
+      const cmf261 = creditors.filter(c =>
+        (c.overdue90Days === 0 && !isReclassifiedTo260(c)) || isDeReclassifiedTo261(c)
       );
-      // Match 1:1 INEQUÍVOCO: un solo producto del cert para la institución (matches.length===1)
-      // Y una sola línea de esa institución en el CMF → el monto del cert MANDA aunque difiera
-      // >30% del CMF. Es el caso "deuda muy pagada": Tenpo cert $6.180 vs CMF $409.690 (el
-      // cliente pagó casi todo). El guard del 30% solo tiene sentido para DESAMBIGUAR cuando
-      // la institución tiene varias líneas (ahí un monto lejano sugiere match al producto
-      // equivocado). Se cuenta por canonicalInstitutionKey para que multiproducto (ej. Itaú,
-      // 3 líneas con sufijo de tipo distinto) NO se confunda con un 1:1.
-      const instKey = canonicalInstitutionKey(c.institucion);
-      const cmfLinesSameInst = creditors.filter(x => canonicalInstitutionKey(x.institucion) === instKey).length;
-      if (matches.length === 1 && cmfLinesSameInst === 1) return best;
-      const larger = Math.max(best.total_credito_clp, c.totalCredito);
-      if (larger > 0 && Math.abs(best.total_credito_clp - c.totalCredito) / larger > 0.30) {
-        return undefined;
+      const groups = new Map<string, { cmf: CmfCreditor[]; ids: Identified261Creditor[] }>();
+      for (const c of cmf261) {
+        const k = canonicalInstitutionKey(c.institucion);
+        if (!k) continue;
+        const g = groups.get(k) ?? { cmf: [], ids: [] };
+        g.cmf.push(c);
+        groups.set(k, g);
       }
-      return best;
-    };
+      for (const r of identified261Creditors ?? []) {
+        const k = canonicalInstitutionKey(r.institucion_cmf);
+        const g = k ? groups.get(k) : undefined;
+        if (g) g.ids.push(r);
+      }
+      for (const { cmf, ids } of groups.values()) {
+        const free = new Set(cmf);
+        for (const id of [...ids].sort((a, b) => b.total_credito_clp - a.total_credito_clp)) {
+          let best: CmfCreditor | undefined;
+          for (const c of free) {
+            if (!best || Math.abs(c.totalCredito - id.total_credito_clp) < Math.abs(best.totalCredito - id.total_credito_clp)) best = c;
+          }
+          if (best) {
+            id261Assignment.set(best, id);
+            free.delete(best);
+          }
+        }
+      }
+    }
+    const getIdentified261Match = (c: CmfCreditor): Identified261Creditor | undefined =>
+      id261Assignment.get(c);
 
     // Fix #3 — Instituciones MULTIPRODUCTO. Cuando el Centinela emite VARIOS
     // cmfDocumentOverrides para la misma institución (un certificado de liquidación
@@ -456,7 +492,7 @@ export async function fillStep3(
 
         entry = match.entry!;
       }
-      const isOtros = (creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor)) || isDeReclassifiedTo261(creditor);
+      let isOtros = (creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor)) || isDeReclassifiedTo261(creditor);
 
       // Monto y vencimiento "según el documento de acreditación" (más actuales que el CMF):
       // los reclasificados traen sus propios datos; los 260 directos del CMF se
@@ -490,6 +526,33 @@ export async function fillStep3(
         log(`   💰 Monto según documento: $${montoEfectivo.toLocaleString('es-CL')} (CMF: $${creditor.totalCredito.toLocaleString('es-CL')}).`);
       }
       if (fechaVenc) log(`   📅 Vencimiento según documento: ${fechaVenc}.`);
+
+      // Descarte de filas CMF triviales en Art.261: el CMF suele incluir remanentes de líneas
+      // de crédito casi saldadas (ej. Banco de Chile $13 y $11.050 de Néctor) que NO son
+      // deuda real a declarar. Si la fila es Art.261, su monto efectivo es <1 UF y NO tiene
+      // NINGÚN documento que la respalde (sin reclasificación, override 260, identified261 ni
+      // de-reclasificación), se omite. El umbral <1 UF coincide con la regla de montos
+      // triviales (remanentes/comisiones). Una deuda real chica acreditada por documento
+      // (ej. Tenpo $6.180 vía identified261) NO entra acá porque tiene id261 → se conserva.
+      const UF_1_CLP = Math.round(UF_80_CLP / 80);
+      if (isOtros && montoEfectivo < UF_1_CLP && !rec && !cmfOv && !id261 && !deRecl) {
+        const reason = `Fila CMF Art.261 trivial (<1 UF, $${montoEfectivo.toLocaleString('es-CL')}) sin documento de respaldo — remanente, no se declara.`;
+        log(`   ⏭️ "${entry.nombre}" omitido: ${reason}`);
+        report.skipped.push({ institucion: creditor.institucion, reason });
+        continue;
+      }
+
+      // Backstop final de la regla decisiva 260/261: un producto destinado a Obligaciones
+      // 260 (no isOtros) que NO trae una fecha de vencimiento ACREDITABLE (fechaVenc real)
+      // no puede declararse en 260. En vez de perder el acreedor (addEmpresa/Persona lanza
+      // y el alta se descarta tras los reintentos), se DEGRADA a Art.261 (Otros) — nunca se
+      // descarta una deuda. Cubre el caso en que el Centinela dejó un producto en 260 sin que
+      // llegara una fecha real (ej. rescate chat→260 cuya fecha estimada no se propagó). El
+      // monto efectivo ya calculado se conserva; 261 no acredita vencimiento.
+      if (!isOtros && !fechaVenc) {
+        log(`   ⚠️ "${entry.nombre}": Art.260 sin vencimiento acreditable → se declara en Art.261 (Otros) [regla 260/261, no se pierde la deuda].`);
+        isOtros = true;
+      }
 
       // M6: si es empresa y la comuna del catálogo no mapea a una región, el alta va a
       // fallar SIEMPRE (selectRegionAndComuna lanza). Es NO recuperable → saltar acá en
