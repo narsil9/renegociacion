@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { extractTextFromPdf } from './pdf_analyzer';
+import { extractTextFromPdf, extractTextFromPdfLayout } from './pdf_analyzer';
 import { getCurrentChileDate, getDaysDifference, parseDateString } from './date_helper';
 import { analyzeCmfPdf, CmfCreditor } from './cmf_analyzer';
 import {
@@ -14,6 +14,7 @@ import {
   AcreedorCatalogEntry,
 } from './acreedor_matcher';
 import { extractDatesFromText, extractEmissionDateFromText } from './cognitive_orchestrator';
+import { extractCertLineItems } from './cert_line_items';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -932,6 +933,157 @@ Esquema JSON esperado:
       fechasClave,
       details: raw.details,
     };
+
+    // --- Backstop determinista de COMPLETITUD (ítems del certificado) ---
+    // El LLM puede OMITIR productos que un certificado certifica: una operación de un cert
+    // multi-operación cuyo saldo difiere del cupo del CMF (no emite el override), o un
+    // producto solo-en-cert de monto chico (lo emite de forma inconsistente). Para CUALQUIER
+    // cliente, extraemos deterministamente los ítems con saldo de cada cert (cert_line_items)
+    // y agregamos los que el LLM no representó: si el banco tiene una fila CMF sin reclamar →
+    // identified261 (el saldo del cert sobrescribe el cupo del CMF); si no → additionalCreditor
+    // (producto solo-en-cert / NO-CMF). Conservador (solo etiquetas de payoff inequívocas;
+    // ver cert_line_items.ts) y aditivo (nunca quita/modifica lo que emitió el LLM). Caso
+    // testigo: BancoEstado CRE-00040145148 $389.848 (override de la línea) y BCI cuenta
+    // corriente $615 (solo-en-cert). NO se salta con BYPASS_DATE_CHECK (es regla de fondo).
+    {
+      const COVERED_TOL = 0.05; // 5%: "ya cubierto" por una entrada del LLM (absorbe payoff≈cupo)
+      const near = (a: number, b: number) => b > 0 && Math.abs(a - b) / Math.max(a, b) <= COVERED_TOL;
+      const cmfMappedAmounts = (key: string): number[] => {
+        const acc: number[] = [];
+        for (const r of result.reclassifiedCreditors ?? []) if (canonicalInstitutionKey(r.institucion_cmf) === key) acc.push(r.total_credito_clp);
+        for (const r of result.identified261Creditors ?? []) if (canonicalInstitutionKey(r.institucion_cmf) === key) acc.push(r.total_credito_clp);
+        for (const r of result.deReclassified261Creditors ?? []) if (canonicalInstitutionKey(r.institucion_cmf) === key) acc.push(r.total_credito_clp);
+        for (const o of result.cmf260DirectOverrides ?? []) if (canonicalInstitutionKey(o.institucion_cmf) === key) acc.push(o.monto_clp);
+        return acc;
+      };
+      const cmfCountByBank = new Map<string, number>();
+      for (const c of cmfResult.creditors) {
+        const k = canonicalInstitutionKey(c.institucion);
+        if (k) cmfCountByBank.set(k, (cmfCountByBank.get(k) ?? 0) + 1);
+      }
+
+      // --- Reconciliación: additionalCreditors mal clasificados → identified261 ---
+      // El LLM es no-determinista al partir productos entre identified261 (productos del
+      // CMF) y additionalCreditors (NO-CMF): una corrida pone una tarjeta del CMF como
+      // identified261 (override → 1 fila) y otra la pone como additionalCreditor (→ step3
+      // declara la fila del CMF + una fila NO-CMF = DOBLE CONTEO). Backstop determinista: si
+      // un additionalCreditor es del MISMO banco que una fila del CMF AÚN SIN RECLAMAR y su
+      // monto es cercano a esa fila (≤30% o ≤$500k, tolerancia cert vs CMF), entonces NO es
+      // un NO-CMF: es ese producto del CMF → se mueve a identified261 (override). Un NO-CMF
+      // genuino (CCAF, TGR, fintech, o un producto cuyo banco ya tiene todas sus filas CMF
+      // reclamadas, ej. BCI cuenta corriente $615) NO matchea y queda como additional.
+      if (result.additionalCreditors?.length) {
+        const claimedCount = new Map<string, number>();
+        for (const [k, amts] of [...cmfCountByBank.keys()].map((k) => [k, cmfMappedAmounts(k)] as const)) {
+          // deduplicar montos reclamados (mismo producto emitido 2 veces, ej. id261 + deRecl)
+          claimedCount.set(k, amts.filter((a, i) => amts.findIndex((b) => near(a, b)) === i).length);
+        }
+        const closeToCmf = (key: string, amount: number): boolean =>
+          cmfResult.creditors.some(
+            (c) => canonicalInstitutionKey(c.institucion) === key &&
+              (Math.abs(c.totalCredito - amount) / Math.max(c.totalCredito, amount) <= 0.30 ||
+               Math.abs(c.totalCredito - amount) <= 500_000)
+          );
+        const stillAdditional: AdditionalCreditor[] = [];
+        for (const a of result.additionalCreditors) {
+          const k = canonicalInstitutionKey(a.institucion_cmf);
+          const cmfN = cmfCountByBank.get(k) ?? 0;
+          const claimedN = claimedCount.get(k) ?? 0;
+          if (k && cmfN > claimedN && closeToCmf(k, a.total_credito_clp)) {
+            (result.identified261Creditors = result.identified261Creditors ?? []).push({
+              bank: a.bank,
+              product_type: a.product_type === 'tarjeta_credito' ? 'tarjeta_credito' : 'otro',
+              institucion_cmf: a.institucion_cmf,
+              total_credito_clp: a.total_credito_clp,
+              reason: `Reconciliación determinista: el LLM lo emitió como NO-CMF, pero corresponde a una línea del CMF de ${a.bank} aún sin reclamar y de monto cercano → es ese producto del CMF (override de monto), NO un acreedor extra (evita doble conteo). ${a.reason}`,
+              document_filename: a.document_filename,
+            });
+            claimedCount.set(k, claimedN + 1);
+            log(`🔁 Reconciliación: additional→identified261 ${a.bank} $${a.total_credito_clp.toLocaleString('es-CL')} (fila CMF del mismo banco sin reclamar) — evita doble conteo.`);
+          } else {
+            stillAdditional.push(a);
+          }
+        }
+        result.additionalCreditors = stillAdditional;
+      }
+
+      // ¿Ya emitió el LLM una entrada por este monto, DESDE ESTE MISMO documento? El match por
+      // document_filename es el más robusto: no depende de cómo el LLM escriba la institución
+      // (mismatch "Tenpo Prepago SA" vs "Tenpo Payments" → el match por nombre fallaba y el
+      // backstop duplicaba el producto). Se complementa con el match por banco canónico + monto.
+      const coveredByFilename = (filename: string, amount: number): boolean => {
+        const pairs: Array<[string | undefined, number | undefined]> = [
+          ...(result.reclassifiedCreditors ?? []).map((r) => [r.document_filename, r.total_credito_clp] as [string | undefined, number]),
+          ...(result.identified261Creditors ?? []).map((r) => [r.document_filename, r.total_credito_clp] as [string | undefined, number]),
+          ...(result.additionalCreditors ?? []).map((r) => [r.document_filename, r.total_credito_clp] as [string | undefined, number]),
+          ...(result.deReclassified261Creditors ?? []).map((r) => [r.document_filename, r.total_credito_clp] as [string | undefined, number]),
+          ...(result.cmf260DirectOverrides ?? []).map((o) => [o.document_filename, o.monto_clp] as [string | undefined, number]),
+        ];
+        return pairs.some(([fn, amt]) => !!fn && fn === filename && amt !== undefined && near(amt, amount));
+      };
+      const isCovered = (key: string, amount: number, filename: string): boolean => {
+        if (coveredByFilename(filename, amount)) return true;
+        if (cmfMappedAmounts(key).some((a) => near(a, amount))) return true;
+        return (result.additionalCreditors ?? []).some(
+          (a) => canonicalInstitutionKey(a.institucion_cmf) === key && near(a.total_credito_clp, amount)
+        );
+      };
+      for (const doc of documents) {
+        if (!doc.institucion_cmf) continue;
+        if (isChatDocument(doc.textContent, doc.filename)) continue;
+        const key = canonicalInstitutionKey(doc.institucion_cmf);
+        if (!key) continue;
+        // El texto que ve Claude (doc.textContent) viene de pdftotext SIN -layout y clampeado:
+        // colapsa las TABLAS de los certificados de liquidación/portabilidad (el Nº de
+        // operación, la fecha y el monto quedan en líneas separadas) → el extractor por-fila
+        // no las reconoce y se pierde, por ejemplo, "CUENTA CORRIENTE … $615" de BCI. Para la
+        // extracción determinista re-leemos el PDF con -layout (preserva columnas). Para docs
+        // imagen usamos su OCR (doc.textContent), que ya conserva "CRE-… Saldo Deuda $X".
+        let certText = doc.textContent || '';
+        if (!doc.isImageDoc && doc.local_path) {
+          const layout = await extractTextFromPdfLayout(doc.local_path).catch(() => '');
+          if (layout.trim().length > 40) certText = layout;
+        }
+        const items = extractCertLineItems(certText);
+        if (items.length === 0) continue;
+        const cmfRows = cmfResult.creditors.filter((c) => canonicalInstitutionKey(c.institucion) === key);
+        const claimed = cmfMappedAmounts(key);
+        const dedupClaimed = claimed.filter((a, i) => claimed.findIndex((b) => near(a, b)) === i);
+        let availableCmfSlots = Math.max(0, cmfRows.length - dedupClaimed.length);
+        for (const it of items) {
+          if (it.amount <= 0) continue;
+          if (isCovered(key, it.amount, doc.filename)) continue;
+          const productType: 'tarjeta_credito' | 'otro' =
+            /tarjet|visa|master|cmr|cencosud|cat\b/i.test(it.rawLine) ? 'tarjeta_credito' : 'otro';
+          if (availableCmfSlots > 0) {
+            result.identified261Creditors = result.identified261Creditors ?? [];
+            result.identified261Creditors.push({
+              bank: doc.institucion_cmf,
+              product_type: productType,
+              institucion_cmf: doc.institucion_cmf,
+              total_credito_clp: it.amount,
+              reason: `Backstop determinista de completitud: el certificado ${doc.filename} certifica esta operación (${it.operationId ?? 's/op'}, "${it.label}") por $${it.amount.toLocaleString('es-CL')} y el LLM no la emitió. Mapeada a una línea del CMF de ${doc.institucion_cmf} (el saldo del cert sobrescribe el cupo del CMF). Art.261.`,
+              document_filename: doc.filename,
+            });
+            availableCmfSlots--;
+            log(`🧩 Backstop completitud: +identified261 ${doc.institucion_cmf} $${it.amount.toLocaleString('es-CL')} (op ${it.operationId ?? 's/op'}) — el LLM lo omitió.`);
+          } else {
+            result.additionalCreditors = result.additionalCreditors ?? [];
+            result.additionalCreditors.push({
+              bank: doc.institucion_cmf,
+              institucion_cmf: doc.institucion_cmf,
+              product_type: productType,
+              categoria_articulo: 261,
+              total_credito_clp: it.amount,
+              reason: `Backstop determinista de completitud: producto solo-en-cert no representado por el CMF. El certificado ${doc.filename} certifica la operación ${it.operationId ?? 's/op'} ("${it.label}") por $${it.amount.toLocaleString('es-CL')} y el LLM no la emitió. Art.261.`,
+              document_filename: doc.filename,
+              needs_lawyer_confirmation: true,
+            });
+            log(`🧩 Backstop completitud: +additionalCreditor NO-CMF ${doc.institucion_cmf} $${it.amount.toLocaleString('es-CL')} (op ${it.operationId ?? 's/op'}) — el LLM lo omitió.`);
+          }
+        }
+      }
+    }
 
     // --- Backstop determinista: gate de acreditación Art. 260 (degradar 260→261) ---
     // Regla de fondo (abogado 2026-06-22): una deuda con mora 90+d va a Obligaciones 260

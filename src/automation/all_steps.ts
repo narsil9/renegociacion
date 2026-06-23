@@ -2,7 +2,7 @@ import { Page } from 'playwright';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { fillStep1, ClientData } from './step1_personal';
 import { fillStep2 } from './step2_declaraciones';
-import { fillStep3, AcreditacionDoc, CmfDocumentOverride } from './step3_acreedores';
+import { fillStep3, AcreditacionDoc, CmfDocumentOverride, Step3Report } from './step3_acreedores';
 import { fillStep4 } from './step4_apoderado';
 import { ReclassifiedCreditor, AdditionalCreditor, Identified261Creditor, DeReclassified261Creditor } from '../utils/sentinel';
 
@@ -37,7 +37,7 @@ export async function fillAllSteps(
   // Callback opcional de progreso "en vivo" para el panel del dashboard. Recibe un
   // texto en lenguaje claro al iniciar cada paso. Best-effort: nunca interrumpe el flujo.
   onProgress?: (msg: string) => void | Promise<void>
-): Promise<void> {
+): Promise<Step3Report | undefined> {
   const log = (msg: string) => {
     if (logger) {
       logger.log(msg);
@@ -81,6 +81,7 @@ export async function fillAllSteps(
   log('✓ Paso 2 completado.');
 
   // --- PASO 3 ---
+  let step3Report: Step3Report | undefined;
   if (skipStep3Reason) {
     log('\n⏭️  === PASO 3 OMITIDO (Acreedores) ===');
     log(`   Motivo: ${skipStep3Reason}`);
@@ -96,7 +97,7 @@ export async function fillAllSteps(
     } else {
       log('→ Ya redirigido a la página de Paso 3.');
     }
-    await fillStep3(page, cmfLocalPath, supabase, logger, undefined, acreditacionDocs, reclassifiedCreditors, additionalCreditors, cmfDocumentOverrides, identified261Creditors, deReclassified261Creditors);
+    step3Report = await fillStep3(page, cmfLocalPath, supabase, logger, undefined, acreditacionDocs, reclassifiedCreditors, additionalCreditors, cmfDocumentOverrides, identified261Creditors, deReclassified261Creditors);
     log('✓ Paso 3 completado.');
   }
 
@@ -114,4 +115,5 @@ export async function fillAllSteps(
   log('✓ Paso 4 completado.');
 
   log('\n🎉 Flujo de todos los pasos completado con éxito.');
+  return step3Report;
 }

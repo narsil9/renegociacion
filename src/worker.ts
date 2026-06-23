@@ -9,7 +9,7 @@ import { RunnerLogger } from './utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fillStep2 } from './automation/step2_declaraciones';
-import { fillStep3, AcreditacionDoc } from './automation/step3_acreedores';
+import { fillStep3, AcreditacionDoc, Step3Report, SkipCode, SKIP_CODES_ACCIONABLES } from './automation/step3_acreedores';
 import { fillStep4 } from './automation/step4_apoderado';
 import { fillAllSteps } from './automation/all_steps';
 import { getOptimizedPdfPath } from './utils/pdf_optimizer';
@@ -180,6 +180,26 @@ async function cleanupOrphanJobs(): Promise<void> {
  * "hace X" se sienta vivo. Best-effort: si la columna no existe todavía (migración v6
  * sin correr) o falla la red, NO interrumpe el run — el progreso es informativo.
  */
+/**
+ * Limpia el nombre de una institución para mostrarlo en una ALERTA al abogado. El parser del
+ * CMF le pega tokens de tipo de crédito ("Linea Banco de Chile Crédit", "Banco del Estado de
+ * Chile Consum"); para una alerta legible los quitamos y dejamos el banco a secas.
+ */
+function prettyInst(name: string): string {
+  return (name || '')
+    .replace(/\s*\([^)]*\)\s*$/g, '')                 // sufijo de producto entre paréntesis
+    .replace(/\s+[—–-]\s+.*$/g, '')                    // sufijo "— descriptor" del LLM
+    .replace(/^\s*(L[íi]nea|Tarjet\w*)\s+/i, '')       // token de tipo al inicio
+    .replace(/\s+(Consum\w*|Cr[ée]dit\w*|Vivien\w*|Hipotec\w*)\s*$/i, '') // token de tipo al final
+    .replace(/\s+/g, ' ')
+    .trim() || name;
+}
+
+/** Formatea un monto CLP como "$1.234.567". */
+function clp(n: number | undefined): string {
+  return `$${(n || 0).toLocaleString('es-CL')}`;
+}
+
 async function reportProgress(jobId: string, message: string): Promise<void> {
   try {
     const now = new Date().toISOString();
@@ -457,12 +477,14 @@ async function processJob(job: any): Promise<void> {
         // poder acreditar el vencimiento (backstop determinista) o por certificado "vigente"
         // (REGLA 10). El abogado debe revisarlas antes de presentar.
         if ((centinelaOutput.deReclassified261Creditors || []).length > 0) {
-          const lista = centinelaOutput.deReclassified261Creditors!
-            .map((d) => `${d.institucion_cmf} ($${(d.total_credito_clp || 0).toLocaleString('es-CL')})`)
-            .join('; ');
-          const desc =
-            `${centinelaOutput.deReclassified261Creditors!.length} deuda(s) con mora 90+d declarada(s) en ` +
-            `Otros Acreedores (Art. 261) por no acreditar vencimiento: ${lista}. Revisar antes de presentar.`;
+          const items = centinelaOutput.deReclassified261Creditors!;
+          const bullets = items
+            .map((d) => `• ${prettyInst(d.institucion_cmf)} (${clp(d.total_credito_clp)})`)
+            .join('\n');
+          const enc = items.length === 1
+            ? 'Hay 1 deuda con más de 90 días de mora que se declaró en Art. 261 (Otros Acreedores) en lugar de Art. 260, porque no se pudo acreditar la fecha de vencimiento con un documento (o el certificado la da como vigente).'
+            : `Hay ${items.length} deudas con más de 90 días de mora que se declararon en Art. 261 (Otros Acreedores) en lugar de Art. 260, porque no se pudo acreditar la fecha de vencimiento con un documento (o el certificado las da como vigentes).`;
+          const desc = `Revisar clasificación 260/261 antes de presentar:\n${bullets}\n\n${enc} Si conseguís un documento que acredite el vencimiento, podés moverla(s) a Art. 260.`;
           const { error: drAlertErr } = await supabase.from('automation_alerts').insert({
             job_id: job.id, client_id: client.id, step: 3, alert_type: 'needs_review', description: desc,
           });
@@ -610,6 +632,11 @@ async function processJob(job: any): Promise<void> {
       // Clear any prior credential errors upon successful login
       await clearAlert(client.id, CLIENTS_TABLE, logger).catch(() => {});
 
+      // Reporte del Paso 3 (acreedores agregados / saltados). Se captura en los caminos que
+      // corren el Paso 3 (step 3 individual y step 0 / all-steps) para luego emitir al panel
+      // del dashboard una alerta con los acreedores que NO se pudieron declarar.
+      let step3Report: Step3Report | undefined;
+
       if (job.step === 1) {
         logger.log('📝 Llenando el Paso 1 (Información Personal)...');
         await reportProgress(job.id, 'Completando los datos personales (Paso 1)…');
@@ -685,7 +712,7 @@ async function processJob(job: any): Promise<void> {
         logger.log(`→ Redireccionando a la URL del Paso 3: ${step3Url}`);
         await page.goto(step3Url, { waitUntil: 'domcontentloaded' });
 
-        await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs,
+        step3Report = await fillStep3(page, cmfLocalPath, supabase, logger, undefined, mappedAcreditacionDocs,
           centinelaOutput.reclassifiedCreditors, centinelaOutput.additionalCreditors,
           centinelaOutput.cmfDocumentOverrides, centinelaOutput.identified261Creditors,
           centinelaOutput.deReclassified261Creditors);
@@ -750,7 +777,7 @@ async function processJob(job: any): Promise<void> {
           telefono: client.telefono,
         };
 
-        await fillAllSteps(
+        step3Report = await fillAllSteps(
           page,
           clientData,
           tributariaOptimizedPath,
@@ -768,6 +795,43 @@ async function processJob(job: any): Promise<void> {
           centinelaOutput.deReclassified261Creditors,
           (msg: string) => reportProgress(job.id, msg)
         );
+      }
+
+      // --- Alerta al panel: acreedores que el Paso 3 NO pudo cargar (y requieren acción) ---
+      // Solo se alertan los saltos ACCIONABLES (el acreedor quedó sin cargar y el abogado debe
+      // intervenir). Los saltos intencionales/informativos (remanente trivial < 1 UF, producto
+      // 260 movido a 261 que igual se declara) NO se alertan: serían ruido. El mensaje es en
+      // lenguaje claro, con el nombre del banco limpio y la acción concreta. Informativo: NO
+      // bloquea ni marca el job como fallido (el borrador igual quedó cargado).
+      if (step3Report) {
+        const accionables = step3Report.skipped.filter((s) => SKIP_CODES_ACCIONABLES.has(s.code));
+        if (accionables.length > 0) {
+          const accionPorCodigo: Record<SkipCode, string> = {
+            sin_catalogo: 'no está en el catálogo de acreedores del portal y no se pudo identificar por su RUT → agregalo a mano eligiendo la institución',
+            catalogo_ambiguo: 'tiene varias instituciones posibles en el catálogo del portal → agregalo a mano eligiendo la correcta',
+            comuna_sin_region: 'su comuna no está mapeada a una región → agregalo a mano cargando región y comuna',
+            error_portal: 'el portal falló al cargarlo tras varios intentos → reintentá la automatización o cargalo a mano',
+            falta_documento: 'falta el documento de acreditación → adjuntalo y cargalo a mano',
+            remanente_trivial: '', // no accionable (no se alerta)
+            movido_a_261: '',      // no accionable (no se alerta)
+          };
+          const bullets = accionables
+            .map((s) => `• ${prettyInst(s.institucion)}${s.monto ? ` (${clp(s.monto)})` : ''}: ${accionPorCodigo[s.code] || s.reason}.`)
+            .join('\n');
+          const enc = accionables.length === 1
+            ? 'Quedó 1 acreedor sin cargar automáticamente en el Paso 3. Revisalo y cargalo a mano en el portal:'
+            : `Quedaron ${accionables.length} acreedores sin cargar automáticamente en el Paso 3. Revisalos y cargalos a mano en el portal:`;
+          const desc = `${enc}\n${bullets}`;
+          logger.log(`⚠️ ${desc}`);
+          try {
+            const { error: skErr } = await supabase.from('automation_alerts').insert({
+              job_id: job.id, client_id: client.id, step: 3, alert_type: 'needs_review', description: desc,
+            });
+            if (skErr) logger.error('⚠️ No se pudo registrar la alerta de acreedores no cargados:', skErr.message);
+          } catch (skEx: any) {
+            logger.error('⚠️ Excepción al registrar la alerta de acreedores no cargados:', skEx);
+          }
+        }
       }
 
       logger.log('📸 Guardando captura de éxito...');

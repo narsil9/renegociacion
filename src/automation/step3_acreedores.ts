@@ -41,9 +41,28 @@ interface SimpleLogger {
   error(msg: string, err?: unknown): void;
 }
 
+/**
+ * Código del motivo por el que un acreedor no se agregó en el Paso 3. Permite que el worker
+ * arme una alerta CLARA y precisa para el abogado y, sobre todo, distinga lo que requiere
+ * ACCIÓN (cargar manual) de lo que es intencional/informativo (no molestar al abogado).
+ */
+export type SkipCode =
+  | 'sin_catalogo'        // sin match en acreedores_canonicos y sin RUT → cargar manual
+  | 'catalogo_ambiguo'    // varios candidatos en el catálogo → elegir el correcto
+  | 'comuna_sin_region'   // la comuna del catálogo no mapea a región → cargar región/comuna
+  | 'error_portal'        // el portal falló al agregarlo tras varios intentos → reintentar/cargar manual
+  | 'falta_documento'     // falta el documento de acreditación
+  | 'remanente_trivial'   // remanente < 1 UF excluido a propósito → NO requiere acción
+  | 'movido_a_261';       // producto 260 sin vencimiento → se declara en Art. 261 → informativo
+
+/** Códigos que el abogado DEBE atender (el acreedor quedó sin cargar). El resto es informativo. */
+export const SKIP_CODES_ACCIONABLES: ReadonlySet<SkipCode> = new Set<SkipCode>([
+  'sin_catalogo', 'catalogo_ambiguo', 'comuna_sin_region', 'error_portal', 'falta_documento',
+]);
+
 export interface Step3Report {
   added: { institucion: string; nombreCatalogo: string; monto: number }[];
-  skipped: { institucion: string; reason: string }[];
+  skipped: { institucion: string; reason: string; code: SkipCode; monto?: number }[];
 }
 
 /**
@@ -479,14 +498,14 @@ export async function fillStep3(
         if (match.status === 'not_found') {
           const reason = 'No existe en acreedores_canonicos (sin RUT para buscar en el portal).';
           log(`⏭️  Saltando "${creditor.institucion}": ${reason}`);
-          report.skipped.push({ institucion: creditor.institucion, reason });
+          report.skipped.push({ institucion: creditor.institucion, reason, code: 'sin_catalogo' });
           continue;
         }
         if (match.status === 'ambiguous') {
           const names = (match.candidates ?? []).map((c) => c.nombre).join(' | ');
           const reason = `Múltiples candidatos en el catálogo: ${names}`;
           log(`⏭️  Saltando "${creditor.institucion}": ${reason}`);
-          report.skipped.push({ institucion: creditor.institucion, reason });
+          report.skipped.push({ institucion: creditor.institucion, reason, code: 'catalogo_ambiguo' });
           continue;
         }
 
@@ -538,7 +557,7 @@ export async function fillStep3(
       if (isOtros && montoEfectivo < UF_1_CLP && !rec && !cmfOv && !id261 && !deRecl) {
         const reason = `Fila CMF Art.261 trivial (<1 UF, $${montoEfectivo.toLocaleString('es-CL')}) sin documento de respaldo — remanente, no se declara.`;
         log(`   ⏭️ "${entry.nombre}" omitido: ${reason}`);
-        report.skipped.push({ institucion: creditor.institucion, reason });
+        report.skipped.push({ institucion: creditor.institucion, reason, code: 'remanente_trivial', monto: montoEfectivo });
         continue;
       }
 
@@ -561,7 +580,7 @@ export async function fillStep3(
       if (!isPersonaEntry && entry.comuna && !getRegionValue(entry.comuna)) {
         const reason = `Comuna sin mapeo a región: "${entry.comuna}" (no recuperable).`;
         log(`   ⏭️ "${entry.nombre}" omitido: ${reason}`);
-        report.skipped.push({ institucion: creditor.institucion, reason });
+        report.skipped.push({ institucion: creditor.institucion, reason, code: 'comuna_sin_region' });
         continue;
       }
 
@@ -603,7 +622,7 @@ export async function fillStep3(
       } catch (err) {
         const reason = `Error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
         logError(`✗ Falló agregar "${creditor.institucion}" (${entry.nombre}).`, err);
-        report.skipped.push({ institucion: creditor.institucion, reason });
+        report.skipped.push({ institucion: creditor.institucion, reason, code: 'error_portal' });
         await dismissOpenModal(page).catch(() => {});
       }
     }
@@ -621,7 +640,7 @@ export async function fillStep3(
       if (match.status !== 'matched' || !match.entry) {
         const reason = `Multiproducto: "${baseName}" no resoluble en el catálogo (${match.status}).`;
         log(`⏭️  Saltando multiproducto "${baseName}": ${reason}`);
-        report.skipped.push({ institucion: baseName, reason });
+        report.skipped.push({ institucion: baseName, reason, code: 'sin_catalogo' });
         continue;
       }
       const entry = match.entry;
@@ -629,7 +648,7 @@ export async function fillStep3(
       if (!isPersonaEntry && entry.comuna && !getRegionValue(entry.comuna)) {
         const reason = `Comuna sin mapeo a región: "${entry.comuna}" (no recuperable).`;
         log(`   ⏭️ "${entry.nombre}" (multiproducto) omitido: ${reason}`);
-        report.skipped.push({ institucion: baseName, reason });
+        report.skipped.push({ institucion: baseName, reason, code: 'comuna_sin_region' });
         continue;
       }
       log(`→ Institución MULTIPRODUCTO "${entry.nombre}": ${ovs.length} producto(s) → ${ovs.length} fila(s) en Obligaciones 260.`);
@@ -657,7 +676,7 @@ export async function fillStep3(
         if (!fechaVenc) {
           const reason = `Producto 260 "${ov.institucion_cmf}" sin fecha de vencimiento acreditable — omitido de Obligaciones 260 (debe ir a Art. 261).`;
           log(`   ⏭️ ${reason}`);
-          report.skipped.push({ institucion: ov.institucion_cmf, reason });
+          report.skipped.push({ institucion: ov.institucion_cmf, reason, code: 'movido_a_261' });
           continue;
         }
         // CmfCreditor sintético: monto = "Monto total a pagar" del producto (del cert);
@@ -702,7 +721,7 @@ export async function fillStep3(
         } catch (err) {
           const reason = `Multiproducto: error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
           logError(`✗ Falló agregar producto multiproducto "${ov.institucion_cmf}" (${entry.nombre}).`, err);
-          report.skipped.push({ institucion: ov.institucion_cmf, reason });
+          report.skipped.push({ institucion: ov.institucion_cmf, reason, code: 'error_portal' });
           await dismissOpenModal(page).catch(() => {});
         }
       }
@@ -759,7 +778,7 @@ export async function fillStep3(
             ? `NO-CMF: múltiples candidatos en el catálogo para "${institutionName}".`
             : `NO-CMF: "${institutionName}" no existe en acreedores_canonicos (sin RUT para el portal).`;
           log(`⏭️  Saltando acreedor NO-CMF "${ac.bank}": ${reason}`);
-          report.skipped.push({ institucion: ac.bank, reason });
+          report.skipped.push({ institucion: ac.bank, reason, code: match.status === 'ambiguous' ? 'catalogo_ambiguo' : 'sin_catalogo' });
           continue;
         }
         const entry = match.entry;
@@ -812,7 +831,7 @@ export async function fillStep3(
         } catch (err) {
           const reason = `NO-CMF: error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
           logError(`✗ Falló agregar acreedor NO-CMF "${ac.bank}" (${entry.nombre}).`, err);
-          report.skipped.push({ institucion: ac.bank, reason });
+          report.skipped.push({ institucion: ac.bank, reason, code: 'error_portal' });
           await dismissOpenModal(page).catch(() => {});
         }
       }

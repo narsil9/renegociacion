@@ -102,9 +102,10 @@ export async function buildMappedDocsDeterministic(
   // ─── 1. Reclasificados (261→260) ───────────────────────────────────────────
   log(`Procesando ${centinelaOutput.reclassifiedCreditors.length} acreedores reclasificados...`);
   for (const r of centinelaOutput.reclassifiedCreditors) {
-    const primaryDoc = clientDocuments.find(
-      d => d.filename?.toLowerCase() === r.document_filename.toLowerCase()
-    );
+    const fn = r.document_filename;
+    const primaryDoc = fn
+      ? clientDocuments.find((d) => d.filename?.toLowerCase() === fn.toLowerCase())
+      : undefined;
     if (!primaryDoc) {
       alerts.push({
         type: 'missing_document',
@@ -132,9 +133,13 @@ export async function buildMappedDocsDeterministic(
   // ─── 2. Identificados 261 ──────────────────────────────────────────────────
   log(`Procesando ${centinelaOutput.identified261Creditors.length} acreedores Art.261...`);
   for (const c of centinelaOutput.identified261Creditors) {
-    const primaryDoc = clientDocuments.find(
-      d => d.filename?.toLowerCase() === c.document_filename.toLowerCase()
-    );
+    // `document_filename` puede venir null/undefined (ej. el LLM emite 1 entrada por cada
+    // crédito de un cert multi-crédito y solo nombra el archivo en la primera) → no crashear;
+    // se cae al fallback por institución de abajo.
+    const fn = c.document_filename;
+    const primaryDoc = fn
+      ? clientDocuments.find((d) => d.filename?.toLowerCase() === fn.toLowerCase())
+      : undefined;
     if (primaryDoc) {
       pushDoc(primaryDoc, c.institucion_cmf, 22);
     } else {
@@ -157,9 +162,10 @@ export async function buildMappedDocsDeterministic(
   // ─── 3. No-CMF (additionalCreditors) ───────────────────────────────────────
   log(`Procesando ${centinelaOutput.additionalCreditors.length} acreedores NO-CMF...`);
   for (const a of centinelaOutput.additionalCreditors) {
-    const doc = clientDocuments.find(
-      d => d.filename?.toLowerCase() === a.document_filename.toLowerCase()
-    );
+    const fn = a.document_filename;
+    const doc = fn
+      ? clientDocuments.find((d) => d.filename?.toLowerCase() === fn.toLowerCase())
+      : undefined;
     if (doc) {
       const tipo: 22 | 24 = a.categoria_articulo === 260 ? 24 : 22;
       // NO-CMF creditors have no institucion_cmf (null) — use bank name instead

@@ -313,9 +313,22 @@ const ALIASES: Record<string, string> = {
   // El CMF usa el nombre legal largo "Banco del Estado de Chile"; el catálogo, "Banco Estado".
   'banco del estado de chile': 'banco estado',
   'banco estado de chile': 'banco estado',
-  // La Araucana: el CMF la escribe "Caja de Compensación de Asignación Familiar La Araucana".
+  // Cajas de compensación: el CMF las escribe con la forma LARGA "Caja de Compensación de
+  // Asignación Familiar <X>" (con "Asignación Familiar"), distinta de la forma corta de los
+  // certificados ("CCAF <X>" / "Caja <X>"). Sin estos aliases, una CCAF que figura en el CMF
+  // se SALTA en el Paso 3 ("No existe en acreedores_canonicos") porque el nombre largo no
+  // matchea el catálogo y la fila del CMF no trae RUT. Caso testigo: 3 CCAF Los Andes de
+  // Miguel ($1.555.410 / $2.715.591 / $4.672.364) que el CMF lista con el nombre largo.
   'caja de compensacion de asignacion familiar la araucana': 'ccaf la araucana',
   'caja de compensacion asignacion familiar la araucana': 'ccaf la araucana',
+  'caja de compensacion de asignacion familiar los andes': 'ccaf los andes',
+  'caja de compensacion asignacion familiar los andes': 'ccaf los andes',
+  'caja de compensacion de asignacion familiar 18 de septiembre': 'ccaf 18 de septiembre',
+  'caja de compensacion asignacion familiar 18 de septiembre': 'ccaf 18 de septiembre',
+  'caja de compensacion de asignacion familiar gabriela mistral': 'ccaf gabriela mistral',
+  'caja de compensacion asignacion familiar gabriela mistral': 'ccaf gabriela mistral',
+  'caja de compensacion de asignacion familiar los heroes': 'ccaf los heroes',
+  'caja de compensacion asignacion familiar los heroes': 'ccaf los heroes',
   // CAT / Cencosud: el CMF dice "CAT Administradora de Tarjetas S.A."; el catálogo registra
   // "Cencosud Administradora de Tarjetas S.A." (mismo RUT 99500840-8 que "CAT (ex CENCOSUD)").
   'cat administradora de tarjetas s a': 'cencosud administradora de tarjetas s a',
@@ -379,10 +392,19 @@ export function matchAcreedor(
  */
 export function canonicalInstitutionKey(name: string | null | undefined): string {
   if (!name) return '';
-  // Quitar el sufijo de producto entre paréntesis (multiproducto: "Banco X (Consumo …)")
-  // y los tokens de tipo de crédito que el parser del CMF pega al nombre, ANTES del alias,
-  // para que "Banco del Estado de Chile Consum" y "Banco Estado" colapsen a la misma clave.
-  const norm = stripCreditTypeTokens(normalizeText(name.replace(/\s*\(.*$/s, '')));
+  // Normalizar a la institución BASE antes del alias, para que variantes del MISMO banco
+  // colapsen a una sola clave. Se quitan, en orden:
+  //  (1) Sufijo descriptivo que el LLM agrega tras un guión rodeado de espacios — el LLM es
+  //      no-determinista al nombrar y a veces escribe "Banco de Chile — Tarjeta de crédito
+  //      (*2949)" o "Banco del Estado de Chile — Operación adicional (CRE-…)". Sin quitarlo,
+  //      el matching/dedup/backstop fallan según cómo el LLM escriba el nombre esa corrida.
+  //      Requiere espacios alrededor del guión para NO romper "Santander-Chile".
+  //  (2) Sufijo de producto entre paréntesis (multiproducto: "Banco X (Consumo …)").
+  //  (3) Tokens de tipo de crédito que el parser del CMF pega al nombre ("… Consum").
+  // Así "Banco del Estado de Chile Consum", "Banco del Estado de Chile — Operación adicional"
+  // y "Banco Estado" colapsan todas a la misma clave.
+  const base = name.replace(/\s+[—–-]\s+.*$/s, '').replace(/\s*\(.*$/s, '');
+  const norm = stripCreditTypeTokens(normalizeText(base));
   return ALIASES[norm] ?? norm;
 }
 
