@@ -16,6 +16,8 @@ import {
   canonicalInstitutionKey,
 } from '../utils/acreedor_matcher';
 import { extractTextFromPdf } from '../utils/pdf_analyzer';
+import { extractCertLineItems } from '../utils/cert_line_items';
+import { extractTextWithOcrFallback } from '../utils/ocr_helper';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -338,7 +340,24 @@ export async function fillStep3(
     // por producto. Las filas del CMF que quedan SIN par (líneas remanentes triviales <1 UF
     // sin documento) se filtran luego en el loop principal (no se pierde ninguna deuda real).
     const id261Assignment = new Map<CmfCreditor, Identified261Creditor>();
+    // additionalCreditors que en realidad SON una línea del CMF (no un acreedor extra). El
+    // Centinela (LLM) es no-determinista al partir productos entre el CMF y los NO-CMF: puede
+    // emitir como NO-CMF un producto que el CMF SÍ trae (ej. las 2 tarjetas Banco de Chile de
+    // Néctor — el CMF las lista al día con su cupo y el certificado con su saldo). Si step3
+    // declara la fila del CMF *y* la NO-CMF, ese producto se cuenta DOBLE. Backstop
+    // determinista (corre siempre, no depende del LLM ni del caché del Centinela): un NO-CMF
+    // que empareja 1:1 con una fila CMF libre del MISMO banco y MISMO tipo (tarjeta↔tarjeta) y
+    // monto cercano (≤30% relativo) se reconcilia como override de esa fila (el saldo del cert
+    // manda) y se EXCLUYE de la fase NO-CMF → una sola fila. Los NO-CMF genuinos (más
+    // certificados que líneas del CMF de ese tipo, ej. una 3ª operación BancoEstado) no
+    // emparejan y quedan como acreedor extra.
+    const dedupedAdditional = new Set<AdditionalCreditor>();
     {
+      // Tarjeta-ness desde el tipo Y el nombre: el parser del CMF a veces destroza el campo
+      // tipoCredito (mete la fecha de otorgamiento: "a de 13/05/2025 o") y pega el token de
+      // tipo al nombre de la institución ("Tarjet Banco de Chile crédit"). Mirar solo
+      // tipoCredito perdía la señal → el dedup no emparejaba las tarjetas.
+      const isTarjetaCmf = (c: CmfCreditor) => /tarjet/i.test(c.tipoCredito ?? '') || /tarjet/i.test(c.institucion ?? '');
       const cmf261 = creditors.filter(c =>
         (c.overdue90Days === 0 && !isReclassifiedTo260(c)) || isDeReclassifiedTo261(c)
       );
@@ -355,8 +374,9 @@ export async function fillStep3(
         const g = k ? groups.get(k) : undefined;
         if (g) g.ids.push(r);
       }
-      for (const { cmf, ids } of groups.values()) {
+      for (const [key, { cmf, ids }] of groups.entries()) {
         const free = new Set(cmf);
+        // 1) Override del LLM (identified261): emparejamiento 1:1 por cercanía de monto.
         for (const id of [...ids].sort((a, b) => b.total_credito_clp - a.total_credito_clp)) {
           let best: CmfCreditor | undefined;
           for (const c of free) {
@@ -367,10 +387,101 @@ export async function fillStep3(
             free.delete(best);
           }
         }
+        // 2) Dedup NO-CMF→CMF: un additionalCreditor del mismo banco que empareja con una fila
+        //    CMF libre del MISMO tipo y monto cercano (≤30%) ES esa línea del CMF, no un extra.
+        // Matchear por banco usando AMBOS nombres: el Centinela suele anteponer el tipo de
+        // producto al institucion_cmf ("Tarjeta Banco de Chile") y ese prefijo NO lo quita
+        // canonicalInstitutionKey → quedaría "tarjeta banco de chile" ≠ "banco de chile". El
+        // campo bank trae el nombre limpio ("Banco de Chile"), que sí canonicaliza al grupo.
+        // Solo Art.261: el dedup convierte el NO-CMF en override de una fila CMF AL DÍA
+        // (cmf261). Un NO-CMF Art.260 (mora 90+d, ej. "Varios Deudores" $45.798 de Miguel)
+        // es deuda morosa genuina y NO debe colapsarse contra una línea al día.
+        const sameBankAdditional = (additionalCreditors ?? [])
+          .filter(a => a.categoria_articulo === 261 && [a.bank, a.institucion_cmf].some(n => canonicalInstitutionKey(n) === key))
+          .sort((a, b) => b.total_credito_clp - a.total_credito_clp);
+        for (const a of sameBankAdditional) {
+          const wantTarjeta = a.product_type === 'tarjeta_credito';
+          let best: CmfCreditor | undefined;
+          for (const c of free) {
+            if (isTarjetaCmf(c) !== wantTarjeta) continue;
+            const rel = Math.abs(c.totalCredito - a.total_credito_clp) / Math.max(c.totalCredito, a.total_credito_clp);
+            if (rel > 0.30) continue;
+            if (!best || Math.abs(c.totalCredito - a.total_credito_clp) < Math.abs(best.totalCredito - a.total_credito_clp)) best = c;
+          }
+          if (!best) continue;
+          id261Assignment.set(best, {
+            bank: a.bank,
+            product_type: a.product_type === 'tarjeta_credito' || a.product_type === 'credito_consumo' ? a.product_type : 'otro',
+            institucion_cmf: a.institucion_cmf || a.bank,
+            total_credito_clp: a.total_credito_clp,
+            reason: `Reconciliación determinista (step3): el Centinela lo emitió como NO-CMF pero corresponde a la línea "${best.tipoCredito}" del CMF de ${a.bank} (mismo tipo, monto cercano) → override de monto, no fila extra (evita doble conteo).`,
+            document_filename: a.document_filename,
+          });
+          free.delete(best);
+          dedupedAdditional.add(a);
+          log(`🔁 Dedup NO-CMF→CMF: ${a.bank} $${a.total_credito_clp.toLocaleString('es-CL')} es la línea "${best.tipoCredito}" del CMF ($${best.totalCredito.toLocaleString('es-CL')}) — se evita el doble conteo.`);
+        }
       }
     }
     const getIdentified261Match = (c: CmfCreditor): Identified261Creditor | undefined =>
       id261Assignment.get(c);
+
+    // --- Gate I2 — respaldo documental por CONTENIDO (regla rectora) ----------
+    // Una deuda se declara SOLO con un documento que acredite su monto. Un producto del CMF
+    // AL DÍA (Art.261) que NO viene de un documento (sin reclasificación / override / id261 /
+    // de-reclasificación) se declara únicamente si algún CERTIFICADO del cliente acredita SU
+    // monto — verificado por CONTENIDO (montos extraídos del texto/OCR), no por nombre de
+    // banco. Sin esto, step3 declaraba el producto con la cifra del CMF y le adjuntaba un
+    // certificado de OTRO producto del mismo banco (caso Cristian: tarjetas/líneas que la
+    // abogada omitió por no tener certificado). `certifiedAmounts` se construye una sola vez
+    // (lazy: solo si aparece un producto "pelado") leyendo los montos de cada doc; un monto
+    // está acreditado si difiere ≤5% de alguno (tolerancia documento-vs-CMF, conservadora).
+    let _certifiedByInst: Map<string, number[]> | null = null;
+    const getCertifiedByInst = async (): Promise<Map<string, number[]>> => {
+      if (_certifiedByInst) return _certifiedByInst;
+      const map = new Map<string, number[]>();
+      const add = (k: string, vals: number[]) => {
+        if (!k || vals.length === 0) return;
+        const arr = map.get(k) ?? [];
+        arr.push(...vals);
+        map.set(k, arr);
+      };
+      for (const d of docs) {
+        if (!d.local_path || !fs.existsSync(d.local_path)) continue;
+        let text = '';
+        try { text = (await extractTextWithOcrFallback(d.local_path)).text || ''; } catch { /* doc ilegible */ }
+        if (!text) continue;
+        // (1) cert_line_items: payoffs inequívocos (PDFs de texto con etiqueta/tabla).
+        const lineItems = extractCertLineItems(text).map((it) => it.amount).filter((a) => a > 0);
+        // (2) Montos DOMINANTES del documento (≥10% del mayor monto del propio doc). El payoff
+        //     de un producto es uno de los montos mayores de SU certificado; las cuotas/
+        //     intereses/comisiones son mucho menores. Tomar TODOS los montos haría que un
+        //     renglón suelto matcheara por casualidad a otro producto.
+        const all: number[] = [];
+        for (const m of text.matchAll(/\$\s*([\d][\d.]*)/g)) {
+          const n = parseInt(m[1].replace(/\./g, ''), 10);
+          if (Number.isFinite(n) && n >= 1000) all.push(n);
+        }
+        const max = all.length ? Math.max(...all) : 0;
+        const vals = [...lineItems, ...all.filter((n) => n >= max * 0.10)];
+        // Indexar por institución del documento (institucion_cmf y catalogInstitucion). El
+        // match del gate es por MISMA institución: evita que un monto de un banco acredite por
+        // casualidad un producto chico de OTRO banco (caso Cristian: $338.248 de una tarjeta
+        // BancoEstado sin cert ≈ $328.990 de un renglón de CMR).
+        add(canonicalInstitutionKey(d.institucion_cmf || ''), vals);
+        if (d.catalogInstitucion) add(canonicalInstitutionKey(d.catalogInstitucion), vals);
+      }
+      _certifiedByInst = map;
+      const total = [...map.values()].reduce((s, a) => s + a.length, 0);
+      log(`🔎 [Gate I2] Montos acreditados por documentos: ${total} valor(es) en ${map.size} institución(es).`);
+      return map;
+    };
+    const isAmountCertified = async (creditor: CmfCreditor, amount: number): Promise<boolean> => {
+      const byInst = await getCertifiedByInst();
+      const k = canonicalInstitutionKey(creditor.institucion);
+      const cands = byInst.get(k) ?? [];
+      return cands.some((a) => a > 0 && Math.abs(a - amount) / Math.max(a, amount) <= 0.05);
+    };
 
     // Fix #3 — Instituciones MULTIPRODUCTO. Cuando el Centinela emite VARIOS
     // cmfDocumentOverrides para la misma institución (un certificado de liquidación
@@ -561,6 +672,20 @@ export async function fillStep3(
         continue;
       }
 
+      // Gate I2 — Art.261 del CMF SIN respaldo documental verificado NO se declara.
+      // Un producto al día "pelado" (solo en el CMF: sin rec/cmfOv/id261/deRecl) solo se
+      // declara si un certificado del cliente acredita SU monto (verificación por contenido).
+      // Si ningún documento lo respalda → se reporta 'falta_documento' (accionable) y el
+      // abogado lo carga a mano; NUNCA se declara con un certificado ajeno (riesgo de que la
+      // Superir rechace la fila por documento que no corresponde). General: cualquier producto
+      // al día sin cert. Caso testigo: BancoEstado tarjetas/Santander líneas de Cristian.
+      if (isOtros && !rec && !cmfOv && !id261 && !deRecl && !(await isAmountCertified(creditor, montoEfectivo))) {
+        const reason = `Producto del CMF al día ($${montoEfectivo.toLocaleString('es-CL')}) sin certificado que acredite el monto — no se declara (requiere documento; cargar a mano).`;
+        log(`   ⏭️ "${entry.nombre}" omitido: ${reason}`);
+        report.skipped.push({ institucion: creditor.institucion, reason, code: 'falta_documento', monto: montoEfectivo });
+        continue;
+      }
+
       // Backstop final de la regla decisiva 260/261: un producto destinado a Obligaciones
       // 260 (no isOtros) que NO trae una fecha de vencimiento ACREDITABLE (fechaVenc real)
       // no puede declararse en 260. En vez de perder el acreedor (addEmpresa/Persona lanza
@@ -732,9 +857,10 @@ export async function fillStep3(
     // deben declararse (Art. 261 — TGR, cajas, fintechs, tarjetas no reportadas).
     // Se agregan con las MISMAS funciones que los del CMF. isOtros sale del
     // artículo que decidió el Centinela. Requieren confirmación del abogado (flag).
-    if (additionalCreditors && additionalCreditors.length > 0) {
-      log(`→ Acreedores NO-CMF detectados por el Centinela: ${additionalCreditors.length} (requieren confirmación del abogado).`);
-      for (const ac of additionalCreditors) {
+    const additionalToDeclare = (additionalCreditors ?? []).filter((a) => !dedupedAdditional.has(a));
+    if (additionalToDeclare.length > 0) {
+      log(`→ Acreedores NO-CMF detectados por el Centinela: ${additionalToDeclare.length} (requieren confirmación del abogado).`);
+      for (const ac of additionalToDeclare) {
         // NO-CMF creditors may have null/empty institucion_cmf (not in CMF) — usar `||`
         // (no `??`) para que un string vacío también caiga al bank name.
         const institutionName = ac.institucion_cmf || ac.bank;
@@ -844,8 +970,11 @@ export async function fillStep3(
       // Documentos reservados a acreedores NO-CMF: se asocian por filename, no por
       // institución, para no cruzarlos con otros productos del mismo banco que sí
       // están en el CMF (ej. el CPF de las tarjetas vs. el consultaCredito del consumo).
+      // Los additionalCreditors deduplicados (NO-CMF que resultaron ser una línea del CMF)
+      // NO reservan su filename: su certificado debe quedar disponible para adjuntarse a la
+      // fila del CMF que ahora lo representa (override), no a una fila NO-CMF inexistente.
       const reservedNonCmfFilenames = new Set(
-        (additionalCreditors ?? []).map((a) => a.document_filename).filter(Boolean)
+        additionalToDeclare.map((a) => a.document_filename).filter(Boolean)
       );
       for (const { entry, creditor, nonCmfDocFilename } of addedDocs) {
         // NO-CMF → matchear el documento exacto por filename.
