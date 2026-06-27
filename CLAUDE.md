@@ -217,7 +217,10 @@ All critical Playwright operations in `step3_acreedores.ts` are wrapped in `with
 
 ## Supabase Database — Supabase de Producción
 
-La base de datos del estudio del Abogado Ricardo Puelma ("SuperWhisp") es la fuente de verdad de todos los clientes y casos de renegociación. Se accede vía Supabase con las variables `PROD_SUPABASE_URL` y `PROD_SUPABASE_SERVICE_ROLE_KEY` en el `.env`. Hay **48 tablas** en total; abajo se documentan solo las relevantes para la automatización.
+La base de datos del estudio del Abogado Ricardo Puelma es la fuente de verdad de todos los clientes y casos de renegociación. Se accede vía Supabase con las variables `PROD_SUPABASE_URL` y `PROD_SUPABASE_SERVICE_ROLE_KEY` en el `.env`. Hay **48 tablas** en total; abajo se documentan solo las relevantes para la automatización.
+
+> 🗺️ **Mapa verificado de fuentes:** para saber **a qué tabla/columna/bucket ir por cada dato o documento**, ver **[`docs/integracion/mapa-fuentes-produccion.md`](docs/integracion/mapa-fuentes-produccion.md)** (verificado en vivo contra `ton…`, con columnas reales y cobertura). Re-verificar con `tools/audit_prod_sources.ts`.
+> ⚠️ **SOLO LECTURA sobre `ton…`** (SELECT/GET). NUNCA insert/update/delete. La service-role key da acceso total → la disciplina de solo-lectura es nuestra.
 
 La clave de unión entre las tablas de renegociación es **`airtable_id`** (el record ID del caso en Airtable, ej. `recXXXXXXXXXXXXXX`). **Excepciones a tener en cuenta:**
 - `cmf_informes`: el `airtable_id` es el record del *attachment*; el caso se enlaza por **`case_airtable_id`**.
@@ -312,14 +315,14 @@ ANTHROPIC_API_KEY=sk-ant-api03-...
 
 ---
 
-## 🔗 Integración futura — Convergencia con el dashboard del supervisor (SuperWhisp)
+## 🔗 Integración futura — Convergencia con el dashboard del supervisor
 
-> **Esta es la dirección a la que apunta TODO el desarrollo de aquí en adelante.** El sistema final NO es nuestra automatización aislada: es un **pipeline de dos capas** que converge con el dashboard del supervisor (`rp_renegociaciones-auth-admin`, "SuperWhisp", prod Supabase `tonrzmlrrcnizamtzqte` = `ton…`).
+> **Esta es la dirección a la que apunta TODO el desarrollo de aquí en adelante.** El sistema final NO es nuestra automatización aislada: es un **pipeline de dos capas** que converge con el dashboard del supervisor (`rp_renegociaciones-auth-admin`, prod Supabase `tonrzmlrrcnizamtzqte` = `ton…`).
 
 **Arquitectura objetivo:**
 
 ```
-SU DASHBOARD (SuperWhisp, prod ton…)          ← capa AGUAS ARRIBA (suya)
+SU DASHBOARD (rp_renegociaciones-auth-admin, prod Supabase ton…)   ← capa AGUAS ARRIBA (suya)
   agente (Anthropic API, skills + máquina de estados R1–R5, cron 3×/día)
   recopila docs (Gmail/Drive/SII/CMF) → clasifica cert→acreedor → completa checklist
         │
@@ -351,7 +354,7 @@ NUESTRO WORKER (daemon Mac Mini)               ← capa AGUAS ABAJO (nuestra)
 
 ## Dashboard del abogado — repo `rp_carga_documentos` (Next.js 16, separado) — ⚠️ TRANSITORIO (se jubila)
 
-> **Estado (2026-06-27):** este dashboard fue el **input provisional** mientras no existía la conexión con el dashboard del supervisor. Su función (recopilar y clasificar la carpeta del cliente) la cubre el agente de SuperWhisp. **Se jubila** cuando se concrete la integración (ver sección anterior). Sigue documentado porque es lo que corre HOY.
+> **Estado (2026-06-27):** este dashboard fue el **input provisional** mientras no existía la conexión con el dashboard del supervisor. Su función (recopilar y clasificar la carpeta del cliente) la cubre el agente del dashboard del supervisor. **Se jubila** cuando se concrete la integración (ver sección anterior). Sigue documentado porque es lo que corre HOY.
 
 Ubicación: `/Users/patomartini/Desktop/rp_carga_documentos`. Es el **input de producción HOY**: el abogado NO entra a Supabase. Apunta al sandbox `fnz…` (`lib/supabase.ts`). Tiene dos vistas:
 

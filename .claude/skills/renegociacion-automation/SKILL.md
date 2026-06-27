@@ -8,7 +8,7 @@ allowed-tools: Read, Grep, Glob, Bash
 
 This skill teaches Claude Code how to interact with the modular, hybrid automation scripts of the `renegociacion` project.
 
-> **🔗 North star (read first):** This automation is the **downstream executor** of a two-layer pipeline. The supervisor's dashboard (SuperWhisp, prod `ton…`) collects + classifies the client's documents and, when ready, the lawyer hits **Ejecutar** (= enqueues a job) → **our worker** runs Steps 1→4 on the portal. Build every change with that seam in mind (worker = job-triggered executor; input eventually sourced from `ton…` by RUT). Full detail in CLAUDE.md → "🔗 Integración futura — Convergencia con el dashboard del supervisor". Don't write to `ton…` until the governance decision is made.
+> **🔗 North star (read first):** This automation is the **downstream executor** of a two-layer pipeline. The supervisor's dashboard (`rp_renegociaciones-auth-admin`, prod Supabase `ton…`) collects + classifies the client's documents and, when ready, the lawyer hits **Ejecutar** (= enqueues a job) → **our worker** runs Steps 1→4 on the portal. Build every change with that seam in mind (worker = job-triggered executor; input eventually sourced from `ton…` by RUT). Full detail in CLAUDE.md → "🔗 Integración futura — Convergencia con el dashboard del supervisor". Don't write to `ton…` until the governance decision is made.
 
 ## Core Patterns
 

@@ -8,7 +8,7 @@
 > Flujo E2E **dashboard de Vercel → Supabase sandbox → worker → portal Superir** validado el 2026-06-18 (borrador vivo, sin radicar).
 > Falta para el primer envío real (`DRY_RUN=false`): documentos frescos (<30d) + confirmación del abogado.
 
-### 🔗 NORTE ESTRATÉGICO — Convergencia con el dashboard del supervisor (SuperWhisp)
+### 🔗 NORTE ESTRATÉGICO — Convergencia con el dashboard del supervisor
 
 > **Dirección a la que apunta todo el desarrollo.** Detalle completo en CLAUDE.md → "🔗 Integración futura". Memoria: `project_convergencia_dashboard_supervisor`.
 >
