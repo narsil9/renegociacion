@@ -343,10 +343,13 @@ NUESTRO WORKER (daemon Mac Mini)               ← capa AGUAS ABAJO (nuestra)
 - `rp_carga_documentos` (nuestro dashboard de carga) **se jubila** — era provisional. No invertir más ahí salvo brechas que a él le faltan.
 - Lo que NOSOTROS ya resolvimos y le aportamos: **RUT del emisor del cert** (`cert_institution_resolver.ts` — su brecha #5, él solo guarda el nombre); **mapeo a enums del portal** (`portal_select_values.json` — region/estado_civil código/profesión).
 
-**Pendientes / decisiones abiertas (de gobernanza, no técnicas):**
-1. ¿El worker lee `ton…` **read-only**, o hay un **sync `ton…`→`fnz`**? Hoy CLAUDE.md prohíbe escribir en `ton…` y operamos sobre el sandbox `fnz` como producción. **Mientras no se decida, NO escribir en `ton…`.**
-2. El gate "cliente listo" de él **debe codificar NUESTRAS precondiciones del portal** (≥2 deudas 90+d, ≥80 UF, sin Primera Categoría F29, CMF/certs <30d, certs presentes) o el botón rebotará en nuestro worker (que es el juez final). Hay que darle la definición precisa.
-3. **Aislar un "contrato de input" (adapter) en el worker** para hacer la fuente de datos intercambiable (sandbox `fnz` hoy → `ton…` mañana) sin tocar `step3`/`sentinel`. Mayor palanca para converger sin bloquearnos.
+**Arquitectura de conexión DECIDIDA (2026-06-27): proyección por-caso on-demand.**
+No clonar ni sincronizar todo (evita duplicar PII de ~1.200 casos, ventana de staleness y copiar todos los PDFs). Al ejecutar, un **proyector read-only** de `ton…` materializa **SOLO ese caso** al sandbox (`clients` + `client_documents` + descarga de PDFs por signed URL) → el worker corre **como hoy** (lee del sandbox, sin cambios) → se purga al terminar. **Prod intacto (solo lectura); el worker no cambia.** Plan por etapas y convenciones de prueba en `task.md`. Verificado factible con `tools/spike_case_assembly.ts` (la capa de documentos se arma entera desde `ton…`; las brechas son los datos personales del Paso 1).
+
+**Pendientes / decisiones abiertas:**
+1. **Fuente de `fecha_nacimiento`** (vacía en `core.persona`, obligatoria en el Paso 1) + `region`/`ocupacion`. Bloqueante real para un envío. *(En pruebas se inventa un placeholder.)*
+2. El gate "cliente listo" de él **debe codificar NUESTRAS precondiciones del portal** (≥2 deudas 90+d, ≥80 UF, sin Primera Categoría F29, CMF/certs <30d, certs presentes) o el botón rebotará en nuestro worker (juez final).
+3. **Mecanismo de trigger** del botón "Ejecutar" → job (su patrón `mac_mini_jobs` o tabla nueva). Etapa 3, con el supervisor.
 
 > **Implicación práctica para cada sesión nueva:** al mejorar la automatización, pensá el cambio en función de este encaje (el worker como ejecutor disparado por un job, con el input viniendo eventualmente de `ton…` por RUT).
 
