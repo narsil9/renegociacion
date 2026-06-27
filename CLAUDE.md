@@ -2,6 +2,19 @@
 
 This repository contains the hybrid automation system for filling out the renegotiation request portal at the Superintendencia de Insolvencia y Reemprendimiento (Superir) in Chile. It is designed for lawyers working on debt/bankruptcy cases to trigger step-by-step automation fragments while maintaining human-in-the-loop validation and manual control.
 
+## ⭐ PERMANENT GOVERNING RULE — General solutions, never per-case patches
+
+> **Applies EVERY TIME we fix a problem in the renegotiation request automation. This is the highest-priority rule: it overrides any shortcut.**
+
+Whenever a problem appears, the solution must aim to **fix the category of problem that can recur across other clients**, not the specific symptom of the case in front of us.
+
+- **Identify the underlying problem**, not client X's symptom. The concrete case is only the **witness** that reveals the general problem and serves to **validate** the solution.
+- **Build deterministic logic/rules** that work for the **majority of clients**, not shortcuts that fix a single client.
+- **NEVER hardcode the specific case.** Rules like "if it's Itaú / this bank / this RUT, do X" are forbidden. Instead, write a general rule that applies to any institution/client in that same situation (e.g. the amount was anchored to the CMF via a general rule, **not** by naming Itaú).
+- **When in doubt, generalize.** If a solution only works for this case, it is incomplete: redesign it until it covers the whole family of cases.
+
+This is consistent with the principles already established in this file (see *"El LLM no decide la estructura"* and the Step 3 deterministic backstops): **the LLM extracts facts from messy documents; TypeScript shields the structure with deterministic, general logic.**
+
 ## Quick Facts
 
 - **Stack**: Node.js, TypeScript, Playwright, Ghostscript (PDF compression), Supabase (Client Data & Cookie Sharing), Anthropic SDK (`@anthropic-ai/sdk` — Cognitive Orchestrator / Mente Pensante)
@@ -299,9 +312,48 @@ ANTHROPIC_API_KEY=sk-ant-api03-...
 
 ---
 
-## Dashboard del abogado — repo `rp_carga_documentos` (Next.js 16, separado)
+## 🔗 Integración futura — Convergencia con el dashboard del supervisor (SuperWhisp)
 
-Ubicación: `/Users/patomartini/Desktop/rp_carga_documentos`. Es el **input de producción**: el abogado NO entra a Supabase. Apunta al sandbox `fnz…` (`lib/supabase.ts`). Tiene dos vistas:
+> **Esta es la dirección a la que apunta TODO el desarrollo de aquí en adelante.** El sistema final NO es nuestra automatización aislada: es un **pipeline de dos capas** que converge con el dashboard del supervisor (`rp_renegociaciones-auth-admin`, "SuperWhisp", prod Supabase `tonrzmlrrcnizamtzqte` = `ton…`).
+
+**Arquitectura objetivo:**
+
+```
+SU DASHBOARD (SuperWhisp, prod ton…)          ← capa AGUAS ARRIBA (suya)
+  agente (Anthropic API, skills + máquina de estados R1–R5, cron 3×/día)
+  recopila docs (Gmail/Drive/SII/CMF) → clasifica cert→acreedor → completa checklist
+        │
+        ▼  "Cliente listo para enviar solicitud a renegociación"   ← gate de él
+        │  [ Ejecutar ]  (el abogado aprieta el botón = encola un job)
+        ▼
+NUESTRO WORKER (daemon Mac Mini)               ← capa AGUAS ABAJO (nuestra)
+  toma el job → login ClaveÚnica → Pasos 1→4 en el portal Superir → borrador
+```
+
+- **Su dashboard = fuente de verdad + disparador.** Su agente ya hace lo que hoy hace nuestro `rp_carga_documentos` (recopilar y clasificar documentos) — y mejor. Su skill `match-documents` lee cada cert por contenido y extrae institución, nº de operación, monto, fecha y vigencia (30d) → tabla `renegociacion_documento_match`.
+- **Nosotros = ejecutor.** Toda la lógica de **declaración en el portal** (260/261, multiproducto, NO-CMF, override de monto, adjunción 22/23, gate de elegibilidad) es nuestra y NO la hace él. Su LLM extrae hechos; nuestro TS blinda la estructura (regla rectora arriba).
+- **El botón "Ejecutar" = encolar un job — patrón que él YA tiene.** Su dashboard encola las skills SII a un daemon del Mac Mini vía `mac_mini_jobs`. **Nuestro worker es un daemon hermano**: "Ejecutar" inserta una fila de job que nuestro worker pollea. Es la plomería más simple para conectar.
+- **Llave-puente = RUT.** Su `reports.casos_renegociacion` carga `rut` + `airtable_id` juntos (join spine). Nuestra automatización ya keyea por RUT/`client_id`. ⚠️ `renegociacion_audit_pdf.rut_norm` viene SIN puntos/guion → normalizar al cruzar.
+- **Contrato de datos**: `contrato-superir-mapeo-inputs.md` (en la raíz) mapea cada input que necesita nuestro robot → dónde vive en `ton…`, con cobertura y brechas.
+
+**Decisiones tomadas (2026-06-27):**
+- `rp_carga_documentos` (nuestro dashboard de carga) **se jubila** — era provisional. No invertir más ahí salvo brechas que a él le faltan.
+- Lo que NOSOTROS ya resolvimos y le aportamos: **RUT del emisor del cert** (`cert_institution_resolver.ts` — su brecha #5, él solo guarda el nombre); **mapeo a enums del portal** (`portal_select_values.json` — region/estado_civil código/profesión).
+
+**Pendientes / decisiones abiertas (de gobernanza, no técnicas):**
+1. ¿El worker lee `ton…` **read-only**, o hay un **sync `ton…`→`fnz`**? Hoy CLAUDE.md prohíbe escribir en `ton…` y operamos sobre el sandbox `fnz` como producción. **Mientras no se decida, NO escribir en `ton…`.**
+2. El gate "cliente listo" de él **debe codificar NUESTRAS precondiciones del portal** (≥2 deudas 90+d, ≥80 UF, sin Primera Categoría F29, CMF/certs <30d, certs presentes) o el botón rebotará en nuestro worker (que es el juez final). Hay que darle la definición precisa.
+3. **Aislar un "contrato de input" (adapter) en el worker** para hacer la fuente de datos intercambiable (sandbox `fnz` hoy → `ton…` mañana) sin tocar `step3`/`sentinel`. Mayor palanca para converger sin bloquearnos.
+
+> **Implicación práctica para cada sesión nueva:** al mejorar la automatización, pensá el cambio en función de este encaje (el worker como ejecutor disparado por un job, con el input viniendo eventualmente de `ton…` por RUT).
+
+---
+
+## Dashboard del abogado — repo `rp_carga_documentos` (Next.js 16, separado) — ⚠️ TRANSITORIO (se jubila)
+
+> **Estado (2026-06-27):** este dashboard fue el **input provisional** mientras no existía la conexión con el dashboard del supervisor. Su función (recopilar y clasificar la carpeta del cliente) la cubre el agente de SuperWhisp. **Se jubila** cuando se concrete la integración (ver sección anterior). Sigue documentado porque es lo que corre HOY.
+
+Ubicación: `/Users/patomartini/Desktop/rp_carga_documentos`. Es el **input de producción HOY**: el abogado NO entra a Supabase. Apunta al sandbox `fnz…` (`lib/supabase.ts`). Tiene dos vistas:
 
 ### Vista "Datos Personales" (`app/datos-personales/`)
 Crea/edita la fila del cliente en `clients` con los mismos `<select>` del portal (Paso 1).
