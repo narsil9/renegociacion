@@ -22,6 +22,7 @@ import { insertAgentRun, markRunning, completeRun, failRun, getLatestRun } from 
 import { validateMapeadorOutput, logValidationResult } from './validator';
 import { runCognitiveOrchestrator, CognitiveAlert, ClientProfile, ClientDocument } from '../utils/cognitive_orchestrator';
 import { buildMappedDocsDeterministic } from '../utils/deterministic_mapeador';
+import { fetchAcreedoresCatalog } from '../utils/acreedor_matcher';
 import { extractCreditors } from '../utils/cmf_analyzer';
 
 interface SimpleLogger {
@@ -125,6 +126,13 @@ export async function runMapeadorAgent(
 
       const cmfCreditors = await extractCreditors(cmfLocalPath, logger ?? defaultLogger);
       log(`${cmfCreditors.length} acreedores cargados del CMF.`);
+
+      // Cargar el catálogo ANTES de matchear: puebla el registro de aliases-como-dato
+      // (`nombres_alternativos`) que usa `canonicalInstitutionKey` en findDocsByInstitution.
+      // Es imprescindible acá porque el Mapeador puede correr con el Centinela CACHEADO
+      // (que no llama a fetchAcreedoresCatalog) → sin esto el registro queda vacío y
+      // "Tenpo Payments"(CMF) no matchea "Tenpo Prepago"(doc).
+      await fetchAcreedoresCatalog(supabase);
 
       output = await buildMappedDocsDeterministic(
         centinelaOutput,

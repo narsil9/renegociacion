@@ -18,6 +18,10 @@ export interface AcreedorCatalogEntry {
   rut_representante: string | null;
   activo: boolean;
   nombre_normalizado_local?: string;
+  // Variantes de nombre como aparecen en el CMF/certs (columna `nombres_alternativos`).
+  nombres_alternativos?: string[] | null;
+  // Cache normalizado (mismo transform que `target` en matchAcreedor / canonicalInstitutionKey).
+  nombres_alternativos_norm?: string[];
 }
 
 export type MatchStatus = 'matched' | 'ambiguous' | 'not_found';
@@ -251,12 +255,19 @@ export function getRegionValue(comuna: string | null): string | null {
 /**
  * Loads the full `acreedores_canonicos` catalog (active entries only).
  */
+// Aliases-como-DATO: variante normalizada → clave canónica de su institución.
+// Se llena desde `acreedores_canonicos.nombres_alternativos` al cargar el catálogo y
+// lo consulta `canonicalInstitutionKey` (además del mapa estático `ALIASES`), para que
+// el nombre del CMF y el del documento colapsen a la MISMA clave (ej. "Tenpo Payments"
+// y "Tenpo Prepago"). El catálogo es global → este registro es idéntico para todo cliente.
+const catalogAliasRegistry: Record<string, string> = {};
+
 export async function fetchAcreedoresCatalog(
   client: SupabaseClient
 ): Promise<AcreedorCatalogEntry[]> {
   const { data, error } = await client
     .from('acreedores_canonicos')
-    .select('id, nombre, nombre_normalizado, tipo, rut, direccion, comuna, email, telefono, representante_legal, rut_representante, activo')
+    .select('id, nombre, nombre_normalizado, tipo, rut, direccion, comuna, email, telefono, representante_legal, rut_representante, activo, nombres_alternativos')
     .eq('activo', true);
 
   if (error) {
@@ -265,6 +276,15 @@ export async function fetchAcreedoresCatalog(
   const entries = (data ?? []) as AcreedorCatalogEntry[];
   for (const entry of entries) {
     entry.nombre_normalizado_local = normalizeText(entry.nombre);
+    // Normalizar las variantes con el MISMO transform que `target`/`norm` (strip de tipo de crédito).
+    entry.nombres_alternativos_norm = (entry.nombres_alternativos ?? [])
+      .map((a) => stripCreditTypeTokens(normalizeText(a)))
+      .filter((a) => a.length > 0);
+    // Registrar cada variante → clave canónica de esta institución.
+    const canonKey = stripCreditTypeTokens(normalizeText(entry.nombre));
+    for (const altKey of entry.nombres_alternativos_norm) {
+      if (altKey !== canonKey) catalogAliasRegistry[altKey] = canonKey;
+    }
   }
   return entries;
 }
@@ -356,8 +376,11 @@ export function matchAcreedor(
     target = ALIASES[target];
   }
 
-  // Tier 1: exact normalized equality
-  const exact = catalog.filter((e) => (e.nombre_normalizado_local ?? normalizeText(e.nombre)) === target);
+  // Tier 1: exact normalized equality — contra el nombre canónico O cualquier nombre alternativo.
+  const exact = catalog.filter((e) =>
+    (e.nombre_normalizado_local ?? normalizeText(e.nombre)) === target ||
+    (e.nombres_alternativos_norm ?? []).includes(target)
+  );
   if (exact.length === 1) {
     return { status: 'matched', cmfName, entry: exact[0] };
   }
@@ -365,11 +388,12 @@ export function matchAcreedor(
     return { status: 'ambiguous', cmfName, candidates: exact };
   }
 
-  // Tier 2: token-containment in either direction
+  // Tier 2: token-containment in either direction (también contra los nombres alternativos).
   const containment = catalog.filter((e) => {
     const candidate = e.nombre_normalizado_local ?? normalizeText(e.nombre);
-    return (
-      isTokenSubsequence(target, candidate) || isTokenSubsequence(candidate, target)
+    if (isTokenSubsequence(target, candidate) || isTokenSubsequence(candidate, target)) return true;
+    return (e.nombres_alternativos_norm ?? []).some(
+      (alt) => isTokenSubsequence(target, alt) || isTokenSubsequence(alt, target)
     );
   });
 
@@ -405,7 +429,8 @@ export function canonicalInstitutionKey(name: string | null | undefined): string
   // y "Banco Estado" colapsan todas a la misma clave.
   const base = name.replace(/\s+[—–-]\s+.*$/s, '').replace(/\s*\(.*$/s, '');
   const norm = stripCreditTypeTokens(normalizeText(base));
-  return ALIASES[norm] ?? norm;
+  // Aliases-como-dato del catálogo (nombres_alternativos) primero, luego el mapa estático.
+  return catalogAliasRegistry[norm] ?? ALIASES[norm] ?? norm;
 }
 
 /**

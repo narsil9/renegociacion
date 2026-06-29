@@ -19,7 +19,7 @@ import { createAlert, clearAlert } from './utils/alerts';
 import { cleanupDraft } from './automation/cleanup';
 import { runCentinelaAgent, CentinelaBlockedError } from './agents/centinela_agent';
 import { resolveCertInstitutions } from './utils/cert_institution_resolver';
-import { runMapeadorAgent, mapeadorHasBlockers } from './agents/mapeador_agent';
+import { runMapeadorAgent } from './agents/mapeador_agent';
 import { CentinelaOutput } from './agents/types';
 
 /**
@@ -493,14 +493,24 @@ async function processJob(job: any): Promise<void> {
         }
 
         const noCalifica = totalQualifyingCount < 2;
-        const { blocked: docsInvalidos, reason: docsInvalidosReason } = mapeadorHasBlockers(mapeadorOutput);
+        // Bloqueos del Mapeador, separados por severidad (regla rectora: declarar TODO lo
+        // acreditable; ante un documento faltante, no declarar ESA deuda, NO omitir el resto):
+        //  · missing_document → NO bloquea. fillStep3 declara los acreedores que SÍ tienen
+        //    documento y reporta (Step3Report.skipped) los que no; acá solo se alerta (needs_review).
+        //  · rut_mismatch → SÍ bloquea: el certificado está mal atribuido (RUT del emisor ≠ acreedor),
+        //    declararlo arriesga acreditar con el documento equivocado.
+        const rutMismatchAlerts = mapeadorOutput.alerts.filter(
+          (a) => a.type === 'rut_mismatch' && process.env.BYPASS_RUT_CHECK !== 'true'
+        );
+        const docMissingAlerts = mapeadorOutput.alerts.filter((a) => a.type === 'missing_document');
+        const hardBlock = noCalifica || rutMismatchAlerts.length > 0;
 
-        if (noCalifica || docsInvalidos) {
+        if (hardBlock) {
           const motivo = noCalifica
             ? `El cliente no cumple el requisito de fondo de la renegociación: se requieren al menos 2 productos con mora ≥ 91 días y se detectó(aron) ${totalQualifyingCount} ` +
               `(CMF: ${cmf90PlusCount}, reclasificados por el Centinela: ${reclassifiedCount}, NO-CMF Art. 260: ${nonCmf260Count}, de-reclasificados 260→261: ${deReclassifiedCount}). ` +
               `Revisar el Informe CMF y los documentos de acreditación; si el cliente igual debiera calificar, verificar que las deudas con mora estén bien clasificadas.`
-            : (docsInvalidosReason || 'Los documentos de acreditación del Paso 3 no cumplen los requisitos.');
+            : `Certificado(s) mal atribuido(s) — el RUT del documento no corresponde al acreedor: ${rutMismatchAlerts.map((a) => a.message).join('; ')}`;
 
           if (job.step === 0) {
             // Flujo completo: se omite SOLO el Paso 3 y se guardan los Pasos 1, 2 y 4.
@@ -516,8 +526,8 @@ async function processJob(job: any): Promise<void> {
             if (insertErr) logger.error('⚠️ No se pudo registrar alerta de Paso 3 omitido:', insertErr.message);
           } else {
             // Paso 3 individual: no hay nada que guardar → el job queda 'blocked' (no
-            // 'failed': reintentar no resuelve un requisito de fondo no cumplido o
-            // documentos inválidos). Se registra alerta + error_message para que el
+            // 'failed': reintentar no resuelve un requisito de fondo no cumplido o un
+            // certificado mal atribuido). Se registra alerta + error_message para que el
             // panel del dashboard muestre el motivo legible, no "falló sin alerta".
             logger.error(`🚫 Paso 3 no se puede completar: ${motivo}`);
             await cleanupPortalDraftBestEffort();
@@ -541,14 +551,27 @@ async function processJob(job: any): Promise<void> {
             return;
           }
         } else {
-          logger.log('✓ El cliente califica y los documentos del Paso 3 son válidos. Se completarán los 4 pasos.');
+          logger.log('✓ El cliente califica. Se completará el Paso 3 declarando TODO lo acreditable.');
+
+          // Documentos faltantes → NO bloquea: se declara el resto y se alerta lo faltante
+          // (carga manual). fillStep3 igual reporta sus propios saltos por-acreedor.
+          if (docMissingAlerts.length > 0) {
+            const desc = `Acreedores sin documento de acreditación — se declara el resto y estos quedan para carga manual:\n` +
+              docMissingAlerts.map((a) => `• ${a.message}`).join('\n');
+            const { error: dmErr } = await supabase.from('automation_alerts').insert({
+              job_id: job.id, client_id: client.id, step: 3, alert_type: 'needs_review', description: desc,
+            });
+            if (dmErr) logger.error('⚠️ No se pudo registrar alerta de documentos faltantes:', dmErr.message);
+            logger.log(`🔔 ${desc}`);
+          }
 
           // Detección informativa (NO bloqueante): el gate del abogado se eliminó por
           // decisión del abogado (2026-06-19). Cuando el abogado sube la carpeta y
           // autoriza la automatización, el flujo corre de corrido: ni los acreedores
           // NO-CMF ni los montos divergentes (amount_mismatch) frenan el Paso 3 en
           // 'pending_review'. Solo se anuncia éxito o fallo al final.
-          // Los bloqueos DUROS (missing_document/rut_mismatch) ya cayeron a 'failed' arriba.
+          // Los documentos faltantes (missing_document) NO bloquean: se declaran los
+          // acreedores acreditables y se alertan los faltantes. Solo rut_mismatch bloquea (arriba).
           const informativeSignals: string[] = [];
           const nonCmfDetected = (centinelaOutput.additionalCreditors || []).filter((a) => a.needs_lawyer_confirmation);
           if (nonCmfDetected.length > 0) {
