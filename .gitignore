@@ -51,3 +51,7 @@ tools/scan_*.ts
 tools/test_*.ts
 tools/upload_*.ts
 src/utils/verify_*.ts
+
+# Artefactos del arnés de validación (salidas del Centinela + cache LLM con datos de deuda)
+_validacion/
+casos/*/_validacion/
