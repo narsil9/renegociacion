@@ -17,6 +17,64 @@ import { extractDatesFromText, extractEmissionDateFromText } from './cognitive_o
 import { extractCertLineItems } from './cert_line_items';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
+
+// Tope de tamaño por PDF para adjuntarlo NATIVO a Claude (#1). Acotado para no acercarse
+// al límite de ~32MB por request cuando hay varios certificados. Si excede, se alerta.
+const NATIVE_PDF_MAX_BYTES = 6 * 1024 * 1024;
+// Umbral de densidad: por debajo de esto (chars de texto digital / página) el PDF es
+// sospechoso de ser un escaneo con una capa de texto mínima/parcial → leer nativo con Claude.
+const MIN_CHARS_PER_PAGE = 200;
+
+/** Nº de páginas del PDF vía `pdfinfo` (poppler). null si no se puede determinar. */
+function pdfPageCount(localPath: string): number | null {
+  try {
+    const out = execFileSync('pdfinfo', [localPath], {
+      encoding: 'utf8',
+      timeout: 15000,
+      maxBuffer: 1024 * 1024,
+    });
+    const m = out.match(/^Pages:\s*(\d+)/m);
+    return m ? parseInt(m[1], 10) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decide si un PDF debe leerse NATIVAMENTE con Claude (mejora #1) en vez de confiar en el texto
+ * extraído por `pdftotext`. Filosofía: el texto SOLO se confía cuando `pdftotext` leyó una capa
+ * de texto limpia y completa; ante CUALQUIER duda → Claude lee el PDF nativo (lee mucho mejor que
+ * el OCR, comprobado). Tesseract queda ELIMINADO del flujo. Señales de duda (con una basta):
+ *   1. Texto casi vacío (< 50 chars)         → PDF-imagen (escaneo/foto).
+ *   2. Imagen raster GRANDE embebida (≥600px) → screenshot/foto adentro con el dato.
+ *   3. Densidad de texto baja por página      → escaneo con capa de texto mínima/parcial.
+ * Devuelve el MOTIVO (para loguear) o null si el texto es confiable. Best-effort ante fallos.
+ */
+function pdfNativeReason(localPath: string, extractedTextLen: number): string | null {
+  if (extractedTextLen < 50) return 'texto casi vacío (escaneo/foto)';
+  // Señal 2 — imagen grande embebida (no logos/sellos chicos).
+  try {
+    const out = execFileSync('pdfimages', ['-list', localPath], {
+      encoding: 'utf8',
+      timeout: 15000,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    for (const line of out.split('\n')) {
+      const m = line.trim().match(/^\d+\s+\d+\s+\w+\s+(\d+)\s+(\d+)\b/);
+      if (!m) continue;
+      if (parseInt(m[1], 10) >= 600 && parseInt(m[2], 10) >= 600) {
+        return 'imagen grande embebida (screenshot/foto adentro)';
+      }
+    }
+  } catch { /* pdfimages ausente/erróneo → seguir con las otras señales */ }
+  // Señal 3 — densidad de texto baja por página.
+  const pages = pdfPageCount(localPath);
+  if (pages && pages > 0 && extractedTextLen / pages < MIN_CHARS_PER_PAGE) {
+    return `densidad de texto baja (~${Math.round(extractedTextLen / pages)} chars/página en ${pages} pág.)`;
+  }
+  return null;
+}
 
 export interface ReclassifiedCreditor {
   bank: string;
@@ -344,24 +402,36 @@ export async function runSentinelCheck(
         doc.imageBase64 = fs.readFileSync(localPath).toString('base64');
         doc.textContent = '[IMAGEN: Claude analizará la imagen directamente]';
       } else {
+        // --- Mejora #1: Tesseract ELIMINADO; lectura nativa del PDF por Claude ante la duda ---
+        // `pdftotext` lee la capa de texto digital. Filosofía: confiar el texto SOLO si esa capa
+        // está limpia/completa; si pdftotext + TS notan algo raro (pocos chars, imagen embebida,
+        // densidad de texto baja) → mandar el PDF NATIVO a Claude (lo lee mucho mejor que el OCR,
+        // comprobado). Cert-first: solo mejora qué LEE el LLM; no toca la estructura (260/261,
+        // overrides) ni el CMF.
+        doc.isImageDoc = false;
         const fullText = await extractTextFromPdf(localPath).catch(() => '');
-        if (fullText.trim().length < 50) {
-          // OCR multi-página (Tesseract) reemplaza GS+Vision: lee todas las páginas
-          const { extractTextWithOcrFallback } = await import('./ocr_helper');
-          const { text: ocrText } = await extractTextWithOcrFallback(localPath, 50);
-          if (ocrText.trim().length > 30) {
-            doc.isImageDoc = false;
-            doc.textContent = clampDocTextForClaude(ocrText);
-            log(`📄 OCR: ${doc.filename} (${ocrText.length} chars OCR → ${doc.textContent.length} enviados: inicio+final, todas las páginas)`);
-          } else {
-            // OCR también falló — sin contenido útil
-            doc.isImageDoc = false;
-            doc.textContent = '[PDF PROTEGIDO O NO CONVERTIBLE: sin texto extraíble. Verificar contraseña o calidad del archivo.]';
-            log(`⚠️ ${doc.filename}: OCR no produjo texto suficiente. Placeholder enviado a Claude.`);
-          }
-        } else {
-          doc.isImageDoc = false;
+        const textLen = fullText.trim().length;
+        let stat: fs.Stats | null = null;
+        try { stat = fs.statSync(localPath); } catch { /* ignore */ }
+        const reason = pdfNativeReason(localPath, textLen);
+
+        if (reason && stat && stat.size <= NATIVE_PDF_MAX_BYTES) {
+          // Algo raro → Claude lee el PDF NATIVO. Si hay algo de texto, va como apoyo.
+          doc.nativePdfBase64 = fs.readFileSync(localPath).toString('base64');
+          doc.textContent = textLen >= 50
+            ? clampDocTextForClaude(fullText)
+            : '[PDF escaneado/poco legible por texto. Claude lo lee NATIVAMENTE desde el documento adjunto.]';
+          log(`🖼️ ${doc.filename} → Claude PDF nativo (${(stat.size / 1024).toFixed(0)} KB) — motivo: ${reason}.`);
+        } else if (!reason && textLen >= 50) {
+          // Capa de texto limpia y suficiente → se confía el texto (sin Claude nativo).
           doc.textContent = clampDocTextForClaude(fullText);
+          log(`📄 ${doc.filename} → texto confiable (pdftotext, ${textLen} chars).`);
+        } else {
+          // Necesitaba lectura nativa pero no se pudo (sin stat o supera el tope) → sin lector
+          // automático. Placeholder claro para que el LLM/abogado lo marque (no se pierde en silencio).
+          const tooBig = !!stat && stat.size > NATIVE_PDF_MAX_BYTES;
+          doc.textContent = `[PDF ILEGIBLE AUTOMÁTICAMENTE: sin capa de texto confiable${tooBig ? ' y demasiado grande para lectura nativa' : ''}. Requiere revisión/carga manual.]`;
+          log(`⚠️ ${doc.filename}: no legible automáticamente${tooBig ? ` (${(stat!.size / 1024 / 1024).toFixed(1)} MB > tope nativo ${(NATIVE_PDF_MAX_BYTES / 1024 / 1024)} MB)` : ` (motivo: ${reason ?? 'texto pobre'})`} → revisión manual.`);
         }
       }
     }
@@ -821,6 +891,21 @@ Esquema JSON esperado:
             type: 'base64',
             media_type: doc.imageMimeType || 'image/jpeg',
             data: doc.imageBase64
+          }
+        });
+      } else if (doc.nativePdfBase64) {
+        // Mejora #1: PDF NATIVO (escaneo/imágenes embebidas/baja densidad de texto). Claude lo lee
+        // directo desde el documento adjunto; el texto de abajo (si hay) es solo apoyo parcial.
+        userMessageParts.push({
+          type: 'text',
+          text: `\n=== CERTIFICADO PDF NATIVO: ${doc.filename} (Acreedor asignado: ${doc.institucion_cmf}, Tipo: ${doc.acreditacion_tipo}). LEÉ EL PDF ADJUNTO para monto/vencimiento/nº de operación: el texto digital extraíble es pobre o incompleto, así que el documento adjunto es la fuente principal. ===\nTexto de apoyo (parcial, puede faltar el dato):\n${doc.textContent}`
+        });
+        userMessageParts.push({
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: 'application/pdf',
+            data: doc.nativePdfBase64
           }
         });
       } else {
