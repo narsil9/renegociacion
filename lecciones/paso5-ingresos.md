@@ -22,6 +22,38 @@ tiene **3 listas** acopladas y un upload obligatorio aparte:
 - **Certificado de Cotizaciones Previsionales** (`#fileCertificadoCotizaciones`): upload **obligatorio**,
   últimos 12 meses, con el RUT de la entidad pagadora. NO es un ingreso → va en su propio campo.
 
+## Fuentes oficiales (Superir) — verdad normativa, verificada 2026-06-29
+> Manual de usuario de la plataforma (`Manual_Ingreso_Solicitudes_Renegociacion_vf.pdf`, Paso 5, págs. 23-26)
+> y `Listado_de_antecedentes_2023_vf_2.pdf`. Estas son reglas del ESTADO; mandan sobre cualquier supuesto.
+
+- **Propósito del Paso 5 (textual):** registrar *"todos los ingresos que percibe, los que permitirá
+  determinar su **verdadera capacidad de pago** para renegociar sus obligaciones."* → el monto declarado
+  alimenta la propuesta. **Regla del 60%**: la propuesta de pago **no puede exceder el 60% de los
+  ingresos declarados** (Listado). Sub/sobre-declarar el ingreso impacta directo la propuesta.
+- **Concepto** (dropdown, "una o más"): Remuneración · Pensión/jubilación/montepío · Licencia Médica ·
+  Aporte de terceros para deudas · Aporte de terceros para gastos · Retiro de sociedades · Arriendos ·
+  Ingresos esporádicos · Otros. (= nuestro crosswalk L7.)
+- **Monto** (pesos, máx 9 dígitos) + **Periodicidad** (Anual/Semestral/Trimestral/Mensual/Quincenal/
+  Semanal/Diario/Única Vez). El portal acepta periodicidad ≠ Mensual; el resumen muestra una fila
+  **"Promedio Ingresos"** (promedia las filas declaradas).
+- ⚠️ **El manual NO dice cómo CALCULAR el monto mensual** (no manda "promedio de 3 meses"). La
+  mensualización/promedio (L3: 3 meses permanentes / 12 honorarios) es **criterio del abogado**, no del
+  portal. Lo que el portal/Listado fija son los **DOCUMENTOS** de respaldo (abajo).
+- **Documentos justificativos por tipo (Listado):**
+  - Sueldo/pensión → **3 últimas liquidaciones** (o **contrato** si aún no hay liquidaciones).
+  - Licencia médica / seguro de cesantía → **comprobante de pago** de la licencia/seguro.
+  - Trabajo informal → **DJ simple** (actividad + monto mensual; no notarial).
+  - Aporte de terceros → **DJ del tercero + copia de su cédula** (monto que aporta).
+  - **Retiro de sociedades → certificado del CONTADOR + carpeta tributaria de la(s) sociedad(es)**
+    (una DJ simple del propio deudor NO es el documento que pide Superir).
+  - Honorarios → **Informe de Boletas Emitidas del SII, 3 últimos años tributarios**.
+- **Certificado de Cotizaciones Previsionales:** **obligatorio**, últimos **12 meses**, con **RUT de la
+  entidad pagadora**. Upload aparte (`#fileCertificadoCotizaciones`).
+- **Vigencia 30 días** para todos los documentos (misma regla que CMF/certs del Paso 3).
+- **Formatos aceptados por el portal en el Paso 5:** **JPG, PDF y Word (.docx)** (justificativos y cert
+  de cotizaciones). *(Nuestro pipeline lee nativo solo PDF/imagen → un `.docx` se sube tal cual al portal
+  pero hay que CONVERTIRLO para que el agente lo lea y extraiga el monto.)*
+
 ## Lecciones
 
 ### L1 — "Líquido a pagar", NUNCA "Alcance Líquido"
@@ -76,13 +108,87 @@ esporádico→(8,34) · otro→(9,34). · **validada** (estructura del portal, 2
 
 ---
 
-## Pendientes / candidatas (a validar en próximas pruebas del Paso 5)
+### L8 — El campo del líquido tiene MUCHOS nombres (no solo "Líquido a pagar")
+El rótulo del monto a usar (L1) varía por empleador/documento. Confirmados en el lote `casos-paso5`:
+**"Líquido a Pagar"** (Falabella, Siges, Nutrekall), **"Líquido a Cobrar"** (Clínica Alemana),
+**"Líquido a Recibir"** (Chilexpress), **"Rem. Neta"** (Nutrekall), **"Monto Líquido"** (liquidación de
+subsidio de licencia médica). El prompt debe **enumerar estos sinónimos** y seguir EXCLUYENDO siempre
+"Alcance Líquido" / "Imponible". · **validada** por análisis de 5 casos (2026-06-29).
 
-- **Honorarios (2ª cat.):** ingreso = promedio de boletas. CLAUDE.md dice "últimos 6 meses / 6"; el
-  **portal exige 12 meses** (L3). Resolver la discrepancia 6 vs. 12 contra un caso real de honorarios. · `pendiente`.
-- **Aporte de terceros:** requiere **declaración jurada** (tipo 31); ¿la genera el flujo o la sube el
-  abogado? Validar con un caso de persona casada / aporte de padres. · `pendiente`.
-- **Retiro de sociedades (tipo 6/33):** cómo se determina el monto mensual (¿retiro promedio?). Jorge
-  tiene sociedades pero declaró por remuneración — validar con un caso que declare por retiro. · `pendiente`.
-- **Múltiples fuentes simultáneas** (sueldo + arriendo + …): una fila por fuente. Validar con un caso
-  multi-ingreso. · `pendiente`.
+### L9 — Multi-empleador: una fuente por empleador, se SUMAN (no se promedian entre sí)
+Si el deudor tiene **dos contratos de remuneración con empleadores de RUT distinto** y concurrentes,
+son **dos ingresos "Remuneración"** y los montos mensuales **se suman** (cada uno = promedio de sus 3
+liquidaciones). El cert de cotizaciones confirma empleadores cotizando en paralelo. ⚠️ **BUG de código
+confirmado:** `computeIncomes` consolida por *categoría* → hoy fusionaría los 2 empleadores en un solo
+promedio (subdeclara). Debe agrupar por **(categoría + RUT pagador)**. *(Testigo: Alex — Siges
+96.992.160-K $1.747.852 + Nutrekall 77.730.514-K $440.525 = $2.188.377.)* · **validada** (2026-06-29).
+
+### L10 — El add-back voluntario NO es por keyword: hay que CONCILIAR contra el documento del préstamo
+Refina L2/C3. Un descuento que "suena" a préstamo de caja **no se suma a ciegas**: hay que conciliar el
+monto del descuento con el certificado del préstamo. *(Testigo: Alex — "Descto. Ptmo. CCAF Los Andes"
+$465–527k/mes NO concilia con la única cuota documentada $61.969 de un crédito **nuevo** del 03/03/2026;
+el doc "préstamo en 0" NO probaba un crédito terminándose. → el descuento queda **DUDOSO → NO sumar +
+alertar**, no sumar por regla.)* Además, los **anticipos** (devolución de anticipo de sueldo/aguinaldo/
+bono ya percibido) son una **clase aparte**: bajan el líquido pero no son gasto recurrente ni préstamo
+redirigible → por defecto NO se suman; "normalizar" el mes es decisión del abogado. *(Testigos: Alejandro
+"Anticipos Varios" $89.442 + "Antic. Agui." $57.058 marzo; Alex "Anticipo Bono Vac." $106.000.)*
+Gastos reales (**seguro de vida, bienestar, cuota sindicato, cta. cte.**) nunca se suman. · **validada** (2026-06-29).
+
+### L11 — Licencia médica: subsidio fragmentado, duplicados y RELIQUIDACIONES (no doble contar)
+El subsidio por incapacidad (Compin/ISAPRE) llega en **muchos pagos parciales por días** de varias
+licencias encadenadas, y el cliente suele entregar **PDFs duplicados** y **reliquidaciones** (que
+descuentan un "subsidio anterior" ya adelantado). Reglas: (a) **deduplicar** (en el testigo, 9 PDFs =
+solo 5 liquidaciones únicas); (b) por folio con reliquidación, **elegir UNA versión**, no sumar la plena
+y la reliquidada (doble conteo); (c) **NO** usar el "**Promedio mensual**" impreso (es la BASE de cálculo
+del subsidio, no lo percibido); (d) reconstruir el **subsidio devengado por mes calendario** (sumar los
+"Monto Líquido" del mismo mes) y mensualizar un mes completo; (e) el subsidio **reemplaza** al sueldo en
+el período de licencia → **no se declaran sueldo y subsidio sobre el mismo período**. *(Testigo: María
+Elisa — subsidio mensual ≈ $2.700.000; folios 127997776/128273358/128544488.)* · **validada** (2026-06-29).
+
+### L12 — Retiro de sociedades: documento del CONTADOR (no DJ simple) + riesgo de doble conteo + `.docx`
+El retiro de sociedades (tipo 6) requiere, según Superir, **certificado del contador + carpeta tributaria
+de la sociedad**; una **DJ simple del propio deudor NO acredita**. Además: (a) suele venir en **`.docx`**
+→ el pipeline lee nativo solo PDF/imagen, hay que convertirlo para extraer el monto; (b) si el deudor ya
+declara **remuneración de la misma sociedad**, declarar también el retiro puede **duplicar** el mismo
+flujo → decisión del abogado. *(Testigo: Alex — retiro Nutrekall $4.734.000/2025 en DJ `.docx`, misma
+sociedad donde cobra sueldo → NO declarado por falta de respaldo + doble conteo.)* · **validada** (2026-06-29).
+
+### L13 — Archivos en `Ingresos/` que NO son ingreso (no inventar ingreso) + la cédula aporta DOB
+Las carpetas de ingreso traen documentos que **no son ingreso** y no deben declararse: **cédula de
+identidad** (jpg anverso/reverso), **capturas del SII** (agente retenedor — respaldo cruzado, no es el
+cert de cotizaciones). Bonus: la **cédula aporta la fecha de nacimiento** → dato del **Paso 1**
+habitualmente faltante en prod (ver bloqueante `fecha_nacimiento`). *(Testigo: Alejandro —
+`1000256982/3.jpg` = cédula, DOB 23-NOV-1984; el 2º "cotizaciones.pdf" era captura del SII.)* · **validada** (2026-06-29).
+
+### L14 — Lectura por LLM: UNA llamada por documento (handoff del Paso 3)
+Adoptado del diagnóstico del Centinela (`mejoras-centinela-lector-pdf.md`, 2026-06-29): leer **todos**
+los documentos en una sola llamada hace que el modelo reparta atención y **fluctúe entre corridas**
+(pierde/mezcla datos). La regla #1: **una llamada por documento** (contexto chico + atención total =
+lectura estable y completa). Implementado en `ingresos_agent.ts` (`callClaudeForDoc` por doc). Adoptadas
+también: **reconocer el `doc_type`** antes de extraer (liquidación mensual ≠ resumen anual ≠ subsidio ≠
+boleta; un total anual NO es un mes); **declarar la moneda** (UF vs CLP, ~38.000×); **reintento ante
+respuesta vacía** (vacío = error reintentable, no "sin datos"); **`rut_pagador` por documento** →
+`source_key` (habilita L9 multi-empleador en la lectura real); **nunca bajar a $0 ni omitir** por
+interpretación (ante la duda, reportar + alertar). Ya teníamos: lectura nativa PDF/imagen, Opus 4.8 para
+escaneos, `thinking: adaptive`, y evidence (cita+confianza, L8/Capa anti-error). · **adoptada** (2026-06-29).
+
+---
+
+## Pendientes / decisiones abiertas (requieren verdad-terreno del abogado)
+
+> Lo mecánico/estructural quedó en L8–L13 (validado por análisis del lote `casos-paso5`). Acá quedan
+> solo las decisiones de **criterio** que no cierra el analista, y los huecos sin testigo.
+
+- **Add-back / normalización (impacto en el monto):** Alex CCAF (+$486k: $2.188.377 vs $2.674.650);
+  Alejandra crédito Caja Los Andes ($2.620.869 con vs $2.336.968 sin); Alejandro anticipos marzo
+  ($2.061.903 vs $2.110.736). El abogado define si se suman/normalizan. · `abogado`.
+- **María Elisa — Remuneración vs Licencia Médica:** en licencia ininterrumpida → recomendado declarar
+  **Licencia Médica ≈ $2.700.000**; si reintegrada, **Remuneración $2.395.383**. · `abogado`.
+- **"Cta. Cte. Clínica UF"** (María Elisa, ~$42k/mes): ¿préstamo interno redirigible (sumar) o cargo a
+  cuenta corriente (no)? El nombre no lo aclara. · `abogado`.
+- **C6 — Honorarios (Fix 2) sin testigo:** ninguno de los 5 casos declara por boletas → divisor fijo 12,
+  bruto vs líquido y ventana 6 vs 12 **siguen sin validar**. Conseguir un caso de honorarios. · `pendiente`.
+- **Aporte de terceros (tipo 31):** DJ del tercero + cédula — validar con un caso real. · `pendiente`.
+- **Vigencia 30 días:** en el lote, varios certs de cotizaciones están **vencidos** (Jorge >13 meses;
+  Alejandra ~66 días); Alejandro/Alex/María Elisa vigentes. Operacional: refrescar antes de presentar
+  (no afecta el monto, sí la admisibilidad). · `operacional`.

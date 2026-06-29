@@ -37,23 +37,67 @@ export interface DeductionLine {
   amount: number;
 }
 
-/** Un período de un documento de ingreso (un mes de liquidación, p. ej.). */
+/**
+ * Evidencia de lectura que Claude reporta por período (red anti-error, espejo del
+ * Paso 3 / Centinela). TS verifica el HECHO (la cifra leída) contra la cita textual;
+ * no decide la estructura. Ver lecciones/paso3-acreedores.md L2/L5.
+ */
+export interface PeriodEvidence {
+  /** Fragmento VERBATIM del documento de donde se leyó la cifra (anti-alucinación). */
+  cita_monto?: string;
+  /** Confianza 0..1 de la lectura de ESTE período (escaneos garbled → baja). */
+  confidence?: number;
+}
+
+/** Un período de un documento de ingreso (un mes de liquidación, o una boleta). */
 export interface IncomePeriod {
-  /** Etiqueta del período tal como aparece (ej. "Mayo-2025", "ABR-2025"). */
+  /** Etiqueta del período tal como aparece (ej. "Mayo-2025", "ABR-2025", "05/2025"). */
   period_label: string;
   /**
    * "Líquido a pagar" del documento (L1) — NUNCA "Alcance Líquido". Es lo que la
-   * persona efectivamente recibe. null si el documento no lo expone (ej. aporte).
+   * persona efectivamente recibe. null si el documento no lo expone (ej. aporte,
+   * o una boleta de honorarios que solo trae bruto/retención).
    */
   liquido_a_pagar: number | null;
+  /**
+   * Monto BRUTO de una boleta de honorarios (honorarios brutos, antes de retención).
+   * Solo aplica a la categoría "honorarios"; null/ausente en liquidaciones de sueldo.
+   */
+  monto_bruto?: number | null;
+  /** Retención de la boleta de honorarios (impuesto retenido, recuperable). */
+  retencion?: number | null;
   /** Líneas de descuento del período (para clasificar legal vs voluntario, L2). */
   deductions?: DeductionLine[];
+  /**
+   * Moneda del monto leído (handoff Paso 3, regla #5). El portal declara en CLP; un monto
+   * en UF tratado como CLP es un error de ~38.000×. Si es 'UF' se ALERTA (requiere conversión).
+   */
+  moneda?: 'CLP' | 'UF';
+  /** Respaldo anti-error de la cifra leída en este período. */
+  evidence?: PeriodEvidence;
+}
+
+/** Discrepancia entre lo que Claude leyó y su propia cita / confianza (red anti-error). */
+export interface IncomeReadIssue {
+  filename: string;
+  period_label: string;
+  /** Cifra cruda leída (líquido o bruto) que se intenta respaldar. */
+  monto: number;
+  tipo: 'sin_evidencia' | 'monto_sin_respaldo_en_cita' | 'baja_confianza';
+  detalle: string;
 }
 
 /** Hechos extraídos por el LLM de UN documento de ingreso. */
 export interface ExtractedIncomeDoc {
   filename: string;
   category: IncomeCategory;
+  /**
+   * Clave de la FUENTE del ingreso (L9): RUT del empleador/pagador (o su nombre si no
+   * hay RUT). Dos documentos de la misma categoría pero distinta fuente NO se fusionan:
+   * son ingresos separados que se SUMAN (ej. dos empleadores concurrentes). Si se omite,
+   * todos los docs de una categoría se tratan como una sola fuente (compat. hacia atrás).
+   */
+  source_key?: string | null;
   /** Períodos con su líquido (liquidaciones, pensión, arriendo). */
   periods?: IncomePeriod[];
   /**
@@ -106,6 +150,8 @@ export interface IncomeComputation {
   cotizacionesCert: CotizacionesCertFacts | null;
   /** Alertas a nivel global (falta cert de cotizaciones, etc.). */
   alerts: string[];
+  /** Señales anti-error sobre la lectura de Claude (cita/confianza). Informativo. */
+  claudeReadIssues: IncomeReadIssue[];
 }
 
 // ---------------------------------------------------------------------------
@@ -117,26 +163,91 @@ export const PERIODICIDAD_UNICA_VEZ = 8;
 // ---------------------------------------------------------------------------
 // Crosswalk categoría → (tipoIngreso, tipoAntecedente) — L7. DETERMINISTA.
 // ---------------------------------------------------------------------------
+/**
+ * Modo de cálculo del monto mensual:
+ *  - 'liquido'  : períodos mensuales con "Líquido a pagar" (+ descuentos voluntarios);
+ *                 promedio = Σ líquidos de los `promedioMeses` más recientes / nº usados.
+ *  - 'boletas'  : boletas de honorarios; promedio = Σ montos de la ventana / `promedioMeses`
+ *                 (divisor FIJO = meses de la ventana, no nº de boletas).
+ *  - 'directo'  : monto mensual ya declarado en el documento (aportes, retiro, esporádico),
+ *                 o promedio simple si vienen períodos.
+ */
+type IncomeMode = 'liquido' | 'boletas' | 'directo' | 'subsidio';
+
 interface CrosswalkEntry {
   tipoIngreso: number;
   tipoIngresoLabel: string;
   tipoAntecedente: number;
   /** Ventana de promedio en meses (L3). null = monto mensual directo (no promedio). */
   promedioMeses: number | null;
+  mode: IncomeMode;
 }
 
 const CROSSWALK: Record<Exclude<IncomeCategory, 'certificado_cotizaciones'>, CrosswalkEntry> = {
-  liquidacion_sueldo:     { tipoIngreso: 1,  tipoIngresoLabel: 'Remuneración',                tipoAntecedente: 28, promedioMeses: 3 },
-  comprobante_pension:    { tipoIngreso: 2,  tipoIngresoLabel: 'Pensión, jubilación, montepío', tipoAntecedente: 29, promedioMeses: 3 },
-  licencia_medica:        { tipoIngreso: 3,  tipoIngresoLabel: 'Licencia Médica',              tipoAntecedente: 30, promedioMeses: null },
-  aporte_terceros_deudas: { tipoIngreso: 4,  tipoIngresoLabel: 'Aporte de terceros para deudas', tipoAntecedente: 31, promedioMeses: null },
-  aporte_terceros_gastos: { tipoIngreso: 5,  tipoIngresoLabel: 'Aporte de terceros para gastos', tipoAntecedente: 31, promedioMeses: null },
-  comprobante_arriendo:   { tipoIngreso: 7,  tipoIngresoLabel: 'Arriendos',                    tipoAntecedente: 32, promedioMeses: 3 },
-  retiro_sociedades:      { tipoIngreso: 6,  tipoIngresoLabel: 'Retiro de sociedades',         tipoAntecedente: 33, promedioMeses: null },
-  honorarios:             { tipoIngreso: 10, tipoIngresoLabel: 'Honorarios',                   tipoAntecedente: 45, promedioMeses: 12 },
-  esporadico:             { tipoIngreso: 8,  tipoIngresoLabel: 'Ingresos esporádicos',         tipoAntecedente: 34, promedioMeses: null },
-  otro:                   { tipoIngreso: 9,  tipoIngresoLabel: 'Otros',                        tipoAntecedente: 34, promedioMeses: null },
+  liquidacion_sueldo:     { tipoIngreso: 1,  tipoIngresoLabel: 'Remuneración',                tipoAntecedente: 28, promedioMeses: 3,    mode: 'liquido' },
+  comprobante_pension:    { tipoIngreso: 2,  tipoIngresoLabel: 'Pensión, jubilación, montepío', tipoAntecedente: 29, promedioMeses: 3,    mode: 'liquido' },
+  licencia_medica:        { tipoIngreso: 3,  tipoIngresoLabel: 'Licencia Médica',              tipoAntecedente: 30, promedioMeses: null, mode: 'subsidio' },
+  aporte_terceros_deudas: { tipoIngreso: 4,  tipoIngresoLabel: 'Aporte de terceros para deudas', tipoAntecedente: 31, promedioMeses: null, mode: 'directo' },
+  aporte_terceros_gastos: { tipoIngreso: 5,  tipoIngresoLabel: 'Aporte de terceros para gastos', tipoAntecedente: 31, promedioMeses: null, mode: 'directo' },
+  comprobante_arriendo:   { tipoIngreso: 7,  tipoIngresoLabel: 'Arriendos',                    tipoAntecedente: 32, promedioMeses: 3,    mode: 'liquido' },
+  retiro_sociedades:      { tipoIngreso: 6,  tipoIngresoLabel: 'Retiro de sociedades',         tipoAntecedente: 33, promedioMeses: null, mode: 'directo' },
+  honorarios:             { tipoIngreso: 10, tipoIngresoLabel: 'Honorarios',                   tipoAntecedente: 45, promedioMeses: 12,   mode: 'boletas' },
+  esporadico:             { tipoIngreso: 8,  tipoIngresoLabel: 'Ingresos esporádicos',         tipoAntecedente: 34, promedioMeses: null, mode: 'directo' },
+  otro:                   { tipoIngreso: 9,  tipoIngresoLabel: 'Otros',                        tipoAntecedente: 34, promedioMeses: null, mode: 'directo' },
 };
+
+// ---------------------------------------------------------------------------
+// Parseo de la etiqueta de período → clave ordenable YYYYMM (Fix bug ordenamiento).
+// El LLM no garantiza orden; el promedio de "los últimos N meses" debe usar los
+// períodos MÁS RECIENTES → se ordena determinísticamente por fecha parseada.
+// ---------------------------------------------------------------------------
+const MONTHS_ES: Record<string, number> = {
+  ene: 1, enero: 1, feb: 2, febrero: 2, mar: 3, marzo: 3, abr: 4, abril: 4,
+  may: 5, mayo: 5, jun: 6, junio: 6, jul: 7, julio: 7, ago: 8, agosto: 8,
+  sep: 9, set: 9, sept: 9, septiembre: 9, oct: 10, octubre: 10,
+  nov: 11, noviembre: 11, dic: 12, diciembre: 12,
+};
+
+/** Convierte "Mayo-2025"/"05/2025"/"2025-05"/"abr-25"/"1 de diciembre de 2025" → 202505. null si no parsea. */
+export function parsePeriodKey(label: string | undefined): number | null {
+  if (!label) return null;
+  const t = label.toLowerCase();
+  let m = t.match(/(20\d{2})\s*[-/.]\s*(0?[1-9]|1[0-2])(?!\d)/); // 2025-05
+  if (m) return +m[1] * 100 + +m[2];
+  m = t.match(/(?<!\d)(0?[1-9]|1[0-2])\s*[-/.]\s*(20\d{2})/); // 05/2025 (lookbehind: "13/2025" NO es "3/2025")
+  if (m) return +m[2] * 100 + +m[1];
+  m = t.match(/([a-z]{3,})\.?\s*[-/ ]?\s*(20\d{2})/); // mayo-2025
+  if (m && MONTHS_ES[m[1]] != null) return +m[2] * 100 + MONTHS_ES[m[1]];
+  // año de 2 dígitos ACOTADO a 20–40 (2020-2040) para evitar confundir un DÍA con el año
+  // (ej. "abril 03" NO es abril de 2003). "abr-25"/"mayo 40" → 2025/2040.
+  m = t.match(/([a-z]{3,})\.?\s*[-/ ]?\s*'?(2\d|3\d|40)\b/); // abr-25
+  if (m && MONTHS_ES[m[1]] != null) return (2000 + +m[2]) * 100 + MONTHS_ES[m[1]];
+  // Fallback verboso: "1 de diciembre de 2025" → mes nombrado + un año 20YY en el texto.
+  const yearM = t.match(/\b(20\d{2})\b/);
+  if (yearM) {
+    for (const tok of t.split(/[^a-záéíóúñ]+/i).filter(Boolean)) {
+      if (MONTHS_ES[tok] != null) return +yearM[1] * 100 + MONTHS_ES[tok];
+    }
+  }
+  return null;
+}
+
+/** Distancia en meses entre dos claves YYYYMM (a − b). */
+function monthsBetween(a: number, b: number): number {
+  return (Math.floor(a / 100) * 12 + (a % 100)) - (Math.floor(b / 100) * 12 + (b % 100));
+}
+
+/** Ordena períodos de más reciente a más antiguo; los no parseables van al final. */
+function sortPeriodsDesc(periods: IncomePeriod[]): IncomePeriod[] {
+  return [...periods].sort((p, q) => {
+    const kp = parsePeriodKey(p.period_label);
+    const kq = parsePeriodKey(q.period_label);
+    if (kp == null && kq == null) return 0;
+    if (kp == null) return 1;
+    if (kq == null) return -1;
+    return kq - kp;
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Clasificación de descuentos: legal (NO se suma de vuelta) vs voluntario
@@ -148,25 +259,94 @@ const LEGAL_DEDUCTION_KEYWORDS = [
   'afp', 'a.f.p', 'cotizacion', 'cotización', 'cotiz', 'prevision', 'previsión', 'previsional',
   'salud', 'isapre', 'fonasa', 'banmedica', 'consalud', 'colmena', 'cruz blanca', 'vida tres',
   'nueva masvida', 'masvida', 'seguro de cesantia', 'seguro de cesantía', 'cesantia', 'cesantía',
-  'impuesto', 'sis', 'mutual', ' achs', 'institucion de salud', 'institución de salud',
+  'impuesto', 'sis', 'mutual', 'achs', 'institucion de salud', 'institución de salud',
 ];
-// Descuentos VOLUNTARIOS: bajan el líquido pero no reflejan menor capacidad de
-// ingreso → se SUMAN de vuelta. (Préstamos empleador, cajas de compensación,
-// convenios, créditos, anticipos.)
+// Descuentos VOLUNTARIOS: préstamos/ahorro forzoso REDIRIGIBLES → se SUMAN de vuelta
+// (el líquido baja pero la capacidad de ingreso no). Lista CONSERVADORA (L10): solo
+// préstamos de empleador/caja y ahorro voluntario. NO incluye anticipos (devolución de
+// dinero ya recibido), cuota sindical/seguro/bienestar (gastos reales) ni "crédito" a
+// secas (demasiado amplio) — esos caen a 'ambiguous' → se ALERTAN, no se suman.
 const VOLUNTARY_DEDUCTION_KEYWORDS = [
-  'prestamo', 'préstamo', 'anticipo', 'caja de compensacion', 'caja de compensación',
+  'prestamo', 'préstamo', 'ptmo', 'ccaf', 'caja de compensacion', 'caja de compensación',
   'los andes', 'la araucana', 'los heroes', 'los héroes', '18 de septiembre', 'gabriela mistral',
-  'convenio', 'gimnasio', 'credito', 'crédito', 'cuota sindical', 'sindicato', 'aporte voluntario',
+  'apv', 'ahorro voluntario', 'aporte voluntario', 'credito personal', 'crédito personal',
 ];
 
 export type DeductionClass = 'legal' | 'voluntary' | 'ambiguous';
 
+/**
+ * ¿La etiqueta contiene la keyword como INICIO de palabra? Límite IZQUIERDO (no derecho)
+ * para: (a) no confundir substrings dentro de otra palabra ("sis" en "asistencia/análisis",
+ * "achs" suelto) → evita falsos positivos; (b) seguir matcheando stems en español
+ * ("cotiz"→"cotizaciones", "prevision"→"previsionales"). Acentos/ñ cuentan como letra.
+ */
+function startsWordWith(t: string, kw: string): boolean {
+  const esc = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-záéíóúñ])${esc}`, 'i').test(t);
+}
+
 /** Clasifica una línea de descuento. Legal primero (más específico/seguro). */
 export function classifyDeduction(label: string): DeductionClass {
   const t = label.toLowerCase();
-  if (LEGAL_DEDUCTION_KEYWORDS.some((k) => t.includes(k))) return 'legal';
-  if (VOLUNTARY_DEDUCTION_KEYWORDS.some((k) => t.includes(k))) return 'voluntary';
+  if (LEGAL_DEDUCTION_KEYWORDS.some((k) => startsWordWith(t, k))) return 'legal';
+  if (VOLUNTARY_DEDUCTION_KEYWORDS.some((k) => startsWordWith(t, k))) return 'voluntary';
   return 'ambiguous';
+}
+
+// ---------------------------------------------------------------------------
+// Red anti-error: la cifra cruda leída por Claude debe estar VERBATIM en su cita.
+// Espejo de la Capa 1 del Centinela (Paso 3). Conservador: si no calza, es señal
+// de REVISAR (puede ser otra cifra del documento), no un error seguro.
+// ---------------------------------------------------------------------------
+function citaRespaldaMonto(cita: string | undefined, monto: number): boolean {
+  if (!cita) return false;
+  const target = String(Math.round(monto));
+  return target.length >= 4 && cita.replace(/[^\d]/g, '').includes(target);
+}
+
+/** Monto positivo y FINITO, o null (guarda contra NaN/Infinity/negativos — H5). */
+function posFinite(n: unknown): number | null {
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Cifra cruda que Claude reportó para un período (bruto de boleta o líquido). */
+function rawReadAmount(p: IncomePeriod): number | null {
+  return posFinite(p.monto_bruto) ?? posFinite(p.liquido_a_pagar);
+}
+
+/**
+ * Verifica la lectura de Claude período por período (NO la estructura): que la cifra
+ * leída esté en su cita textual y que la confianza no sea baja. Devuelve señales
+ * informativas para el abogado (no bloquea).
+ */
+export function validateIncomeReads(docs: ExtractedIncomeDoc[]): IncomeReadIssue[] {
+  const issues: IncomeReadIssue[] = [];
+  for (const doc of docs) {
+    if (doc.category === 'certificado_cotizaciones') continue;
+    for (const p of doc.periods ?? []) {
+      const raw = rawReadAmount(p);
+      if (raw == null) continue;
+      const ev = p.evidence;
+      if (!ev || !ev.cita_monto) {
+        issues.push({
+          filename: doc.filename, period_label: p.period_label, monto: raw, tipo: 'sin_evidencia',
+          detalle: `Claude no devolvió "cita_monto" para respaldar $${raw.toLocaleString('es-CL')} en "${p.period_label}".`,
+        });
+      } else if (!citaRespaldaMonto(ev.cita_monto, raw)) {
+        issues.push({
+          filename: doc.filename, period_label: p.period_label, monto: raw, tipo: 'monto_sin_respaldo_en_cita',
+          detalle: `$${raw.toLocaleString('es-CL')} no aparece verbatim en la cita ("${ev.cita_monto}") — posible mala lectura (ej. "Alcance Líquido" en vez de "Líquido a pagar"). Revisar.`,
+        });
+      }
+      if (typeof ev?.confidence === 'number' && ev.confidence < 0.7) {
+        issues.push({
+          filename: doc.filename, period_label: p.period_label, monto: raw, tipo: 'baja_confianza',
+          detalle: `Claude reportó confidence ${ev.confidence.toFixed(2)} al leer "${p.period_label}" (escaneo dudoso).`,
+        });
+      }
+    }
+  }
+  return issues;
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +354,90 @@ export function classifyDeduction(label: string): DeductionClass {
 // ---------------------------------------------------------------------------
 function round(n: number): number {
   return Math.round(n);
+}
+
+/**
+ * Honorarios (mode 'boletas'): el monto mensual = Σ (montos de las boletas de la
+ * ventana) / nº de meses de la ventana (divisor FIJO = `promedioMeses`, no nº de
+ * boletas). La ventana se ancla en la boleta MÁS RECIENTE (robusto a fixtures viejos).
+ * Se declara el BRUTO de la boleta; bruto-vs-líquido y la ventana 6-vs-12 quedan
+ * marcados para confirmación del abogado (lección pendiente).
+ */
+function computeBoletasIncome(
+  doc: ExtractedIncomeDoc,
+  cw: CrosswalkEntry
+): { monto: number; detalle: string; alerts: string[] } {
+  const alerts: string[] = [];
+  const window = cw.promedioMeses ?? 12;
+  const legibles = (doc.periods ?? []).filter((p) => rawReadAmount(p) != null);
+  // P1.4a: deduplicar boletas idénticas (mismo período + monto) — subir el mismo PDF 2×
+  // inflaría el bruto (el divisor es fijo). Mismo criterio que liquidaciones/subsidio.
+  const seenB = new Set<string>();
+  const boletas = legibles.filter((p) => {
+    const k = `${p.period_label}|${rawReadAmount(p)}`;
+    if (seenB.has(k)) return false;
+    seenB.add(k);
+    return true;
+  });
+  if (boletas.length < legibles.length) {
+    alerts.push(`Honorarios: se ignoraron ${legibles.length - boletas.length} boleta(s) duplicada(s) (mismo período y monto).`);
+  }
+  if (boletas.length === 0) {
+    alerts.push(`"${doc.filename}": honorarios sin boletas con monto legible.`);
+    return { monto: 0, detalle: 'honorarios sin monto legible', alerts };
+  }
+
+  const keys = boletas.map((b) => parsePeriodKey(b.period_label)).filter((k): k is number => k != null);
+  const anchor = keys.length ? Math.max(...keys) : null;
+  if (anchor == null) {
+    // H3: ninguna boleta con fecha parseable → no se pudo acotar la ventana.
+    alerts.push(
+      `Honorarios: ${boletas.length} boleta(s) sin fecha parseable → no se pudo acotar la ventana; ` +
+      `el promedio /${window} puede subestimar. Verificar las fechas de emisión.`
+    );
+  }
+
+  const inWindow = anchor == null
+    ? boletas
+    : boletas.filter((b) => {
+        const k = parsePeriodKey(b.period_label);
+        return k != null && monthsBetween(anchor, k) >= 0 && monthsBetween(anchor, k) < window;
+      });
+  const ignored = boletas.length - inWindow.length;
+
+  let sumBruto = 0;
+  let sumLiquido = 0;
+  for (const b of inWindow) {
+    const bruto = rawReadAmount(b)!; // bruto si existe, si no el líquido (ambos posFinite)
+    sumBruto += bruto;
+    const ret = posFinite(b.retencion);
+    const liq = posFinite(b.monto_bruto) != null && ret != null ? bruto - ret! : (posFinite(b.liquido_a_pagar) ?? bruto);
+    sumLiquido += liq;
+  }
+
+  const monto = round(sumBruto / window);
+  const montoLiquido = round(sumLiquido / window);
+  alerts.push(
+    `Honorarios: declarado el BRUTO mensualizado $${monto.toLocaleString('es-CL')} ` +
+    `(Σ ${inWindow.length} boleta(s) / ${window} meses). Líquido equivalente ≈ ` +
+    `$${montoLiquido.toLocaleString('es-CL')}. ⚠️ Confirmar con el abogado: (a) declarar BRUTO o LÍQUIDO; ` +
+    `(b) ventana 6 vs 12 meses (CLAUDE.md dice 6, el portal/L3 dice 12).`
+  );
+  if (anchor != null && inWindow.length < window) {
+    alerts.push(
+      `Honorarios: solo ${inWindow.length} mes(es) con boletas en la ventana de ${window} ` +
+      `→ el promedio se divide igual por ${window} (ingreso irregular). Verificar.`
+    );
+  }
+  if (ignored > 0) {
+    alerts.push(`Honorarios: ${ignored} boleta(s) fuera de la ventana de ${window} meses — no contadas.`);
+  }
+
+  return {
+    monto,
+    detalle: `boletas en ventana: ${inWindow.map((b) => `${b.period_label}=${rawReadAmount(b)}`).join(', ')} | Σbruto ${sumBruto} / ${window}`,
+    alerts,
+  };
 }
 
 interface PeriodAmountResult {
@@ -188,16 +452,19 @@ interface PeriodAmountResult {
  */
 function periodNetIncome(p: IncomePeriod): PeriodAmountResult {
   const alerts: string[] = [];
-  if (p.liquido_a_pagar == null) {
-    return { amount: 0, alerts: [`Período "${p.period_label}" sin "Líquido a pagar" legible.`], detalle: '' };
+  const liquido = posFinite(p.liquido_a_pagar);
+  if (liquido == null) {
+    // null, NaN, Infinity o negativo → ilegible/ inválido (H5). No se descarta en silencio.
+    const why = p.liquido_a_pagar == null ? 'sin "Líquido a pagar" legible' : `"Líquido a pagar" ilegible o inválido (${p.liquido_a_pagar})`;
+    return { amount: 0, alerts: [`Período "${p.period_label}" ${why}.`], detalle: '' };
   }
   let voluntarySum = 0;
   const voluntaryDetails: string[] = [];
   for (const d of p.deductions ?? []) {
     const cls = classifyDeduction(d.label);
     if (cls === 'voluntary') {
-      voluntarySum += d.amount;
-      voluntaryDetails.push(`+${d.amount} (${d.label})`);
+      const amt = posFinite(d.amount); // ignora montos de descuento no finitos/negativos
+      if (amt != null) { voluntarySum += amt; voluntaryDetails.push(`+${amt} (${d.label})`); }
     } else if (cls === 'ambiguous') {
       alerts.push(
         `Descuento no clasificado en "${p.period_label}": "${d.label}" $${d.amount}. ` +
@@ -205,12 +472,74 @@ function periodNetIncome(p: IncomePeriod): PeriodAmountResult {
       );
     }
   }
-  const amount = p.liquido_a_pagar + voluntarySum;
+  const amount = liquido + voluntarySum;
   const detalle =
     voluntarySum > 0
-      ? `${p.period_label}: líquido ${p.liquido_a_pagar} + voluntarios ${voluntaryDetails.join(' ')} = ${amount}`
-      : `${p.period_label}: líquido ${p.liquido_a_pagar}`;
+      ? `${p.period_label}: líquido ${liquido} + voluntarios ${voluntaryDetails.join(' ')} = ${amount}`
+      : `${p.period_label}: líquido ${liquido}`;
   return { amount, alerts, detalle };
+}
+
+/**
+ * Licencia médica (mode 'subsidio'): el subsidio por incapacidad llega FRAGMENTADO en
+ * muchos pagos parciales por días (varias licencias encadenadas), con PDFs duplicados.
+ * (L11) Reglas: (a) deduplica pagos idénticos (mismo período + monto); (b) agrupa por
+ * MES calendario sumando los "Monto Líquido"; (c) declara el mes más completo (mejor
+ * proxy de un mes íntegro de subsidio) y alerta para que el abogado confirme la
+ * mensualización. NO usa el "Promedio mensual" impreso (es la base de cálculo, no lo
+ * percibido). El subsidio REEMPLAZA al sueldo en el período de licencia (ver conflicto
+ * en computeIncomes).
+ */
+function computeSubsidioIncome(
+  doc: ExtractedIncomeDoc
+): { monto: number; detalle: string; alerts: string[] } {
+  const alerts: string[] = [];
+  const pagos = (doc.periods ?? []).filter((p) => posFinite(p.liquido_a_pagar) != null); // H5: finito y > 0
+  if (pagos.length === 0) {
+    return { monto: 0, detalle: 'subsidio sin pagos legibles', alerts: [`"${doc.filename}": licencia médica sin "Monto Líquido" legible.`] };
+  }
+  // (a) dedup exacto: mismo period_label + mismo monto líquido.
+  const seen = new Set<string>();
+  const unique = pagos.filter((p) => {
+    const k = `${p.period_label}|${p.liquido_a_pagar}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const dupes = pagos.length - unique.length;
+  if (dupes > 0) alerts.push(`Licencia médica: se ignoraron ${dupes} pago(s) duplicado(s) (mismo período y monto).`);
+
+  // (b) agrupar por mes calendario (clave YYYYMM del period_label).
+  const byMonth = new Map<number, number>();
+  let sinMes = 0;
+  for (const p of unique) {
+    const key = parsePeriodKey(p.period_label);
+    if (key == null) { sinMes += p.liquido_a_pagar ?? 0; continue; }
+    byMonth.set(key, (byMonth.get(key) ?? 0) + (p.liquido_a_pagar ?? 0));
+  }
+  if (byMonth.size === 0) {
+    // No se pudo mensualizar → promedio simple de los pagos únicos (con alerta).
+    const sum = unique.reduce((s, p) => s + (p.liquido_a_pagar ?? 0), 0);
+    const monto = round(sum / unique.length);
+    alerts.push('Licencia médica: no se pudo asignar los pagos a meses calendario; se promedió por pago. Verificar.');
+    return { monto, detalle: `subsidio: promedio simple de ${unique.length} pago(s)`, alerts };
+  }
+  // H2: pagos sin mes parseable → NO se descartan en silencio, se alertan.
+  if (sinMes > 0) {
+    alerts.push(
+      `Licencia médica: pago(s) de subsidio por $${sinMes.toLocaleString('es-CL')} con "period_label" sin mes ` +
+      `parseable → no asignados a un mes calendario. Verificar las fechas.`
+    );
+  }
+  // (c) declarar el mes con mayor subsidio acumulado (proxy de mes íntegro de licencia).
+  const monthly = Array.from(byMonth.entries()).sort((a, b) => b[0] - a[0]);
+  const maxMes = Math.max(...monthly.map(([, v]) => v));
+  const detalle = `subsidio por mes: ${monthly.map(([k, v]) => `${k}=${v}`).join(', ')} → declara mes más completo ${maxMes}`;
+  alerts.push(
+    `Licencia médica: subsidio reconstruido por mes (${monthly.map(([k, v]) => `${k}:$${v.toLocaleString('es-CL')}`).join(', ')}). ` +
+    `Se declara el mes más completo ($${maxMes.toLocaleString('es-CL')}); los meses parciales (inicio/fin de licencia) lo subestiman. Confirmar mensualización con el abogado.`
+  );
+  return { monto: maxMes, detalle, alerts };
 }
 
 /**
@@ -227,12 +556,73 @@ export function computeDeclaredIncomeForDoc(doc: ExtractedIncomeDoc): DeclaredIn
   const detalleParts: string[] = [];
   let monto = 0;
 
-  const periods = doc.periods ?? [];
+  // P3.1: si un modo por-períodos no logró monto pero el doc trae un monto mensual
+  // declarado > 0, usarlo (con alerta) en vez de declarar $0 e ignorarlo en silencio.
+  const fallbackDeclarado = (r: { monto: number; detalle: string; alerts: string[] }) => {
+    if (r.monto === 0 && posFinite(doc.monto_mensual_declarado) != null) {
+      const m = round(doc.monto_mensual_declarado as number);
+      return {
+        monto: m,
+        detalle: `monto mensual declarado en el documento: ${m}`,
+        alerts: [...r.alerts, `Sin períodos legibles; se usó el monto mensual declarado ($${m.toLocaleString('es-CL')}). Verificar.`],
+      };
+    }
+    return r;
+  };
+
+  // Honorarios: lógica propia (boletas, divisor fijo = meses de la ventana).
+  if (cw.mode === 'boletas') {
+    const r = fallbackDeclarado(computeBoletasIncome(doc, cw));
+    return {
+      tipoIngreso: cw.tipoIngreso, tipoIngresoLabel: cw.tipoIngresoLabel,
+      concepto: cw.tipoIngreso === 9 ? (doc.notes || 'Otros ingresos') : cw.tipoIngresoLabel,
+      monto: r.monto, periodicidad: PERIODICIDAD_MENSUAL, tipoAntecedente: cw.tipoAntecedente,
+      documentFilenames: [doc.filename], detalle: r.detalle, alerts: r.alerts,
+    };
+  }
+
+  // Licencia médica: subsidio fragmentado (dedup + reconstrucción por mes).
+  if (cw.mode === 'subsidio') {
+    const r = fallbackDeclarado(computeSubsidioIncome(doc));
+    return {
+      tipoIngreso: cw.tipoIngreso, tipoIngresoLabel: cw.tipoIngresoLabel,
+      concepto: cw.tipoIngresoLabel,
+      monto: r.monto, periodicidad: PERIODICIDAD_MENSUAL, tipoAntecedente: cw.tipoAntecedente,
+      documentFilenames: [doc.filename], detalle: r.detalle, alerts: r.alerts,
+    };
+  }
+
+  const rawPeriods = doc.periods ?? [];
+  // H1: deduplicar períodos idénticos (mismo período + monto) — un PDF de liquidación
+  // subido 2× duplicaría un mes y distorsionaría el promedio de "los últimos N".
+  const dseen = new Set<string>();
+  const periods = rawPeriods.filter((p) => {
+    const k = `${p.period_label}|${p.liquido_a_pagar}`;
+    if (dseen.has(k)) return false;
+    dseen.add(k);
+    return true;
+  });
+  if (periods.length < rawPeriods.length) {
+    alerts.push(`"${doc.filename}": se ignoraron ${rawPeriods.length - periods.length} período(s) duplicado(s) (mismo período y monto).`);
+  }
   if (periods.length > 0) {
-    // Mensualización por promedio (L3). Usa hasta `promedioMeses` períodos más
-    // recientes si la ventana está definida; si no, promedia los disponibles.
-    const window = cw.promedioMeses ?? periods.length;
-    const used = periods.slice(0, window);
+    // Mensualización por promedio (L3). Ordena por fecha (más reciente primero) y
+    // usa hasta `promedioMeses` períodos; si no hay ventana, promedia los disponibles.
+    const sorted = sortPeriodsDesc(periods);
+    const window = cw.promedioMeses ?? sorted.length;
+    const used = sorted.slice(0, window);
+    // Aviso si hay más períodos que la ventana pero alguno no se pudo ordenar por fecha
+    // → el "últimos N meses" podría no estar tomando los más recientes.
+    if (cw.promedioMeses != null && periods.length > cw.promedioMeses) {
+      const unparseable = periods.filter((p) => parsePeriodKey(p.period_label) == null);
+      if (unparseable.length > 0) {
+        alerts.push(
+          `No se pudo ordenar por fecha ${unparseable.length} período(s) ` +
+          `(${unparseable.map((p) => `"${p.period_label}"`).join(', ')}) → el promedio de los últimos ` +
+          `${cw.promedioMeses} meses podría no usar los más recientes. Verificar.`
+        );
+      }
+    }
     let sum = 0;
     let counted = 0;
     for (const p of used) {
@@ -263,8 +653,8 @@ export function computeDeclaredIncomeForDoc(doc: ExtractedIncomeDoc): DeclaredIn
         `→ promedio sobre ${counted}. Verificar que estén las ${cw.promedioMeses} liquidaciones.`
       );
     }
-  } else if (doc.monto_mensual_declarado != null && doc.monto_mensual_declarado > 0) {
-    monto = round(doc.monto_mensual_declarado);
+  } else if (posFinite(doc.monto_mensual_declarado) != null) {
+    monto = round(doc.monto_mensual_declarado as number); // H5: finito y > 0
     detalleParts.push(`monto mensual declarado en el documento: ${monto}`);
   } else {
     alerts.push(`"${doc.filename}": no se pudo determinar un monto mensual (sin períodos ni monto declarado).`);
@@ -297,30 +687,73 @@ export function computeIncomes(
 
   const declarable = docs.filter((d) => d.category !== 'certificado_cotizaciones');
 
-  // Consolidar por categoría (una fuente por tipo de ingreso). Esto cubre el caso
-  // general "N liquidaciones sueltas del mismo empleador" sin asumir un solo PDF.
-  const byCategory = new Map<IncomeCategory, ExtractedIncomeDoc[]>();
+  // Moneda (handoff Paso 3, regla #5): un monto en UF tratado como CLP es catastrófico
+  // (~38.000×). El portal declara en CLP → si algún período viene en UF, se ALERTA.
   for (const d of declarable) {
-    const arr = byCategory.get(d.category) ?? [];
+    if ((d.periods ?? []).some((p) => p.moneda === 'UF')) {
+      globalAlerts.push(
+        `"${d.filename}": monto(s) leído(s) en UF. El portal declara en CLP → requiere conversión UF→CLP ` +
+        `antes de declarar (un monto en UF tratado como pesos es un error de ~38.000×). Verificar.`
+      );
+    }
+  }
+
+  // Consolidar por (categoría + FUENTE). N liquidaciones del MISMO empleador → un solo
+  // ingreso; dos empleadores DISTINTOS (source_key distinto) → dos ingresos que se SUMAN
+  // (L9). source_key vacío/ausente = una sola fuente (compat. hacia atrás).
+  const byGroup = new Map<string, ExtractedIncomeDoc[]>();
+  for (const d of declarable) {
+    const key = `${d.category}::${d.source_key ?? ''}`;
+    const arr = byGroup.get(key) ?? [];
     arr.push(d);
-    byCategory.set(d.category, arr);
+    byGroup.set(key, arr);
   }
 
   const incomes: DeclaredIncome[] = [];
-  for (const [category, group] of byCategory) {
+  for (const group of byGroup.values()) {
+    // P1.3: SUMAR los montos mensuales declarados de los docs de la MISMA fuente (no tomar
+    // solo el primero → se perdían en silencio). Solo se usa en el modo 'directo' sin períodos.
+    const declaredVals = group
+      .map((g) => g.monto_mensual_declarado)
+      .filter((v) => posFinite(v) != null) as number[];
     const merged: ExtractedIncomeDoc = {
       filename: group[0].filename,
-      category,
+      category: group[0].category,
+      source_key: group[0].source_key ?? null,
       periods: group.flatMap((g) => g.periods ?? []),
-      monto_mensual_declarado:
-        group.find((g) => g.monto_mensual_declarado != null)?.monto_mensual_declarado ?? null,
+      monto_mensual_declarado: declaredVals.length ? declaredVals.reduce((a, b) => a + b, 0) : null,
       notes: group.map((g) => g.notes).filter(Boolean).join('; ') || undefined,
     };
     const income = computeDeclaredIncomeForDoc(merged);
     if (income) {
       income.documentFilenames = Array.from(new Set(group.map((g) => g.filename)));
+      if (declaredVals.length > 1 && (merged.periods?.length ?? 0) === 0) {
+        income.alerts.push(
+          `Se sumaron ${declaredVals.length} montos mensuales declarados de la misma fuente ` +
+          `(total $${income.monto.toLocaleString('es-CL')}). Verificar que no sean el mismo monto duplicado.`
+        );
+      }
       incomes.push(income);
     }
+  }
+
+  // P2.1: orden de salida DETERMINISTA (independiente del orden de los documentos de entrada).
+  incomes.sort((a, b) =>
+    a.tipoIngreso - b.tipoIngreso ||
+    b.monto - a.monto ||
+    a.documentFilenames.join(',').localeCompare(b.documentFilenames.join(',')));
+
+  // Conflicto sueldo ↔ licencia médica: el subsidio REEMPLAZA al sueldo en el período de
+  // licencia → no se declaran ambos sobre el mismo período. Se ALERTA (no se descarta
+  // ninguno): el abogado decide cuál corresponde a la situación actual del deudor. (L11)
+  const hasRemuneracion = incomes.some((i) => i.tipoIngreso === 1);
+  const hasLicencia = incomes.some((i) => i.tipoIngreso === 3);
+  if (hasRemuneracion && hasLicencia) {
+    globalAlerts.push(
+      'Coexisten Remuneración y Licencia Médica: el subsidio por incapacidad REEMPLAZA al sueldo ' +
+      'durante la licencia (no se declaran ambos sobre el mismo período). El abogado debe elegir ' +
+      'cuál refleja la situación actual del deudor (¿en licencia o reintegrado?).'
+    );
   }
 
   if (incomes.length === 0) {
@@ -337,5 +770,8 @@ export function computeIncomes(
     );
   }
 
-  return { incomes, cotizacionesCert: cotizaciones, alerts: globalAlerts };
+  // Red anti-error: verifica la LECTURA de Claude (cita/confianza), no la estructura.
+  const claudeReadIssues = validateIncomeReads(declarable);
+
+  return { incomes, cotizacionesCert: cotizaciones, alerts: globalAlerts, claudeReadIssues };
 }

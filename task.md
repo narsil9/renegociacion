@@ -79,21 +79,36 @@ Pipeline nuevo, general para todos los clientes (no hardcodeado al caso):
 `income_extractor.ts` (TS blinda la estructura: líquido a pagar, descuentos voluntarios,
 promedio por tipo, crosswalk a los 2 enums del portal) → `fillStep5` (Playwright).
 
-- **Archivos nuevos**: `src/utils/income_extractor.ts`, `src/agents/ingresos_agent.ts`,
-  `src/automation/step5_ingresos.ts`; integrados en `all_steps.ts` (paso 5 tras paso 4) y
-  `worker.ts` (step:0 y nuevo step:5). Lecciones en `lecciones/paso5-ingresos.md` (L1–L7).
-- **Validado** (testigo Jorge Romero, asalariado): extractor exacto $2.162.230 + lectura
-  nativa real por Claude (extrajo bien los líquidos del escaneo, ignoró "Alcance Líquido") +
-  **E2E contra el portal** (ingreso + justificativo tipo 28 + cert cotizaciones cargados).
+- **Archivos**: `src/utils/income_extractor.ts`, `src/agents/ingresos_agent.ts`,
+  `src/automation/step5_ingresos.ts`; integrados en `all_steps.ts` y `worker.ts`. Lecciones en
+  `lecciones/paso5-ingresos.md` (L1–L14 + **reglas oficiales Superir** verificadas: manual + listado).
+
+### Endurecimiento (sesión 2026-06-29, branch `paso-5`)
+- **Capa determinista BULLETPROOF** ✅ — `income_extractor.ts` revisado y blindado: dedup de períodos
+  duplicados, multi-empleador (una fuente por RUT pagador, se suman), descuentos legal/voluntario/ambiguo
+  (anticipos/sindicato NO se suman; conciliar préstamos), modo `subsidio` (licencia médica fragmentada +
+  dedup + reconstrucción por mes), `parsePeriodKey` robusto, guardas de finitud, red anti-error por período,
+  alerta UF, conflicto sueldo↔licencia. **Suite de pruebas: 91 unit (incl. fuzz 1000×) + 5 casos reales,
+  `npm test` corre todo.** Revisión propia (H1–H5) + adversaria independiente (P1.1/P1.3/P1.4a/P2.1/P2.2/P2.3/P3.1) cerradas.
+  Doc: `casos/paso5_pruebas/REVISION_Y_PLAN.md`. **Validado con 5 casos reales** (Jorge $2.162.230, Alejandro,
+  Alejandra Fix1, Alex 2-empleadores, María Elisa licencia médica) — análisis del analista en `casos/paso5_pruebas/PLAN.md`.
+- **Agente: una llamada por documento** ✅ — `ingresos_agent.ts` refactorizado (handoff del Paso 3,
+  `mejoras-centinela-lector-pdf.md`): 1 llamada/doc + retry ante vacío + `doc_type` + `rut_pagador`→`source_key`
+  + moneda + nunca-$0. Más estable que la mega-llamada.
+- [ ] **Fase 2 (lectura nativa real) PENDIENTE — esperando API.** Runner listo:
+  `casos/paso5_pruebas/run_native.ts` (lee los PDFs reales con Claude → mismos hechos → `computeIncomes`).
+  Comando en `casos/paso5_pruebas/README.md`. Confirma que la lectura real reproduce los montos hardcodeados.
+
+### Pendientes Paso 5
 - [ ] **CORRER `supabase/migration_sandbox_v8_ingresos.sql`** en el SQL Editor del sandbox
   (agrega `'ingresos'` al CHECK de `agent_runs.agent_type`). DDL → lo corre el usuario.
 - [ ] **Fuente de docs de ingreso en producción**: hoy `gatherStep5Input` los busca en
-  `client_documents` por keyword de filename; el dashboard/integración debe subirlos ahí
-  (liquidaciones + cert cotizaciones). Sin eso, el Paso 5 se omite (no rompe el flujo 1→4).
-- [ ] **`fillStep5` DRY_RUN no limpia el borrador** (deja filas/archivos del Paso 5). Agregar
-  auto-cleanup como en Paso 2/3 cuando se vea el markup de borrado en una tabla poblada.
-- [ ] **Pendientes de validar con otros casos**: honorarios (6 vs 12 meses), aporte de terceros
-  (DJ), retiro de sociedades, multi-ingreso. Ver candidatas en `lecciones/paso5-ingresos.md`.
+  `client_documents` por keyword; el dashboard/integración debe subirlos ahí (liquidaciones + cert cotizaciones).
+- [ ] **`fillStep5` DRY_RUN no limpia el borrador** — agregar auto-cleanup como en Paso 2/3.
+- [ ] **Honorarios (Fix 2) sin testigo** — ningún caso del lote declara por boletas; falta validar bruto/líquido
+  y ventana 6-vs-12 contra verdad-terreno. Idem aporte de terceros (DJ). Ver `lecciones/paso5-ingresos.md`.
+- [ ] **Verdad-terreno del abogado** para los 5 casos → cierra las decisiones de criterio (add-back CCAF/Caja,
+  normalizar anticipos, sueldo vs licencia médica, retiro de sociedad).
 
 ## 🆕 Validación anti-error de la lectura de Claude (Paso 3) — construido (2026-06-29)
 
