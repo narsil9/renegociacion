@@ -2,6 +2,15 @@
 
 This repository contains the hybrid automation system for filling out the renegotiation request portal at the Superintendencia de Insolvencia y Reemprendimiento (Superir) in Chile. It is designed for lawyers working on debt/bankruptcy cases to trigger step-by-step automation fragments while maintaining human-in-the-loop validation and manual control.
 
+## 💬 Response Style (ALWAYS)
+
+> The user wants **concise, precise, brief, fast-to-read** answers — to understand quickly and move fast.
+
+- Get to the point: conclusion or action first, no preamble or filler.
+- Short sentences. Bullets over long paragraphs.
+- Don't explain what they already know or narrate options you won't pursue; give the recommendation, not the inventory.
+- Add detail only when the user asks for it or when an action is irreversible.
+
 ## ⭐ PERMANENT GOVERNING RULE — General solutions, never per-case patches
 
 > **Applies EVERY TIME we fix a problem in the renegotiation request automation. This is the highest-priority rule: it overrides any shortcut.**
@@ -143,6 +152,8 @@ Los acreedores **Art.260** suben el MISMO certificado **dos veces**: una como "A
 
 ### Step 3 — Auto-asociación cert→acreedor por RUT (`cert_institution_resolver.ts`)
 Antes del Centinela, `resolveCertInstitutions(supabase, client, logger)` deriva el `institucion_cmf` de cada `client_document` por **RUT** (descarga el PDF → `pdftotext` → `extractRutsFromText` → `findCatalogEntryByRut`), con fallback por keyword del filename (`FILENAME_KEYWORDS` → `matchAcreedor`). Persiste el nombre canónico en `client_documents.institucion_cmf`. El dashboard ya **no exige** que el abogado elija el banco. `deterministic_mapeador` propaga ese nombre a `AcreditacionDoc.catalogInstitucion`, que `step3` usa como **fallback** para hallar el RUT cuando el nombre CMF/Centinela no matchea el catálogo (ej. "Tenpo Payments" vs "Tenpo Prepago"). Los NO-CMF cuyo RUT no aparece en el documento (ej. La Polar, cuyo cert solo imprime el RUT del administrador) los identifica el Centinela por contenido.
+- **Aliases-como-dato + crosswalk**: cuando el nombre del CMF/cert no calza con el catálogo (ej. "Tenpo Payments" vs "Tenpo Prepago", "Santander Consumer Finance Limitada" vs "Santander Consumer Chile"), la variante se registra en **`docs/acreedores-crosswalk.md`** y se carga en la columna **`acreedores_canonicos.nombres_alternativos`** (sandbox; `migration_sandbox_v7.sql`). **Regla de oro: verificar que el RUT de la fila sea la MISMA empresa que el alias** (RUT del cert > catálogo; ojo Banco Falabella≠CMR, Banco Ripley≠CAR). Pendiente: que `acreedor_matcher.ts` lea esa columna.
+- **OCR robusto a imágenes** (`ocr_helper.ts`): muchos certs son fotos/capturas PNG/JPEG; el OCR detecta el tipo por magic bytes y las procesa con tesseract directo (sin `pdftoppm`), y degrada a vacío si el archivo no es un PDF válido — un documento ilegible no debe tumbar el job del Centinela.
 
 ### Agente Tributario — Contribuciones (Impuesto Territorial)
 - **Función**: `detectContribucionesDeuda(pdfPath, logger)` en `src/utils/pdf_analyzer.ts`. Usa `pdftotext -layout` para preservar columnas.

@@ -30,20 +30,23 @@ como hoy (lee del sandbox) → se purga al terminar. **Prod intacto (solo lectur
 Validado: el worker corre 1→4 leyendo del sandbox (casos Miguel/Néctor/Cristian, 3 runs `success`,
 2026-06-27). Gate I2 + dedup NO-CMF→CMF commiteados.
 
-### Etapa 2 — Proyector de caso 🎯 **PRÓXIMA TAREA**
-- [ ] **Escribir el proyector `ton… → sandbox` (READ-ONLY)** — Dado un RUT: lee el caso de prod
-  (`v_casos_renegociacion` + `core.persona` + `bronze_customers_main` + `cmf_informes` +
-  `renegociacion_audit_pdf`), lo **upserta en el sandbox** (`clients` + `client_documents`) y
-  **descarga los PDFs** (CMF + certs). Mapea `estado_civil`/`profesion` a los enums del portal.
-  Reusa el mapa `docs/integracion/mapa-fuentes-produccion.md`. Base de código: `tools/spike_case_assembly.ts`.
-  Join de bronze por `persona.airtable_main_id` (no por filtro de clave JSON). **Nunca escribir en `ton…`.**
-- [ ] **Probar con 1 caso COMPLETO** (CMF + certs + ClaveÚnica — como el que halló el spike).
-  **Convenciones de prueba (seguras, NO producción real):**
-    - **Campos faltantes** (`fecha_nacimiento`, a veces `profesion`) → **placeholder inventado** por ahora.
-    - **Login al portal con las credenciales de PATO** (RUT `21917363-6` + su ClaveÚnica del `.env`),
-      **NUNCA la del cliente** → el borrador cae en la renegociación de prueba de Pato y no toca nada real.
-    - **`DRY_RUN=true`** (no radicar). Disparado **a mano por nosotros**, sin dashboard, sin nada automático.
-- [ ] **Purga del caso del sandbox al terminar** (no acumular PII).
+### Etapa 2 — Proyector de caso ✅ (probado E2E 2026-06-28)
+- [x] **Proyector `ton… → sandbox` (READ-ONLY)** — `tools/project_case.ts` (MODE=stage|write). Selecciona el caso más completo, mapea Paso 1 a los enums del portal (placeholders para DOB/profesión/comuna faltantes, credenciales de Pato, `airtable_id=null`), descarga CMF/CT/AR/certs y upserta `clients` + `client_documents` en el sandbox. **CT/AR salen de `mac_mini_jobs.result.storage_path`** (NO `pdf_path`, que es ruta local). Verificado: materializó el caso de prueba completo (`client_id d5b77dbe…`).
+- [x] **Test E2E (worker queue, `dry_run=false`)** — `tools/run_projected_test.ts`. Resultado: job **`success`**, **Pasos 1, 2 y 4 cargados** en el portal. **Probó la arquitectura completa** proyector→sandbox→worker→portal.
+- [x] **Bug general corregido — Centinela crasheaba con adjuntos-imagen** — Muchos certs del cliente son **fotos/capturas PNG/JPEG** (en `audit-attachments`). `pdftoppm` fallaba → "Couldn't read xref" → job `failed`. Fix en `src/utils/ocr_helper.ts`: detecta imágenes por **magic bytes** y las OCRea directo con tesseract; los fallos de `pdftoppm` **degradan a vacío** en vez de tumbar el job. (Producción.)
+- [ ] **🎯 Paso 3 NO declaró — matching de institución (EN CURSO).** El worker confirmó *"el cliente califica"* pero omitió el Paso 3 porque 3 docs no matchearon su acreedor del CMF:
+  - **Tenpo Payments (CMF)** vs "Tenpo Prepago" (resolver) → faltaba alias.
+  - **Santander Consumer Finance Limitada** → resolver lo dejó en null (el doc trae el RUT del cliente, no del emisor).
+  - **Banco Falabella línea** → el resolver lo mal-etiquetó como "CMR Falabella".
+  - **Solución elegida (ordenada):** columna **`nombres_alternativos`** en `acreedores_canonicos` (sandbox) + crosswalk vivo. Ver tareas abajo.
+- [ ] **Purga del caso del sandbox al terminar** (pendiente; hoy queda materializado para depurar).
+
+### Etapa 2b — Matching por alias-como-dato (mejorar el catálogo) 🎯 PRÓXIMO
+- [ ] **CORRER `supabase/migration_sandbox_v7.sql` en el SQL Editor del sandbox `fnz…`** — agrega la columna `nombres_alternativos text[]` a `acreedores_canonicos` + siembra las variantes verificadas (Tenpo Payments→Tenpo Prepago 76967692-9; Santander Consumer Finance Limitada→Santander Consumer Chile S.A. 76002293-4; forma larga CCAF→CCAF Los Andes 81826800-9). **DDL no se puede por REST → lo corre el usuario. Nunca en prod.**
+- [ ] **`acreedor_matcher.ts` debe LEER `nombres_alternativos`** — plegarlas en la resolución de nombres (hoy usa el mapa `ALIASES` hardcodeado). Es lo que cierra el círculo para que el Paso 3 declare.
+- [ ] **Re-correr el test** tras 1+2 → verificar que el Paso 3 declara (Tenpo en 260; los 261 con su monto) contra el baseline (`scratchpad/projected_case/analisis_deudas.md`).
+- [ ] **Crosswalk vivo** `docs/acreedores-crosswalk.md` — registrar CMF/cert name → canónico → RUT por caso. **Regla de oro: verificar que el RUT de la fila sea la MISMA empresa que el alias** (cert > catálogo; ojo nombres parecidos de empresas distintas).
+- [ ] **(integración) Puente doc↔clasificación rota** — su `renegociacion_documento_match` clasifica bien (nombres alineados al CMF) pero está keyeada por `drive_file_id` y `documentos_drive` viene vacío → no se puede linkear por documento a nuestros archivos. Para consumirla en runtime hace falta una **llave compartida** (hash de contenido / id de doc) — item para el supervisor. Hoy se usa como referencia para el crosswalk.
 
 ### Etapa 3 — Conectar el botón "Ejecutar" (ÚLTIMO, con el supervisor)
 - [ ] Acordar el mecanismo de trigger (su patrón `mac_mini_jobs` o tabla nueva) → job con RUT/airtable_id.
