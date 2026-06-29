@@ -9,7 +9,7 @@
 import { sliceCmfDebtBlocks, cleanTipoCredito } from '../../src/utils/cmf_analyzer';
 import { detectDocumentCurrency, normalizeOperationId } from '../../src/utils/cert_line_items';
 import { classifyNonAccreditingDoc as classifyNADoc } from '../../src/utils/sentinel';
-import { topNCandidates, AcreedorCatalogEntry } from '../../src/utils/acreedor_matcher';
+import { topNCandidates, AcreedorCatalogEntry, canonicalInstitutionKey, normalizeRut, extractRutsFromText, findCatalogEntryByRut, matchAcreedor } from '../../src/utils/acreedor_matcher';
 
 let passed = 0;
 let failed = 0;
@@ -92,6 +92,47 @@ console.log('\n═══ Mejora #6 — top-N candidatos del catálogo ═══'
   ok('"Falabella" → sugiere ambas Falabella', c2.some(c => c.entry.nombre === 'BANCO FALABELLA') && c2.some(c => c.entry.nombre === 'CMR FALABELLA'));
   const c3 = topNCandidates('Cooperativa XYZ inexistente', cat, 3);
   ok('Nombre sin parecido → lista vacía o score bajo', c3.length === 0 || c3[0].score < 0.3);
+}
+
+console.log('\n═══ canonicalInstitutionKey — clave canónica estable ═══');
+{
+  // Quita el sufijo "— descriptor" y los paréntesis que agrega el LLM.
+  ok('"Banco de Chile — Tarjeta de crédito (*2949)" → mismo key que "Banco de Chile"',
+     canonicalInstitutionKey('Banco de Chile — Tarjeta de crédito (*2949)') === canonicalInstitutionKey('Banco de Chile'));
+  // NO rompe "Santander-Chile" (guion sin espacios alrededor).
+  ok('"Banco Santander-Chile" conserva "santander"', canonicalInstitutionKey('Banco Santander-Chile').includes('santander'));
+  // Alias de nombre largo de CCAF → "ccaf los andes".
+  ok('CCAF nombre largo == "CCAF Los Andes"',
+     canonicalInstitutionKey('Caja de Compensación de Asignación Familiar Los Andes') === canonicalInstitutionKey('CCAF Los Andes'));
+  // Token de tipo CMF pegado al nombre no cambia la institución.
+  ok('"Banco del Estado de Chile Consum" → key de Banco Estado',
+     canonicalInstitutionKey('Banco del Estado de Chile Consum') === canonicalInstitutionKey('Banco del Estado de Chile'));
+  ok('Vacío/undefined → string vacío', canonicalInstitutionKey('') === '' && canonicalInstitutionKey(undefined) === '');
+}
+
+console.log('\n═══ RUT — normalización y extracción ═══');
+{
+  ok('normalizeRut con puntos y guion', normalizeRut('6.434.569-9') === '6434569-9');
+  ok('normalizeRut ya normalizado', normalizeRut('97006000-6') === '97006000-6');
+  ok('normalizeRut(null) → null', normalizeRut(null) === null);
+  const ruts = extractRutsFromText('Emisor 96.509.660-4. Cliente 16.587.870-1. Repetido 96509660-4.');
+  ok('extractRutsFromText extrae y deduplica', ruts.includes('96509660-4') && ruts.includes('16587870-1') && ruts.filter(r => r === '96509660-4').length === 1, JSON.stringify(ruts));
+}
+
+console.log('\n═══ catálogo — findCatalogEntryByRut / matchAcreedor ═══');
+{
+  const cat: AcreedorCatalogEntry[] = [
+    { id: 1, nombre: 'BANCO DE CHILE', nombre_normalizado: 'banco de chile', tipo: null, rut: '97004000-5', direccion: null, comuna: null, email: null, telefono: null, representante_legal: null, rut_representante: null, activo: true },
+    { id: 2, nombre: 'BANCO FALABELLA', nombre_normalizado: 'banco falabella', tipo: null, rut: '96509660-4', direccion: null, comuna: null, email: null, telefono: null, representante_legal: null, rut_representante: null, activo: true },
+    { id: 3, nombre: 'CMR FALABELLA', nombre_normalizado: 'cmr falabella', tipo: null, rut: '76645030-k', direccion: null, comuna: null, email: null, telefono: null, representante_legal: null, rut_representante: null, activo: true },
+  ];
+  ok('findCatalogEntryByRut encuentra por RUT', findCatalogEntryByRut(['96509660-4'], cat)?.nombre === 'BANCO FALABELLA');
+  ok('findCatalogEntryByRut salta el RUT del cliente', findCatalogEntryByRut(['16587870-1'], cat, '16587870-1') === null);
+  ok('findCatalogEntryByRut sin match → null', findCatalogEntryByRut(['11111111-1'], cat) === null);
+  ok('matchAcreedor exacto', matchAcreedor('BANCO DE CHILE', cat).status === 'matched');
+  ok('matchAcreedor exacto normalizado (minúsculas)', matchAcreedor('banco de chile', cat).status === 'matched');
+  ok('matchAcreedor ambiguo ("Falabella" → 2 hits)', matchAcreedor('Falabella', cat).status === 'ambiguous');
+  ok('matchAcreedor sin match → not_found', matchAcreedor('Cooperativa Inexistente XYZ', cat).status === 'not_found');
 }
 
 console.log(`\n${'─'.repeat(50)}\nResultado: ${passed} OK, ${failed} fallidos\n`);

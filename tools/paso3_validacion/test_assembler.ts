@@ -1,20 +1,38 @@
 /**
- * TEST del ENSAMBLADOR (sin API): inyecta DocFacts sintéticos (lo que el extractor por-documento
- * DEBERÍA devolver, = mi lectura oráculo) + las filas reales del CMF, y verifica que
- * `assembleRawFromDocFacts` produzca la estructura correcta anclada al CMF (L11): un producto por
- * fila CMF, 260 vs 261 por mora+fecha, NO-CMF para emisores fuera del CMF.
+ * TEST del ENSAMBLADOR (sin API) para los 3 casos reales (Cristian 10, Miguel 13, Néctor 12).
  *
- * Valida el CÓDIGO NUEVO de mayor riesgo sin depender del LLM (cuya cuota está agotada). NO corre
- * los backstops post-LLM de sentinel.ts (que refinan después); valida el primer ensamblado.
+ * Inyecta DocFacts sintéticos (= la lectura ORÁCULO, lo que el extractor por-documento debería
+ * devolver) + las filas del CMF, y verifica que `assembleRawFromDocFacts` produzca la estructura
+ * correcta anclada al CMF (L11): un producto por fila CMF, 260 vs 261 por mora+fecha, NO-CMF para
+ * emisores fuera del CMF, multiproducto, UF→CLP. El conteo por institución debe igualar el de la
+ * abogada (derivado de oracle_truth.ts). Valida el ensamblador SIN API.
  *
+ * - Miguel usa su CMF REAL hand-fixture (montos del CMF que DIFIEREN de los certs → prueba la
+ *   tolerancia de pickProductForRow).
+ * - Cristian y Néctor se construyen desde oracle_truth.ts (CMF y DocFacts derivados de la verdad).
+ *
+ * NO corre los backstops post-LLM (eso lo hace test_backstops_golden.ts); valida el primer ensamblado.
  * Uso: npx ts-node --transpile-only tools/paso3_validacion/test_assembler.ts
  */
 import { assembleRawFromDocFacts, DocFacts } from '../../src/utils/sentinel_per_doc';
 import { canonicalInstitutionKey } from '../../src/utils/acreedor_matcher';
+import { ORACLE, OracleCase, OracleProduct } from './oracle_truth';
 
-// CMF real de Miguel (del log del Centinela)
-const miguelCmf = {
-  ufValueCLP: 40661, meets90DaysRequirement: true, meetsAmountRequirement: true,
+const TODAY = '2026-06-29';
+const UF = 40661;
+
+interface CmfRow { institucion: string; tipoCredito: string; totalCredito: number; overdue90Days: number; }
+interface CmfFixture {
+  ufValueCLP: number; meets90DaysRequirement: boolean; meetsAmountRequirement: boolean;
+  totalCreditoOf90PlusCreditors: number; qualifying90PlusCount: number; creditors: CmfRow[];
+}
+
+const log = (m: string) => console.log('   ' + m);
+const logger = { log, error: (m: string) => console.error(m) };
+
+// ---- Caso de referencia: Miguel con su CMF REAL (montos ≠ certs) ----
+const miguelCmf: CmfFixture = {
+  ufValueCLP: UF, meets90DaysRequirement: true, meetsAmountRequirement: true,
   totalCreditoOf90PlusCreditors: 51_559_065, qualifying90PlusCount: 5,
   creditors: [
     { institucion: 'Banco de Crédito e Inversiones', tipoCredito: 'Consumo', totalCredito: 14_894_364, overdue90Days: 0 },
@@ -30,11 +48,8 @@ const miguelCmf = {
     { institucion: 'Tenpo Prepago SA', tipoCredito: 'Tarjeta de crédito', totalCredito: 409_690, overdue90Days: 0 },
   ],
 };
-
-// DocFacts sintéticos = lo que el extractor por-doc debería devolver (mi lectura oráculo de Miguel)
 const P = (monto: number, etiqueta: string, op?: string, fecha_mora?: string, moneda: 'CLP'|'UF' = 'CLP') =>
   ({ operacion: op, monto, etiqueta_monto: etiqueta, moneda, fecha_mora, cita_monto: `${etiqueta}: $${monto.toLocaleString('es-CL')}`, confidence: 0.95 });
-
 const miguelFacts: DocFacts[] = [
   { filename: 'ESTADO DE DEUDA - Banco de Chile.pdf', institucion_asignada: 'Banco de Chile', doc_type: 'desglose_por_producto', rut_emisor: '97004000-5', productos: [
     P(606_175, 'Total deuda prejudicial', '72012', '2026-02-18'),
@@ -61,28 +76,104 @@ const miguelFacts: DocFacts[] = [
   ] },
 ];
 
-const raw = assembleRawFromDocFacts(miguelFacts, miguelCmf, [], '26625555-1', '2026-06-29',
-  { log: (m) => console.log('   '+m), error: (m) => console.error(m) });
-
-const all = [
-  ...raw.cmf260DirectOverrides.map((o: any) => ({ sec: 260, inst: o.institucion_cmf, monto: o.monto_clp, venc: o.fecha_vencimiento, src: 'override' })),
-  ...raw.reclassifiedCreditors.map((r: any) => ({ sec: 260, inst: r.institucion_cmf, monto: r.total_credito_clp, src: 'reclass' })),
-  ...raw.identified261Creditors.map((r: any) => ({ sec: 261, inst: r.institucion_cmf, monto: r.total_credito_clp, src: 'id261' })),
-  ...raw.additionalCreditors.map((a: any) => ({ sec: a.categoria_articulo, inst: a.institucion_cmf, monto: a.total_credito_clp, src: 'additional' })),
-];
-console.log('\n=== Ensamblado (antes de backstops post-LLM) ===');
-for (const x of all) console.log(`  [${x.sec}] ${x.inst} $${x.monto.toLocaleString('es-CL')} (${x.src})${x.venc ? ' venc '+x.venc : ''}`);
-
-// Conteo por institución canónica (debe acercarse a la abogada: BdCh 4, Itaú 3, CCAF 3, BCI 2, Tenpo 1 = 13)
-const byInst: Record<string, number> = {};
-for (const x of all) { const k = canonicalInstitutionKey(x.inst); byInst[k] = (byInst[k] ?? 0) + 1; }
-const expected: Record<string, number> = { 'banco de chile': 4, 'banco itau chile': 3, 'ccaf los andes': 3, 'banco de credito e inversiones': 2, 'tenpo prepago sa': 1 };
-console.log('\n=== Conteo por institución (ensamblador, pre-backstops) ===');
-let ok = true;
-for (const k of new Set([...Object.keys(expected), ...Object.keys(byInst)])) {
-  const e = expected[k] ?? 0, o = byInst[k] ?? 0;
-  if (e !== o) ok = false;
-  console.log(`  ${k.padEnd(34)} esperado ${e}  ensamblado ${o}  ${e === o ? '✅' : '⚠️'}`);
+// ---- Builders genéricos desde el oráculo (Cristian, Néctor) ----
+function tipoFromNota(p: OracleProduct): string {
+  const t = `${p.nota ?? ''} ${p.doc}`.toLowerCase();
+  if (p.moneda === 'UF' || /hipotec|vivienda/.test(t)) return 'Vivienda';
+  if (/tarjeta|visa|cmr|cat\b/.test(t)) return 'Tarjeta de crédito';
+  if (/l[ií]nea/.test(t)) return 'Línea de crédito';
+  return 'Consumo';
 }
-console.log(`\n  Total: esperado 13, ensamblado ${all.length}`);
-console.log(ok ? '\n✅ El ensamblador ancla al CMF y produce la estructura correcta dada la extracción correcta.' : '\n⚠️ Diferencias (algunas las cierran los backstops post-LLM: overflow→additional, completitud, reconciliación).');
+function labelFromNota(p: OracleProduct): string {
+  const t = `${p.nota ?? ''}`.toLowerCase();
+  if (p.moneda === 'UF' || /hipotec|vivienda/.test(t)) return 'Saldo hipotecario';
+  if (/tarjeta|visa|cmr|cat\b/.test(t)) return 'Cupo Utilizado Tarjeta';
+  if (/l[ií]nea/.test(t)) return 'Saldo línea de crédito';
+  return 'Saldo Insoluto';
+}
+/** Monto en la moneda del documento: para UF parsea la cifra UF de la nota ("3.538,959 UF"). */
+function docMonto(p: OracleProduct): number {
+  if (p.moneda !== 'UF') return p.monto;
+  const m = (p.nota ?? '').match(/([\d.]+,\d+|\d[\d.]*)\s*UF/i);
+  if (m) return parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+  return Math.round(p.monto / UF);
+}
+function cmfFromOracle(oc: OracleCase): CmfFixture {
+  const creditors: CmfRow[] = oc.productos
+    .filter((p) => p.cmf)
+    .map((p) => ({ institucion: p.institucion, tipoCredito: tipoFromNota(p), totalCredito: p.monto, overdue90Days: p.seccion === 260 ? p.monto : 0 }));
+  const q90 = creditors.filter((c) => c.overdue90Days > 0);
+  return {
+    ufValueCLP: UF, meets90DaysRequirement: q90.length >= 2, meetsAmountRequirement: true,
+    totalCreditoOf90PlusCreditors: q90.reduce((s, c) => s + c.totalCredito, 0), qualifying90PlusCount: q90.length,
+    creditors,
+  };
+}
+function docFactsFromOracle(oc: OracleCase): DocFacts[] {
+  const byDoc = new Map<string, DocFacts>();
+  for (const p of oc.productos) {
+    if (!byDoc.has(p.doc)) {
+      byDoc.set(p.doc, { filename: p.doc, institucion_asignada: p.institucion, doc_type: /liquidacion|payoff/i.test(p.doc) ? 'liquidacion_payoff' : 'desglose_por_producto', productos: [] });
+    }
+    const monto = docMonto(p);
+    const label = labelFromNota(p);
+    byDoc.get(p.doc)!.productos.push({
+      operacion: p.operacion,
+      monto,
+      etiqueta_monto: label,
+      moneda: p.moneda ?? 'CLP',
+      fecha_mora: p.seccion === 260 ? '2026-01-15' : undefined,
+      cita_monto: `${label}: ${p.moneda === 'UF' ? monto + ' UF' : '$' + monto.toLocaleString('es-CL')}`,
+      confidence: 0.95,
+    });
+  }
+  return [...byDoc.values()];
+}
+
+// ---- Runner genérico ----
+function countByKey(rows: { institucion_cmf?: string; bank?: string }[]): Record<string, number> {
+  const acc: Record<string, number> = {};
+  for (const r of rows) { const k = canonicalInstitutionKey(r.institucion_cmf ?? r.bank ?? ''); acc[k] = (acc[k] ?? 0) + 1; }
+  return acc;
+}
+function expectedFromOracle(oc: OracleCase): Record<string, number> {
+  const acc: Record<string, number> = {};
+  for (const p of oc.productos) { const k = canonicalInstitutionKey(p.institucion); acc[k] = (acc[k] ?? 0) + 1; }
+  return acc;
+}
+
+function runCase(label: string, cmf: CmfFixture, facts: DocFacts[], oc: OracleCase): boolean {
+  console.log(`\n══════════ ${label} (esperado ${oc.total}) ══════════`);
+  const raw = assembleRawFromDocFacts(facts, cmf, [], oc.rut, TODAY, logger);
+  const all = [
+    ...raw.cmf260DirectOverrides.map((o: any) => ({ institucion_cmf: o.institucion_cmf, monto: o.monto_clp, src: '260' })),
+    ...raw.reclassifiedCreditors.map((r: any) => ({ institucion_cmf: r.institucion_cmf, monto: r.total_credito_clp, src: 'reclass' })),
+    ...raw.identified261Creditors.map((r: any) => ({ institucion_cmf: r.institucion_cmf, monto: r.total_credito_clp, src: 'id261' })),
+    ...raw.additionalCreditors.map((a: any) => ({ institucion_cmf: a.institucion_cmf, monto: a.total_credito_clp, src: `NO-CMF/${a.categoria_articulo}` })),
+  ];
+  for (const x of all) log(`[${x.src}] ${x.institucion_cmf} $${x.monto.toLocaleString('es-CL')}`);
+
+  const exp = expectedFromOracle(oc);
+  const got = countByKey(all);
+  let ok = all.length === oc.total;
+  console.log(`   — conteo por institución —`);
+  for (const k of new Set([...Object.keys(exp), ...Object.keys(got)])) {
+    const e = exp[k] ?? 0, g = got[k] ?? 0;
+    if (e !== g) ok = false;
+    console.log(`     ${k.padEnd(40)} esperado ${e}  ensamblado ${g}  ${e === g ? '✅' : '⚠️'}`);
+  }
+  console.log(`   Total: esperado ${oc.total}, ensamblado ${all.length}  ${ok ? '✅' : '⚠️'}`);
+  return ok;
+}
+
+const results = [
+  runCase('Cristian Mancilla', cmfFromOracle(ORACLE.cristian_mancilla), docFactsFromOracle(ORACLE.cristian_mancilla), ORACLE.cristian_mancilla),
+  runCase('Miguel Lugo (CMF real)', miguelCmf, miguelFacts, ORACLE.miguel_lugo),
+  runCase('Néctor Ruiz', cmfFromOracle(ORACLE.nector_ruiz), docFactsFromOracle(ORACLE.nector_ruiz), ORACLE.nector_ruiz),
+];
+
+const passed = results.filter(Boolean).length;
+console.log(`\n════════════════════════════════════════`);
+console.log(`Ensamblador: ${passed}/${results.length} casos OK`);
+if (passed !== results.length) { console.error('⚠️ El ensamblador no reprodujo la estructura del oráculo en algún caso.'); process.exit(1); }
+console.log('✅ El ensamblador ancla al CMF y reproduce la estructura de la abogada en los 3 casos.');

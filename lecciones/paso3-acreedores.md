@@ -140,6 +140,17 @@ en TypeScript**. Beneficios: estabilidad, reintento por-doc, menos tokens por ll
 extrae hechos / TS arma la estructura". Secundario: usar un modelo más capaz (Opus) en escaneos.
 *(Testigo: routing verificado con `diag_routing.ts` + comparación oráculo vs automatización, 2026-06-29.)* · **validada**.
 
+### L15 — La capa que blinda la estructura debe ser PURA y unit-testeable (sin API) ⭐
+La cadena determinista que decide la estructura (reconciliación additional→id261, completitud por
+`extractCertLineItems`, gate 260→261 + rescate-chat, promoción de overflow, validación anti-error)
+vivía **inline dentro de `runSentinelCheck`**, que llama al LLM → no se podía testear sin gastar API.
+**Regla:** extraerla a una función PURA (`applyDeterministicBackstops` en `sentinel_backstops.ts`) que
+opera sobre el `raw` (venga del LLM o del ensamblador por-doc) → se valida con `raw` sintético, sin API.
+Beneficio: el día que vuelve la cuota solo se confirma la LECTURA del LLM; la estructura ya quedó blindada
+con golden tests. Encaja con el principio rector (*el LLM extrae hechos; TS blinda la estructura*) y lo
+hace **verificable**. Batería determinista: `tools/paso3_validacion/run_all.ts` (5 suites, exit≠0 si falla).
+*(Refactor de movimiento puro, 0 cambio de comportamiento; Miguel sigue 13/13 pre/post. 2026-06-29.)* · **validada**.
+
 ## Pendientes / candidatas (a validar en próximas pruebas del Paso 3)
 
 - **Capa 2 en imágenes/escaneos**: sin capa de texto no hay RUT determinista que extraer (L3). Cubrir con

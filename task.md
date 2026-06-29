@@ -114,6 +114,24 @@ cita_monto, cita_fecha, confidence) y TS lo valida → `SentinelResult.claudeRea
 - [ ] **Pendiente menor**: Capa 2 en imágenes sin texto; validar #4 sobre un comprobante/cartola CON capa de texto real; L5 cosmético (cita verbatim). Ver `lecciones/paso3-acreedores.md` (L3–L8).
 - [ ] **Pendiente integración**: merge de `paso-3` a `main` cuando se decida; correr migración v7 (alias) sigue aparte.
 
+## 🆕 Capa determinista del Paso 3 — BULLETPROOF sin API (2026-06-29, branch `paso-3`)
+
+Causa raíz de la inestabilidad (L14): la mega-llamada (todos los docs + CMF en UNA llamada) hace que el
+LLM deje caer/mezcle productos. El refactor por-documento (extractor por-doc + `assembleRawFromDocFacts`,
+flag `CENTINELA_PER_DOC`, idempotencia `v18-per-doc-extraction`) ya estaba implementado; su validación EN
+VIVO (scorecard 3× → 10/13/12 estable) está **bloqueada por cuota API hasta 2026-07-01**.
+
+Mientras tanto se blindó TODA la capa determinista de TS (la que decide la estructura), testeable sin API:
+- [x] **Refactor de testeabilidad** — la cadena de backstops + validación anti-error salió de `runSentinelCheck`
+  (inline) a **`src/utils/sentinel_backstops.ts`** → `applyDeterministicBackstops(raw, ctx, log)`, función PURA.
+  Movimiento sin cambio de comportamiento (import unidireccional, tipos vía `import type` → sin ciclo).
+  `runSentinelCheck` la invoca en ambos caminos; contrato idéntico (`step3`/`centinela_agent`/`worker` intactos).
+- [x] **Batería determinista** en `tools/paso3_validacion/` (Tier 1, sin API, hermética), corre con **`run_all.ts`**
+  (exit≠0 si falla): `test_reglas_deterministas.ts` (**42 OK**), `test_assembler.ts` (3 casos: Cristian 10 /
+  Miguel 13 / Néctor 12), `test_assembler_edge.ts` (**13** ramas), `test_backstops_golden.ts` (**15** golden de
+  los backstops), `test_oracle_injection.ts`. **5/5 suites verdes** + `build:prod` limpio.
+- [ ] **Pendiente (tras cuota 2026-07-01)**: `scorecard.ts 3` con `CENTINELA_PER_DOC=true` → confirmar 10/13/12 ESTABLE.
+
 ## 📋 Backlog acotado (no bloqueante)
 
 - [ ] **Adapter de input formal** en el worker (la Etapa 2 es el primer ladrillo; luego abstraer la fuente).
