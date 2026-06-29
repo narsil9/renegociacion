@@ -101,9 +101,24 @@ export interface MapeadorOutput {
 }
 
 // ---------------------------------------------------------------------------
+// IngresosOutput — Step 5 (Ingresos). Claude reads income docs NATIVELY → facts;
+// income_extractor.ts (TS) shields the structure (líquido a pagar, descuentos
+// voluntarios, promedio por tipo, crosswalk enums). Ver lecciones/paso5-ingresos.md.
+// ---------------------------------------------------------------------------
+export interface IngresosOutput {
+  incomes: import('../utils/income_extractor').DeclaredIncome[];
+  cotizacionesCert: import('../utils/income_extractor').CotizacionesCertFacts | null;
+  /** Hechos crudos extraídos por el LLM (auditable / re-cálculo determinista). */
+  extractedDocs: import('../utils/income_extractor').ExtractedIncomeDoc[];
+  alerts: string[];
+  /** Fecha de emisión del cert de cotizaciones (YYYY-MM-DD) y su antigüedad. */
+  cotizacionesAgeDays?: number | null;
+}
+
+// ---------------------------------------------------------------------------
 // AgentType union — matches the CHECK constraint in agent_runs SQL.
 // ---------------------------------------------------------------------------
-export type AgentType = 'cmf_parser' | 'tributario' | 'centinela' | 'mapeador';
+export type AgentType = 'cmf_parser' | 'tributario' | 'centinela' | 'mapeador' | 'ingresos';
 export type AgentStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 // Generic agent_runs row shape returned by Supabase.

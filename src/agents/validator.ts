@@ -21,6 +21,7 @@ import {
   CmfParseOutput,
   CentinelaOutput,
   MapeadorOutput,
+  IngresosOutput,
   AgentType,
 } from './types';
 
@@ -97,6 +98,12 @@ export function isMapeadorOutput(v: unknown): v is MapeadorOutput {
   return Array.isArray(o.mappedDocs) && Array.isArray(o.alerts);
 }
 
+export function isIngresosOutput(v: unknown): v is IngresosOutput {
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  return Array.isArray(o.incomes) && Array.isArray(o.extractedDocs) && Array.isArray(o.alerts);
+}
+
 /** Devuelve el type guard correcto para cada AgentType. */
 export function isValidOutput(agentType: AgentType, v: unknown): boolean {
   switch (agentType) {
@@ -104,6 +111,7 @@ export function isValidOutput(agentType: AgentType, v: unknown): boolean {
     case 'cmf_parser':   return isCmfParseOutput(v);
     case 'centinela':    return isCentinelaOutput(v);
     case 'mapeador':     return isMapeadorOutput(v);
+    case 'ingresos':     return isIngresosOutput(v);
   }
 }
 

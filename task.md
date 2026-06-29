@@ -6,11 +6,20 @@
 
 ---
 
+## ⏸️ PAUSA (2026-06-29) — esperando al supervisor
+
+**La integración está EN PAUSA hasta hablar con el supervisor.** Motivo: su buzón de documentos
+(`renegociacion_audit_pdf`) está **casi sin clasificar** (`tipo_documento` 88% `sin_clasificar`;
+`descripcion_detectada` solo 1.5% poblada) → todo mezclado en una sola tabla. Le voy a **proponer
+reordenar las tablas** (pocas tablas por destino: CMF / SII / certificados / cédula) para que lo que
+nos sirve llegue ya separado y no tengamos que detectar el tipo por contenido cada vez.
+Propuesta redactada en `docs/integracion/mapa-fuentes-produccion.md` §7. **No avanzar hasta su respuesta.**
+
 ## 🔗 NORTE — Convergencia con el dashboard del supervisor
 
 Pipeline objetivo: **su dashboard** (`rp_renegociaciones-auth-admin`, prod Supabase `ton…`)
 recopila/clasifica docs → marca **"cliente listo"** → el abogado aprieta **Ejecutar** (encola un job)
-→ **nuestro worker** corre Pasos 1→4 en el portal. Él = aguas arriba; nosotros = ejecutor aguas abajo.
+→ **nuestro worker** corre Pasos 1→5 en el portal. Él = aguas arriba; nosotros = ejecutor aguas abajo.
 Llave-puente = **RUT**.
 
 - Detalle de arquitectura: `CLAUDE.md` → "🔗 Integración futura".
@@ -48,21 +57,60 @@ Validado: el worker corre 1→4 leyendo del sandbox (casos Miguel/Néctor/Cristi
 - [ ] **Crosswalk vivo** `docs/acreedores-crosswalk.md` — registrar CMF/cert name → canónico → RUT por caso. **Regla de oro: verificar que el RUT de la fila sea la MISMA empresa que el alias** (cert > catálogo; ojo nombres parecidos de empresas distintas).
 - [ ] **(integración) Puente doc↔clasificación rota** — su `renegociacion_documento_match` clasifica bien (nombres alineados al CMF) pero está keyeada por `drive_file_id` y `documentos_drive` viene vacío → no se puede linkear por documento a nuestros archivos. Para consumirla en runtime hace falta una **llave compartida** (hash de contenido / id de doc) — item para el supervisor. Hoy se usa como referencia para el crosswalk.
 
-### Etapa 3 — Conectar el botón "Ejecutar" (ÚLTIMO, con el supervisor)
-- [ ] Acordar el mecanismo de trigger (su patrón `mac_mini_jobs` o tabla nueva) → job con RUT/airtable_id.
-- [ ] Darle la **definición de "cliente listo"** (precondiciones del portal: ≥2 deudas 90+d, ≥80 UF,
-      sin Primera Categoría F29, CMF/certs <30d, certs presentes) para que el botón no rebote en el worker.
+### Etapa 3 — Conectar el botón "Ejecutar" (con el supervisor)
+- [x] **Contrato de conexión redactado** *(2026-06-28)* — `docs/integracion/contrato-conexion-ejecutar.md`: trigger (Ejecutar→job, worker proyecta on-demand), gate "cliente listo" (precondiciones del portal exactas), brechas Paso 1 + resolución, puente doc↔clasificación, decisiones a acordar 🤝. **Artefacto para pasarle al supervisor.**
+- [ ] **Acordar con el supervisor** (🤝): mecanismo del trigger (insert directo en `automation_jobs` recomendado), quién proyecta (nuestro worker on-demand), llave del job (`rut`/`airtable_id`), acceso read-only estable a `ton…`, y que su gate "listo" codifique las precondiciones del portal.
+- [ ] **Productizar el proyector** — sacar `tools/project_case.ts` a `src/` (módulo del worker) y que el worker proyecte on-demand al tomar un job con `airtable_id`/`rut`.
 
 ---
 
 ## 🚧 Bloqueante real para producción (Frente B — producto, con el supervisor)
 
-- [ ] **Fuente de `fecha_nacimiento`** — vacía en `core.persona` (0/1.494); **obligatoria** en el Paso 1.
-  Decidir de dónde sale: extraer de la Carpeta Tributaria / pedirla al cliente en el flujo de él /
-  cargarla el abogado. *(En pruebas la inventamos; para un envío real hay que resolverla.)*
-- [ ] **`region`** (derivable de comuna vía tabla comuna→región) y **`ocupacion`** (sin fuente hoy).
+- [ ] **`fecha_nacimiento` — fuente: la CÉDULA del cliente** *(2026-06-28/29)*. `core.persona.fecha_nacimiento` vacío (0/1.494), pero la **cédula** la trae (todos los formatos). Es **campo a EXTRAER** vía visión (mejora #1, en el worktree), no dato inexistente.
+  - ⚠️ **Cobertura HOY baja** (auditado 2026-06-29 con `tools/audit_cedula_source.ts`): solo **~17 de 426** clientes con docs tienen una cédula identificable, y casi ninguna clasificada por él (su buzón está crudo). → mientras él no clasifique, **detectamos la cédula por contenido de nuestro lado** (sobre los `sin_clasificar` del RUT). En pruebas, placeholder.
+- [ ] **`profesion`** — usar **`core.persona.profesion`** (946/1.494 = 63%, texto libre → mapear al enum). **NO la cédula** (la chilena nueva post-2013 NO imprime profesión). **`region`** derivable de comuna; **`ocupacion`** sin fuente hoy (placeholder/pedir).
 
 ---
+
+## 🆕 Paso 5 (Ingresos) — construido y validado E2E (2026-06-29)
+
+Pipeline nuevo, general para todos los clientes (no hardcodeado al caso):
+`gatherStep5Input` (worker) → `runIngresosAgent` (Claude lee docs NATIVO → hechos) →
+`income_extractor.ts` (TS blinda la estructura: líquido a pagar, descuentos voluntarios,
+promedio por tipo, crosswalk a los 2 enums del portal) → `fillStep5` (Playwright).
+
+- **Archivos nuevos**: `src/utils/income_extractor.ts`, `src/agents/ingresos_agent.ts`,
+  `src/automation/step5_ingresos.ts`; integrados en `all_steps.ts` (paso 5 tras paso 4) y
+  `worker.ts` (step:0 y nuevo step:5). Lecciones en `lecciones/paso5-ingresos.md` (L1–L7).
+- **Validado** (testigo Jorge Romero, asalariado): extractor exacto $2.162.230 + lectura
+  nativa real por Claude (extrajo bien los líquidos del escaneo, ignoró "Alcance Líquido") +
+  **E2E contra el portal** (ingreso + justificativo tipo 28 + cert cotizaciones cargados).
+- [ ] **CORRER `supabase/migration_sandbox_v8_ingresos.sql`** en el SQL Editor del sandbox
+  (agrega `'ingresos'` al CHECK de `agent_runs.agent_type`). DDL → lo corre el usuario.
+- [ ] **Fuente de docs de ingreso en producción**: hoy `gatherStep5Input` los busca en
+  `client_documents` por keyword de filename; el dashboard/integración debe subirlos ahí
+  (liquidaciones + cert cotizaciones). Sin eso, el Paso 5 se omite (no rompe el flujo 1→4).
+- [ ] **`fillStep5` DRY_RUN no limpia el borrador** (deja filas/archivos del Paso 5). Agregar
+  auto-cleanup como en Paso 2/3 cuando se vea el markup de borrado en una tabla poblada.
+- [ ] **Pendientes de validar con otros casos**: honorarios (6 vs 12 meses), aporte de terceros
+  (DJ), retiro de sociedades, multi-ingreso. Ver candidatas en `lecciones/paso5-ingresos.md`.
+
+## 🆕 Validación anti-error de la lectura de Claude (Paso 3) — construido (2026-06-29)
+
+Tras eliminar Tesseract (lectura nativa de PDF por Claude), se agregó una red anti-error en
+`sentinel.ts` que verifica los HECHOS que Claude reporta contra fuentes deterministas (NO decide la
+estructura). El LLM devuelve `evidence` por acreedor (rut_emisor, numero_operacion, moneda,
+cita_monto, cita_fecha, confidence) y TS lo valida → `SentinelResult.claudeReadIssues[]`.
+- **Capa 0 (contrato `evidence`)** ✅ — exigido en las 4 listas; cobertura subió de ~40% a ~92%.
+- **Capa 1 (auto-cita anti-alucinación)** ✅ — el monto debe aparecer verbatim en `cita_monto`; 0 falsos positivos en 3 casos.
+- **Capa 2 (cross-check de RUT)** ⚠️ — funciona cuando Claude da `rut_emisor`, pero lo puebla casi nunca → **dormida** (lección L3, abierta).
+- **Lecciones** en `lecciones/paso3-acreedores.md` (L2 resuelto, L3 abierto, L4/L5).
+
+**Pendientes (pedido del usuario, 2026-06-29):**
+- [ ] **Revisar esta implementación anti-error** (Capas 0/1/2) — revisión de código + de diseño.
+- [ ] **Correr pruebas E2E** del Paso 3 con la validación activa (más allá del arnés `compare_vs_baseline`): worker queue real / portal, ver que `claudeReadIssues` llegue a la alerta del dashboard (propagar `claudeReadIssues` por la cadena `centinela_agent`→`worker`→`automation_alert`, hoy NO propagado).
+- [ ] **L3 — `rut_emisor` dormido**: fallback determinista que extraiga el RUT del **texto** del cert cuando exista, para que la Capa 2 no dependa de que Claude lo reporte.
+- [ ] **Implementar las otras mejoras de `docs/integracion/mejoras-desde-flujo-supervisor.md`**: #2 nº de operación (desambiguador multiproducto/dedup), #3 UF vs pesos (tie-breaker vivienda/consumo), #4 catálogo de falsos positivos (cartola/screenshot/comprobante de pago ≠ acreditación), #5 confidence/reasoning en alertas (parcial: ya hay `confidence` en `evidence`), #6 top-N candidatos, + Verificaciones del parser CMF.
 
 ## 📋 Backlog acotado (no bloqueante)
 

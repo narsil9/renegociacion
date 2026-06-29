@@ -11,7 +11,9 @@ import * as path from 'path';
 import { fillStep2 } from './automation/step2_declaraciones';
 import { fillStep3, AcreditacionDoc, Step3Report, SkipCode, SKIP_CODES_ACCIONABLES } from './automation/step3_acreedores';
 import { fillStep4 } from './automation/step4_apoderado';
+import { fillStep5, buildJustificativos, Step5Input } from './automation/step5_ingresos';
 import { fillAllSteps } from './automation/all_steps';
+import { runIngresosAgent, IncomeDocInput } from './agents/ingresos_agent';
 import { getOptimizedPdfPath } from './utils/pdf_optimizer';
 import { runTributarioAgent } from './agents/tributario_agent';
 import { analyzeCmfPdf } from './utils/cmf_analyzer';
@@ -210,6 +212,90 @@ async function reportProgress(jobId: string, message: string): Promise<void> {
     if (error) console.warn(`[progress] no se pudo guardar (${error.message}); se continúa.`);
   } catch (err: any) {
     console.warn(`[progress] excepción al guardar (${err?.message || err}); se continúa.`);
+  }
+}
+
+// Palabras clave (en el filename) que marcan un documento como de INGRESO (Paso 5).
+// La CATEGORÍA fina (liquidación/pensión/arriendo/etc.) la decide el agente leyendo
+// el contenido; acá solo separamos los docs de ingreso del resto (CMF/CT/acreedores).
+const INCOME_FILENAME_KEYWORDS = [
+  'liquidacion', 'liquidación', 'sueldo', 'remuneracion', 'remuneración', 'pension', 'pensión',
+  'jubilacion', 'jubilación', 'montepio', 'montepío', 'arriendo', 'honorario', 'boleta',
+  'aporte', 'retiro', 'renta', 'ingreso',
+];
+const COTIZACIONES_FILENAME_KEYWORDS = ['cotizacion', 'cotización', 'cotizaciones'];
+
+/**
+ * Reúne los documentos de ingreso del cliente desde `client_documents`, los
+ * descarga, corre el Agente de Ingresos (lectura nativa + cálculo determinista)
+ * y arma el `Step5Input` para `fillStep5`. Best-effort: cualquier fallo → null
+ * (se omite el Paso 5 sin romper el job). General: sin nada hardcodeado al caso.
+ */
+async function gatherStep5Input(
+  client: any,
+  tempDir: string,
+  logger: RunnerLogger
+): Promise<Step5Input | null> {
+  try {
+    const { data: docs, error } = await supabase
+      .from('client_documents')
+      .select('filename, storage_path')
+      .eq('client_id', client.id);
+    if (error) {
+      logger.error('⚠️ [Paso 5] No se pudo leer client_documents:', error.message);
+      return null;
+    }
+    const rows = (docs || []).filter((d: any) => d?.filename && d?.storage_path);
+    const isCotiz = (f: string) => COTIZACIONES_FILENAME_KEYWORDS.some((k) => f.toLowerCase().includes(k));
+    const isIncome = (f: string) => INCOME_FILENAME_KEYWORDS.some((k) => f.toLowerCase().includes(k));
+
+    const incomeRows = rows.filter((d: any) => isIncome(d.filename) || isCotiz(d.filename));
+    if (incomeRows.length === 0) {
+      logger.log('ℹ️ [Paso 5] No se encontraron documentos de ingreso en client_documents — se omite el Paso 5.');
+      return null;
+    }
+
+    // Descargar a tempDir.
+    const filenameToPath = new Map<string, string>();
+    const incomeDocs: IncomeDocInput[] = [];
+    let cotizacionesPath: string | null = null;
+    for (const d of incomeRows) {
+      const ext = path.extname(d.filename) || '.pdf';
+      const local = path.join(tempDir, `step5_${client.id}_${path.basename(d.storage_path)}`).replace(/\s+/g, '_');
+      const finalLocal = local.endsWith(ext) ? local : `${local}${ext}`;
+      const { data: blob, error: dlErr } = await supabase.storage.from('documentos').download(d.storage_path);
+      if (dlErr || !blob) {
+        logger.error(`⚠️ [Paso 5] No se pudo descargar ${d.filename}: ${dlErr?.message || 'vacío'}`);
+        continue;
+      }
+      fs.writeFileSync(finalLocal, Buffer.from(await blob.arrayBuffer()));
+      filenameToPath.set(d.filename, finalLocal);
+      if (isCotiz(d.filename)) {
+        cotizacionesPath = finalLocal;
+      }
+      // El cert de cotizaciones también va al agente (extrae fecha+RUT), pero NO
+      // es un ingreso justificativo.
+      incomeDocs.push({ filename: d.filename, localPath: finalLocal });
+    }
+
+    if (incomeDocs.length === 0) return null;
+
+    const ingresosOutput = await runIngresosAgent(supabase, client.id, incomeDocs, logger);
+
+    // Resolver: si el cert de cotizaciones lo identificó el agente, preferir ese filename.
+    if (!cotizacionesPath && ingresosOutput.cotizacionesCert?.filename) {
+      cotizacionesPath = filenameToPath.get(ingresosOutput.cotizacionesCert.filename) || null;
+    }
+
+    const justificativos = buildJustificativos(
+      ingresosOutput.incomes,
+      (filename) => filenameToPath.get(filename) || null
+    );
+
+    return { incomes: ingresosOutput.incomes, justificativos, cotizacionesPath };
+  } catch (err: any) {
+    logger.error('⚠️ [Paso 5] Excepción al preparar el Paso 5 (se omite):', err?.message || err);
+    return null;
   }
 }
 
@@ -800,6 +886,11 @@ async function processJob(job: any): Promise<void> {
           telefono: client.telefono,
         };
 
+        // Paso 5 (Ingresos): reunir docs de ingreso + correr el agente. Best-effort:
+        // si no hay docs de ingreso → null → all_steps omite el Paso 5 (flujo 1→4 igual).
+        await reportProgress(job.id, 'Revisando los ingresos del cliente (Paso 5)…');
+        const step5Input = await gatherStep5Input(client, path.join(process.cwd(), 'outputs'), logger);
+
         step3Report = await fillAllSteps(
           page,
           clientData,
@@ -816,8 +907,25 @@ async function processJob(job: any): Promise<void> {
           centinelaOutput.cmfDocumentOverrides,
           centinelaOutput.identified261Creditors,
           centinelaOutput.deReclassified261Creditors,
-          (msg: string) => reportProgress(job.id, msg)
+          (msg: string) => reportProgress(job.id, msg),
+          step5Input
         );
+      } else if (job.step === 5) {
+        logger.log('📝 Navegando e ingresando información de Paso 5 (Ingresos)...');
+        await reportProgress(job.id, 'Declarando los ingresos del cliente (Paso 5)…');
+
+        const step5Input = await gatherStep5Input(client, path.join(process.cwd(), 'outputs'), logger);
+        if (!step5Input || (step5Input.incomes.length === 0 && !step5Input.cotizacionesPath)) {
+          throw new Error('Paso 5: no se encontraron documentos de ingreso para este cliente.');
+        }
+
+        const currentUrl = page.url();
+        const baseUrl = new URL(currentUrl).origin;
+        const step5Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verIngresos`;
+        logger.log(`→ Redireccionando a la URL del Paso 5: ${step5Url}`);
+        await page.goto(step5Url, { waitUntil: 'domcontentloaded' });
+
+        await fillStep5(page, step5Input, logger);
       }
 
       // --- Alerta al panel: acreedores que el Paso 3 NO pudo cargar (y requieren acción) ---
@@ -921,6 +1029,18 @@ async function processJob(job: any): Promise<void> {
           const files = fs.readdirSync(successDir);
           const verifyFiles = files
             .filter(f => f.startsWith('verify_step4_') && f.endsWith('.png'))
+            .map(f => ({ name: f, time: fs.statSync(path.join(successDir, f)).mtime.getTime() }))
+            .sort((a, b) => b.time - a.time);
+          if (verifyFiles.length > 0) {
+            localSuccessPath = path.join(successDir, verifyFiles[0].name);
+          }
+        }
+      } else if (job.step === 5) {
+        localSuccessPath = path.join(successDir, 'step5_success.png');
+        if (!fs.existsSync(localSuccessPath)) {
+          const files = fs.readdirSync(successDir);
+          const verifyFiles = files
+            .filter(f => f.startsWith('verify_step5_') && f.endsWith('.png'))
             .map(f => ({ name: f, time: fs.statSync(path.join(successDir, f)).mtime.getTime() }))
             .sort((a, b) => b.time - a.time);
           if (verifyFiles.length > 0) {

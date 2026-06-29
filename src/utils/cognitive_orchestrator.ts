@@ -248,6 +248,12 @@ export interface ClientDocument {
   imageBase64?: string;
   /** MIME type for the image (image/jpeg | image/png | image/gif | image/webp) */
   imageMimeType?: string;
+  /**
+   * base64 del PDF para lectura NATIVA por Claude (Mejora #1). Se setea cuando el PDF es
+   * un escaneo/foto o tiene baja densidad de texto y Tesseract fue eliminado: Claude lee el
+   * documento adjunto directamente en vez de confiar en `pdftotext`.
+   */
+  nativePdfBase64?: string;
   /** true when the file could not be downloaded from Supabase Storage */
   downloadFailed?: boolean;
 }

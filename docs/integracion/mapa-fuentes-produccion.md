@@ -7,6 +7,8 @@
 >
 > **Verificado en vivo** contra la DB el **2026-06-27** (read-only) con
 > `tools/audit_prod_sources.ts`. Los counts son reales a esa fecha.
+> **Actualizado 2026-06-29**: estado de clasificación del buzón de docs + cobertura de cédula
+> (brechas #1 y #7; tools `audit_cedula_source.ts` / `audit_cedula_struct.ts`).
 >
 > **⚠️ REGLA DE ORO — SOLO LECTURA.** Sobre `ton…` se hace **únicamente SELECT/GET**.
 > NUNCA insert/update/delete. Lo dice CLAUDE.md ("Sandbox-como-producción"): hoy operamos
@@ -96,6 +98,10 @@ Vista pública (envuelve `reports.casos_renegociacion`, idéntica). **Punto de e
 - **Columnas (15):** `id, rut_norm, filename, filename_safe, size_bytes, content_hash, storage_path, email_date, email_subject, email_from, in_drive_too, created_at, direccion, tipo_documento, descripcion_detectada`
 - **Nosotros leemos:** `tipo_documento='documento_checklist'` + `storage_path` (los certificados). `descripcion_detectada` = texto del tipo de doc.
 - ⚠️ Llave por `rut_norm` (sin puntos/guion). **No trae el RUT del emisor** del cert (brecha #5; nosotros lo extraemos con `cert_institution_resolver.ts`).
+- 🚨 **ES UN BUZÓN ÚNICO SIN ORDENAR (auditado 2026-06-29).** Esta tabla recibe **TODOS** los adjuntos de correos del cliente mezclados (CMF, estados de cuenta, liquidaciones, poderes, **cédula**, licencias, etc.). NO hay tabla dedicada por tipo. La clasificación de su agente está **casi vacía**:
+  - `tipo_documento` (etiqueta gruesa): **88% `sin_clasificar`** (4.415/5.001); resto 525 `cmf`, 55 `documento_checklist`, 6 `otro`.
+  - `descripcion_detectada` (etiqueta fina por contenido): **solo 1.5% poblada** (73/5.001) — el 98.5% en `null`. Vocabulario de 38 tipos bien hechos (ej. "estado de cuenta tarjeta Tenpo", "cartola cuenta corriente Santander") pero corrido sobre una **muestra mínima** (parece piloto reciente, no producción).
+  - **Implicancia:** NO se puede confiar en `descripcion_detectada` para localizar un tipo de doc (cédula, cert) — cubre casi nada. Hasta que él clasifique todo el buzón, **la detección por contenido corre de nuestro lado**. Auditoría: `tools/audit_cedula_struct.ts`.
 
 ### `renegociacion_documento_match` — calce certificado→acreedor · **395 filas**
 - **Columnas (20):** `id, airtable_id, drive_file_id, acreedor, documento_descripcion, confidence, reasoning, is_match, overridden_by_human, overridden_by_email, llm_model, created_at, updated_at, candidates_json, candidates_computed_at, validation_status, validation_reason, validation_note, validated_by_email, validated_at`
@@ -127,20 +133,47 @@ Vista pública (envuelve `reports.casos_renegociacion`, idéntica). **Punto de e
 
 | # | Brecha | Severidad | Detalle |
 |---|---|---|---|
-| 1 | **`fecha_nacimiento`** — columna existe en `core.persona` pero **0/1.494 poblada** | 🔴 Bloqueante | Obligatoria en el portal. Obtener de la Carpeta Tributaria o pedir al cliente. (Ojo: la CT NO trae DOB.) |
-| 2 | **`region`** y **`ocupacion`** no existen en ningún lado | 🔴 | `region` derivable de comuna (tabla comuna→región); `ocupacion` sin fuente. |
+| 1 | **`fecha_nacimiento`** — columna existe en `core.persona` pero **0/1.494 poblada** | 🔴→🟢 | **Fuente HALLADA: la CÉDULA del cliente** (campo "Fecha de nacimiento", todos los formatos). La cédula vive en `renegociacion_audit_pdf` (audit-attachments). Se extrae vía visión (mejora #1). ⚠️ Cobertura de cédula HOY baja: solo **~17 de 426 clientes** tienen una identificable, y casi ninguna clasificada por él (ver brecha #7). La CT NO trae DOB. |
+| 2 | **`region`** y **`ocupacion`** no existen en ningún lado | 🟡/🔴 | `region` derivable de comuna (tabla comuna→región). `ocupacion` sin fuente → placeholder/pedir. |
 | 3 | `domicilio`/`comuna`/`ciudad` solo en `bronze` (JSON), no en `core` | 🟡 | Leer de `bronze_customers_main.data`. |
-| 4 | `estado_civil`/`profesion` en texto libre, no en código/etiqueta del portal | 🟡 | Mapear con `portal_select_values.json`. |
+| 4 | `estado_civil`/`profesion` en texto libre, no en código/etiqueta del portal | 🟡 | Mapear con `portal_select_values.json`. **Profesión: usar `core.persona.profesion`** (946/1.494 = 63%), NO la cédula (la cédula nueva post-2013 NO imprime profesión). |
 | 5 | Certificados NO traen el RUT del emisor extraído | 🟡 | Nosotros ya lo resolvemos con `cert_institution_resolver.ts`. |
 | 6 | Frescura <30d del CMF/certificados no garantizada | 🟡 | Filtrar por `fecha_emision` / re-descargar cerca del envío. |
+| 7 | **Buzón de docs sin ordenar** — `renegociacion_audit_pdf` mezcla todo; clasificación ~1.5% (ver tabla arriba) | 🔴 | Cuello de botella real. Mientras él no clasifique todo, **detectamos por contenido de nuestro lado**. Propuesta a acordar: ver §6. |
 
 > El CMF interpretado escaso (39 casos) **NO es brecha para nosotros**: parseamos el PDF crudo (1.641).
+
+---
+
+## 7. Propuesta a acordar con el supervisor — reordenar el buzón de documentos
+
+> **Estado: a conversar (🤝, 2026-06-29).** Hoy `renegociacion_audit_pdf` es un buzón único con
+> ~1.5% clasificado. Antes de seguir con la integración, esperamos que el supervisor aclare si
+> va a **ordenar las tablas**. Nuestra propuesta:
+
+Que los documentos que nos sirven lleguen ya **separados por destino**, en pocas tablas/etiquetas claras
+en vez de un buzón crudo, para no tener que detectar el tipo nosotros cada vez. Lo que el robot consume:
+
+| Necesitamos… | Para qué (Paso) | Hoy |
+|---|---|---|
+| **CMF** (PDF) | elegibilidad + Paso 3 | ✅ ya separado en `cmf_informes` |
+| **Carpeta Tributaria / Agentes Retenedores** | Paso 2 + Paso 5 | ✅ ya separado en `mac_mini_jobs` (expedientes-sii) |
+| **Certificados de acreditación** (por acreedor) | Paso 3 | 🔴 en el buzón crudo, casi sin clasificar |
+| **Cédula de identidad** | Paso 1 (fecha_nacimiento) | 🔴 en el buzón crudo, casi sin clasificar |
+
+**Pedido concreto:** que su agente clasifique **todo** el buzón (no una muestra) y exponga el `tipo`/`descripcion`
+poblado, idealmente con una **llave compartida** (`content_hash` ya existe) para linkear su clasificación
+(`renegociacion_documento_match`) a los PDFs que bajamos. Así dejamos de detectar tipo por contenido.
 
 ---
 
 ## 5. Cómo re-verificar este mapa
 
 ```bash
+# Existencia + cobertura de cada fuente
 npx ts-node --transpile-only -r dotenv/config tools/audit_prod_sources.ts
+# Estado de clasificación del buzón de docs + cobertura de cédula (brechas #1 y #7)
+npx ts-node --transpile-only -r dotenv/config tools/audit_cedula_source.ts
+npx ts-node --transpile-only -r dotenv/config tools/audit_cedula_struct.ts
 ```
-(Read-only. Imprime existencia + cobertura de cada fuente. Requiere `PROD_SUPABASE_*` en `.env`.)
+(Read-only, PII-safe. Requieren `PROD_SUPABASE_*` en `.env`.)

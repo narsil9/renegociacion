@@ -38,6 +38,7 @@ interface Row {
   monto: number;
   vencimiento?: string;
   documento?: string;
+  evidence?: any;        // ExtractionEvidence reportada por Claude (rut_emisor, cita_monto, confidence…)
 }
 
 function requireEnv(name: string): string {
@@ -50,13 +51,13 @@ function requireEnv(name: string): string {
 function toRows(r: SentinelResult): Row[] {
   const rows: Row[] = [];
   for (const x of r.reclassifiedCreditors ?? [])
-    rows.push({ seccion: 260, fuente: 'reclassified', institucion: x.institucion_cmf, monto: x.total_credito_clp, vencimiento: x.delinquency_start_date, documento: (x as any).document_filename });
+    rows.push({ seccion: 260, fuente: 'reclassified', institucion: x.institucion_cmf, monto: x.total_credito_clp, vencimiento: x.delinquency_start_date, documento: (x as any).document_filename, evidence: x.evidence });
   for (const o of r.cmf260DirectOverrides ?? [])
-    rows.push({ seccion: 260, fuente: 'cmf260Override', institucion: o.institucion_cmf, monto: o.monto_clp, vencimiento: o.fecha_vencimiento, documento: o.document_filename });
+    rows.push({ seccion: 260, fuente: 'cmf260Override', institucion: o.institucion_cmf, monto: o.monto_clp, vencimiento: o.fecha_vencimiento, documento: o.document_filename, evidence: o.evidence });
   for (const x of r.identified261Creditors ?? [])
-    rows.push({ seccion: 261, fuente: 'identified261', institucion: x.institucion_cmf, monto: x.total_credito_clp, documento: (x as any).document_filename });
+    rows.push({ seccion: 261, fuente: 'identified261', institucion: x.institucion_cmf, monto: x.total_credito_clp, documento: (x as any).document_filename, evidence: x.evidence });
   for (const a of r.additionalCreditors ?? [])
-    rows.push({ seccion: a.categoria_articulo, fuente: 'additional', institucion: a.institucion_cmf, monto: a.total_credito_clp, vencimiento: a.delinquency_start_date, documento: a.document_filename });
+    rows.push({ seccion: a.categoria_articulo, fuente: 'additional', institucion: a.institucion_cmf, monto: a.total_credito_clp, vencimiento: a.delinquency_start_date, documento: a.document_filename, evidence: a.evidence });
   for (const x of r.deReclassified261Creditors ?? [])
     rows.push({ seccion: 261, fuente: 'deReclassified', institucion: x.institucion_cmf ?? (x as any).bank, monto: x.total_credito_clp, documento: (x as any).document_filename });
   rows.sort((a, b) => a.seccion - b.seccion || b.monto - a.monto);
@@ -75,6 +76,16 @@ function printRows(label: string, rows: Row[]) {
       const venc = r.vencimiento ? ` venc ${r.vencimiento}` : '';
       const doc = r.documento ? ` [${r.documento}]` : '';
       console.log(`     • ${r.institucion}  ${clp(r.monto)}${venc}  (${r.fuente})${doc}`);
+      const ev = r.evidence;
+      if (ev) {
+        const conf = typeof ev.confidence === 'number' ? ` conf=${ev.confidence}` : '';
+        const rut = ev.rut_emisor ? ` rut=${ev.rut_emisor}` : '';
+        const op = ev.numero_operacion ? ` op=${ev.numero_operacion}` : '';
+        const mon = ev.moneda ? ` ${ev.moneda}` : '';
+        console.log(`         evidence:${rut}${op}${mon}${conf}${ev.cita_monto ? `  cita="${ev.cita_monto}"` : '  (sin cita_monto)'}`);
+      } else {
+        console.log(`         evidence: (Claude no devolvió evidence)`);
+      }
     }
   }
 }
@@ -124,12 +135,18 @@ async function main() {
     const rows = toRows(result);
     const outDir = path.resolve(__dirname, '..', c.dir, '_validacion');
     fs.mkdirSync(outDir, { recursive: true });
-    const dump = { rut: c.rut, success: result.success, errors: result.errors, details: result.details, rows };
+    const dump = { rut: c.rut, success: result.success, errors: result.errors, details: result.details, rows, claudeReadIssues: result.claudeReadIssues ?? [] };
     fs.writeFileSync(path.join(outDir, 'centinela_out.json'), JSON.stringify(dump, null, 2));
 
     printRows('CORRIDA ACTUAL', rows);
     console.log(`   details: 90d=${result.details?.meets90DaysRequirement} monto=${result.details?.meetsAmountRequirement} total=${clp(result.details?.totalAmountCLP ?? 0)} con90d=${result.details?.creditorsWith90DaysCount}`);
     if ((result.errors ?? []).length) console.log(`   errores: ${JSON.stringify(result.errors)}`);
+
+    // Validación anti-error: errores que Claude cometió leyendo los PDFs (lo que vamos a aprender).
+    const issues = result.claudeReadIssues ?? [];
+    console.log(`\n  ── VALIDACIÓN ANTI-ERROR (lectura de Claude) — ${issues.length} señal(es) ──`);
+    if (issues.length === 0) console.log('   ✅ Sin discrepancias detectadas.');
+    for (const i of issues) console.log(`   ⚠️ [${i.tipo}] ${i.institucion} ${clp(i.monto_clp)} — ${i.detalle}`);
 
     const baselinePath = path.join(outDir, 'baseline_pre.json');
     if (saveBaseline) {

@@ -13,7 +13,7 @@ import {
   canonicalInstitutionKey,
   AcreedorCatalogEntry,
 } from './acreedor_matcher';
-import { extractDatesFromText, extractEmissionDateFromText } from './cognitive_orchestrator';
+import { extractDatesFromText, extractEmissionDateFromText, ClientDocument } from './cognitive_orchestrator';
 import { extractCertLineItems } from './cert_line_items';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -76,6 +76,36 @@ function pdfNativeReason(localPath: string, extractedTextLen: number): string | 
   return null;
 }
 
+/**
+ * Evidencia de extracción que Claude reporta por acreedor (Capa 0 de validación anti-error).
+ * Son los DATOS VERIFICABLES que permiten a TypeScript chequear lo que Claude leyó del PDF
+ * nativo, en vez de confiar a ciegas. NO deciden la estructura (260/261, split): solo se
+ * validan contra fuentes deterministas (catálogo de RUT, filas del CMF, la propia cita).
+ */
+export interface ExtractionEvidence {
+  /** RUT del EMISOR del certificado tal como aparece impreso (XXXXXXXX-X). */
+  rut_emisor?: string;
+  /** Nº de operación/contrato/tarjeta del producto, para desambiguar multiproducto/dedup. */
+  numero_operacion?: string;
+  /** Moneda del monto leído: "UF" (probable vivienda) o "CLP". */
+  moneda?: 'UF' | 'CLP';
+  /** Fragmento VERBATIM del documento de donde Claude leyó el monto (anti-alucinación). */
+  cita_monto?: string;
+  /** Fragmento VERBATIM de donde leyó la fecha de mora/vencimiento. */
+  cita_fecha?: string;
+  /** Confianza 0..1 de la lectura de ESTE certificado. */
+  confidence?: number;
+}
+
+/** Discrepancia detectada por TS entre lo que Claude reportó y las fuentes deterministas. */
+export interface ClaudeReadIssue {
+  document_filename: string;
+  institucion: string;
+  monto_clp: number;
+  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia';
+  detalle: string;
+}
+
 export interface ReclassifiedCreditor {
   bank: string;
   product_type: 'credito_consumo' | 'tarjeta_credito' | 'otro';
@@ -86,6 +116,7 @@ export interface ReclassifiedCreditor {
   new_classification: 'obligaciones_260';
   reason: string;
   document_filename: string;
+  evidence?: ExtractionEvidence;
 }
 
 export interface Identified261Creditor {
@@ -95,6 +126,7 @@ export interface Identified261Creditor {
   total_credito_clp: number;
   reason: string;
   document_filename: string;
+  evidence?: ExtractionEvidence;
 }
 
 export interface DeReclassified261Creditor {
@@ -167,6 +199,7 @@ export interface AdditionalCreditor {
   reason: string;                       // por qué no está en el CMF y por qué se declara
   document_filename: string;
   needs_lawyer_confirmation: boolean;   // flag — siempre true en esta fase
+  evidence?: ExtractionEvidence;
 }
 
 /** Fecha clave calculada determinísticamente (sin Claude) para alertar al abogado. */
@@ -188,6 +221,7 @@ export interface Cmf260DirectOverride {
   monto_clp: number;
   fecha_vencimiento: string;   // YYYY-MM-DD
   document_filename: string;
+  evidence?: ExtractionEvidence;
 }
 
 export interface SentinelResult {
@@ -201,6 +235,8 @@ export interface SentinelResult {
   cmf260DirectOverrides?: Cmf260DirectOverride[];
   /** Productos que el CMF marca 90+d pero cuyo certificado los certifica vigentes → 260→261. */
   deReclassified261Creditors?: DeReclassified261Creditor[];
+  /** Discrepancias entre lo que Claude reportó y las fuentes deterministas (validación anti-error). */
+  claudeReadIssues?: ClaudeReadIssue[];
   fechasClave?: FechaClave[];
   details: {
     meets90DaysRequirement: boolean;
@@ -322,7 +358,7 @@ export async function runSentinelCheck(
 
     // 2. Obtener y descargar certificados
     log('Obteniendo certificados de acreditación desde Supabase...');
-    let documents: any[] = [];
+    let documents: ClientDocument[] = [];
     const { data: dbDocs, error: dbErr } = await supabase
       .from('client_documents')
       .select('*')
@@ -804,6 +840,16 @@ Para cada acreedor en el array "creditors" donde "overdue90Days > 0" Y cuyo nomb
 Devuelve los resultados en "cmf260DirectOverrides". NO repitas en reclassifiedCreditors a los acreedores que ya estaban en el CMF como Art.260 — solo van aquí.
 
 ---
+**REGLA 11 — EVIDENCIA VERIFICABLE por acreedor (campo "evidence", OBLIGATORIO EN LAS 4 LISTAS)**
+Por CADA acreedor que emitas en **reclassifiedCreditors, identified261Creditors, deReclassified261Creditors, additionalCreditors Y cmf260DirectOverrides** —⚠️ SIN EXCEPCIÓN, también los Art. 261 vigentes— agrega un objeto "evidence" con los datos que permiten VERIFICAR tu lectura. TypeScript los cruza contra el catálogo de RUT y las filas del CMF — si no cuadran, se alerta al abogado. Sé HONESTO: si no leíste un dato con certeza, baja la "confidence", NO inventes. Un acreedor SIN "evidence" se marca como no verificable.
+- "rut_emisor" ⭐ EL CAMPO MÁS IMPORTANTE: el RUT del EMISOR del certificado (la institución acreedora), tal como está impreso (XXXXXXXX-X). NO el RUT del deudor/cliente. Búscalo SIEMPRE — suele estar en el encabezado/pie del certificado o junto a la razón social del banco. Es la verificación de identidad más fuerte. Si de verdad no aparece en el documento, omítelo y baja la confianza.
+- "numero_operacion": Nº de operación / contrato / tarjeta del producto (lo trae el certificado del banco, NO el CMF). Sirve para no confundir productos del mismo banco.
+- "moneda": "UF" si los montos del documento están en Unidades de Fomento (probable crédito hipotecario/vivienda) o "CLP" si están en pesos.
+- "cita_monto": copia TEXTUAL (verbatim) del fragmento del documento de donde sacaste "monto_clp" — incluí el rótulo y la cifra exactos (ej. 'Saldo Insoluto: $6.756.287'). Es tu respaldo anti-error: si el monto que reportás es una SUMA de varios cupos, citá las cifras sumadas.
+- "cita_fecha": copia textual del fragmento de donde sacaste la fecha de mora/vencimiento.
+- "confidence": número 0.0–1.0 con tu certeza al leer ESTE certificado (escaneo borroso/tabla ambigua → baja; texto nítido → alta).
+
+---
 **IMPORTANTE:** Si los documentos demuestran que los requisitos se cumplen aunque el CMF no lo refleje, el resultado puede ser "success": true con reclassifiedCreditors no vacío.
 
 Responde ÚNICAMENTE con un bloque JSON encerrado en <json>...</json>. Nada de texto fuera de esas etiquetas.
@@ -823,7 +869,8 @@ Esquema JSON esperado:
       "total_credito_clp": 48236275,
       "new_classification": "obligaciones_260",
       "reason": "informeCredito.pdf: 3 cuotas impagas, próximo pago 03/12/2024. Cuota más antigua venció 03/09/2024 = 91 días de mora al 03/12/2024.",
-      "document_filename": "informeCredito.pdf"
+      "document_filename": "informeCredito.pdf",
+      "evidence": { "rut_emisor": "97004000-5", "numero_operacion": "650052258302", "moneda": "CLP", "cita_monto": "Saldo Insoluto: $48.236.275", "cita_fecha": "Cuota más antigua vencida: 03/09/2024", "confidence": 0.95 }
     }
   ],
   "identified261Creditors": [
@@ -833,7 +880,8 @@ Esquema JSON esperado:
       "institucion_cmf": "Banco de Chile",
       "total_credito_clp": 65864,
       "reason": "Estado de cuenta Oct 2024: cargo automático de $14.210 liquidó mora vencida. Deuda vigente al día sin mora ≥91d.",
-      "document_filename": "Banco de Chile Tarjeta Mastercard EC Octubre 2024.pdf"
+      "document_filename": "Banco de Chile Tarjeta Mastercard EC Octubre 2024.pdf",
+      "evidence": { "rut_emisor": "97004000-5", "numero_operacion": "5546-XXXX-9558", "moneda": "CLP", "cita_monto": "Cupo Utilizado: $65.864", "confidence": 0.93 }
     }
   ],
   "additionalCreditors": [
@@ -845,7 +893,8 @@ Esquema JSON esperado:
       "total_credito_clp": 517442,
       "reason": "CPF de portabilidad: tarjeta Visa Platinium con cupo propio, NO listada en el CMF (el CMF solo trae el crédito de consumo de Banco de Chile). Sin morosidad → Art. 261.",
       "document_filename": "CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf",
-      "needs_lawyer_confirmation": true
+      "needs_lawyer_confirmation": true,
+      "evidence": { "rut_emisor": "97004000-5", "numero_operacion": "4561-XXXX-2210", "moneda": "CLP", "cita_monto": "Saldo a la fecha: $517.442", "confidence": 0.88 }
     }
   ],
   "cmf260DirectOverrides": [
@@ -853,7 +902,8 @@ Esquema JSON esperado:
       "institucion_cmf": "CAT S.A.",
       "monto_clp": 11275392,
       "fecha_vencimiento": "2025-09-05",
-      "document_filename": "cert_cat.pdf"
+      "document_filename": "cert_cat.pdf",
+      "evidence": { "rut_emisor": "99500840-6", "numero_operacion": "5301-XXXX", "moneda": "CLP", "cita_monto": "Monto total a pagar: $11.275.392", "cita_fecha": "Cobranza Judicial iniciada: 05/09/2025", "confidence": 0.9 }
     }
   ],
   "details": {
@@ -1122,8 +1172,11 @@ Esquema JSON esperado:
         // colapsa las TABLAS de los certificados de liquidación/portabilidad (el Nº de
         // operación, la fecha y el monto quedan en líneas separadas) → el extractor por-fila
         // no las reconoce y se pierde, por ejemplo, "CUENTA CORRIENTE … $615" de BCI. Para la
-        // extracción determinista re-leemos el PDF con -layout (preserva columnas). Para docs
-        // imagen usamos su OCR (doc.textContent), que ya conserva "CRE-… Saldo Deuda $X".
+        // extracción determinista re-leemos el PDF con -layout (preserva columnas).
+        // ⚠️ Tesseract fue ELIMINADO (Mejora #1: Claude lee el PDF/imagen nativo, mejor que el OCR):
+        // por eso este chequeo de completitud determinista solo aplica a PDFs CON capa de texto.
+        // En escaneos/imágenes no hay texto que extraer (certText queda en placeholder → 0 ítems)
+        // y la lectura del monto la hace Claude nativo, validada aguas abajo (tolerancia vs CMF + RUT).
         let certText = doc.textContent || '';
         if (!doc.isImageDoc && doc.local_path) {
           const layout = await extractTextFromPdfLayout(doc.local_path).catch(() => '');
@@ -1311,6 +1364,78 @@ Esquema JSON esperado:
         log(`   - [${f.tipo}] ${f.referencia}: ${f.fecha} (${estado}) — ${f.detalle}`);
       });
     }
+
+    // --- VALIDACIÓN ANTI-ERROR de la lectura de Claude (Capas 1 y 2) ---
+    // No decide la estructura; verifica los HECHOS que Claude reportó (evidence) contra fuentes
+    // deterministas: la propia cita (anti-alucinación) y el catálogo de RUT (identidad). Es la
+    // red de seguridad que reemplaza al backstop por-texto en certs leídos NATIVOS por Claude
+    // (sin capa de texto / imágenes), donde extractCertLineItems no tiene texto. Solo verifica
+    // acreedores que traen evidence (los que emitió el LLM); los agregados por backstops TS no.
+    {
+      const issues: ClaudeReadIssue[] = [];
+      const digitsOnly = (s: string) => (s || '').replace(/[^\d]/g, '');
+      // ¿La cita textual respalda el monto reportado? Conservador: el monto puede ser una SUMA
+      // de cupos (no aparece verbatim) → si no calza, es señal de REVISAR, no de error seguro.
+      const citaRespaldaMonto = (cita: string | undefined, monto: number, moneda?: string): boolean => {
+        if (!cita) return false;
+        if (moneda === 'UF') return true; // monto_clp es conversión; la cita está en UF → no comparable por dígitos
+        const target = String(Math.round(monto));
+        return target.length >= 4 && digitsOnly(cita).includes(target);
+      };
+      const emitted: Array<{ filename: string; institucion: string; monto: number; ev?: ExtractionEvidence }> = [
+        ...(result.reclassifiedCreditors ?? []).map(c => ({ filename: c.document_filename, institucion: c.institucion_cmf, monto: c.total_credito_clp, ev: c.evidence })),
+        ...(result.identified261Creditors ?? []).map(c => ({ filename: c.document_filename, institucion: c.institucion_cmf, monto: c.total_credito_clp, ev: c.evidence })),
+        ...(result.additionalCreditors ?? []).map(c => ({ filename: c.document_filename, institucion: c.institucion_cmf, monto: c.total_credito_clp, ev: c.evidence })),
+        ...(result.cmf260DirectOverrides ?? []).map(c => ({ filename: c.document_filename, institucion: c.institucion_cmf, monto: c.monto_clp, ev: c.evidence })),
+      ];
+      let withEvidence = 0;
+      for (const e of emitted) {
+        if (!e.ev) continue; // agregado por backstop TS o LLM no pobló evidence → no se verifica acá
+        withEvidence++;
+        const ev = e.ev;
+
+        // Capa 2 — cross-check de RUT del emisor contra el catálogo (identidad de la institución).
+        if (ev.rut_emisor && catalog.length > 0) {
+          const rutNorm = normalizeRut(ev.rut_emisor);
+          if (rutNorm && rutNorm !== (clientRutForCerts ? normalizeRut(clientRutForCerts) : null)) {
+            const detected = findCatalogEntryByRut([rutNorm], catalog, clientRutForCerts);
+            if (detected && canonicalInstitutionKey(detected.nombre) !== canonicalInstitutionKey(e.institucion)) {
+              issues.push({
+                document_filename: e.filename,
+                institucion: e.institucion,
+                monto_clp: e.monto,
+                tipo: 'rut_no_coincide',
+                detalle: `El RUT del emisor ${rutNorm} pertenece a "${detected.nombre}", pero Claude asignó el cert a "${e.institucion}". Verificar institución.`,
+              });
+            }
+          }
+        }
+
+        // Capa 1 — anti-alucinación por auto-cita: el monto reportado debe estar en la cita.
+        if (e.monto > 0) {
+          if (!ev.cita_monto) {
+            issues.push({ document_filename: e.filename, institucion: e.institucion, monto_clp: e.monto, tipo: 'sin_evidencia', detalle: `Claude no devolvió "cita_monto" para respaldar $${e.monto.toLocaleString('es-CL')}.` });
+          } else if (!citaRespaldaMonto(ev.cita_monto, e.monto, ev.moneda)) {
+            issues.push({ document_filename: e.filename, institucion: e.institucion, monto_clp: e.monto, tipo: 'monto_sin_respaldo_en_cita', detalle: `El monto $${e.monto.toLocaleString('es-CL')} no aparece verbatim en la cita ("${ev.cita_monto}"). Puede ser una suma de cupos o una lectura errónea — revisar.` });
+          }
+        }
+
+        // Confianza baja autodeclarada por Claude (umbral <0.70: captura escaneos garbled borderline,
+        // ej. Itaú "Cart.Veida" conf 0.65 — ver lección L4).
+        if (typeof ev.confidence === 'number' && ev.confidence < 0.7) {
+          issues.push({ document_filename: e.filename, institucion: e.institucion, monto_clp: e.monto, tipo: 'baja_confianza', detalle: `Claude reportó confidence ${ev.confidence.toFixed(2)} al leer este certificado.` });
+        }
+      }
+
+      if (issues.length > 0) {
+        result.claudeReadIssues = issues;
+        log(`🔎 Validación anti-error: ${issues.length} señal(es) sobre la lectura de Claude (${withEvidence}/${emitted.length} acreedores con evidencia):`);
+        issues.forEach(i => log(`   - [${i.tipo}] ${i.institucion} ($${i.monto_clp.toLocaleString('es-CL')}) — ${i.detalle}`));
+      } else if (emitted.length > 0) {
+        log(`🔎 Validación anti-error: sin discrepancias (${withEvidence}/${emitted.length} acreedores con evidencia verificable).`);
+      }
+    }
+
     return result;
 
   } catch (err: any) {

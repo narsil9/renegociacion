@@ -40,7 +40,7 @@ This is consistent with the principles already established in this file (see *"E
 > bash scripts/sistema.sh start
 > ```
 
-El **worker es el daemon** (un solo proceso): pollea la cola `automation_jobs` cada 5s y, por cada job, corre la cadena de agentes + Playwright Pasos 1→4 contra el portal Superir. **Si el worker no está corriendo, los casos cargados desde el dashboard quedan en `pending` y no pasa nada.** Por eso debe quedar SIEMPRE encendido.
+El **worker es el daemon** (un solo proceso): pollea la cola `automation_jobs` cada 5s y, por cada job, corre la cadena de agentes + Playwright Pasos 1→5 contra el portal Superir. **Si el worker no está corriendo, los casos cargados desde el dashboard quedan en `pending` y no pasa nada.** Por eso debe quedar SIEMPRE encendido.
 
 `scripts/sistema.sh` es **portátil** (este Mac u otra máquina con Node + el repo + `.env`). Hace, de forma idempotente: `npm install` si falta, `npx playwright install chromium`, valida que exista `.env`, y arranca el worker — con **pm2** si está instalado (auto-restart + arranque al boot), o con `nohup` en background si no.
 
@@ -56,7 +56,7 @@ El **worker es el daemon** (un solo proceso): pollea la cola `automation_jobs` c
 
 ## Key Directories
 
-- `src/automation/` - Step-specific Playwright scripts (`login.ts`, `step1_personal.ts`, `step2_declaraciones.ts`, `step3_acreedores.ts`, `step4_apoderado.ts`, `all_steps.ts`)
+- `src/automation/` - Step-specific Playwright scripts (`login.ts`, `step1_personal.ts`, `step2_declaraciones.ts`, `step3_acreedores.ts`, `step4_apoderado.ts`, `step5_ingresos.ts`, `all_steps.ts`)
 - `src/utils/` - Utility functions (browser controllers, logger, Supabase clients, PDF optimizer/analyzer, acreedor_matcher, cmf_analyzer, **cognitive_orchestrator**, date_helper, sentinel)
 - `src/agents/` - Cadena multi-agente: `types.ts`, `agent_runs.ts`, `validator.ts`, `tributario_agent.ts`, `centinela_agent.ts`, `mapeador_agent.ts`
 - `outputs/` - Screenshots, HTML snapshots, and log files of successful/failed automation steps
@@ -64,7 +64,7 @@ El **worker es el daemon** (un solo proceso): pollea la cola `automation_jobs` c
 - `tools/` - **Scripts dev/diagnóstico/one-off — NO producción.** (inspect_*, check_*, migrate_*, run_*, upload_*, el CLI legacy `index.ts`, etc.) Fuera del build de producción. Los `*_*` con prefijo de diagnóstico están gitignored.
 
 > ### ⚙️ Superficie de PRODUCCIÓN (qué corre en el robot)
-> El único entry de producción es **`src/worker.ts`** (daemon). Su grafo de imports = lo que corre en producción: `src/worker.ts` + `src/automation/*` + `src/agents/*` + 15 módulos de `src/utils/` (acreedor_matcher, alerts, browser, cert_institution_resolver, cert_line_items, cmf_analyzer, cognitive_orchestrator, date_helper, deterministic_mapeador, logger, ocr_helper, pdf_analyzer, pdf_optimizer, sentinel, supabaseWorker).
+> El único entry de producción es **`src/worker.ts`** (daemon). Su grafo de imports = lo que corre en producción: `src/worker.ts` + `src/automation/*` (incl. `step5_ingresos.ts`) + `src/agents/*` (incl. `ingresos_agent.ts`) + módulos de `src/utils/` (acreedor_matcher, alerts, browser, cert_institution_resolver, cert_line_items, cmf_analyzer, cognitive_orchestrator, date_helper, deterministic_mapeador, income_extractor, logger, ocr_helper, pdf_analyzer, pdf_optimizer, sentinel, supabaseWorker).
 > **`src/` contiene SOLO producción.** Todo lo de prueba/dev vive en `tools/` (scripts sueltos) y `casos/` (tests por cliente).
 > Build production-only: **`npm run build:prod`** (`tsconfig.build.json`, compila solo el grafo del worker → `dist/`). Deploy: ship `dist/`. El daemon: `bash scripts/sistema.sh start`.
 
@@ -128,7 +128,7 @@ Algunas deudas reales NO aparecen en el Informe CMF pero igual deben declararse 
 ### Step 3 — Backstop determinista de completitud (el LLM NO decide la estructura)
 **Principio (2026-06-23):** el LLM (Centinela) es no-determinista; entre corridas nombra distinto las instituciones y reparte distinto los productos entre `identified261`/`additionalCreditors`. La **estructura** (clasificación, mapeo cert↔CMF, nombres, split) es **determinista dada los hechos** y NO debe depender del LLM. El LLM extrae hechos de documentos messy; TypeScript blinda la estructura con backstops. Implementado en `sentinel.ts` (tras la respuesta del LLM) y `acreedor_matcher.ts`:
 - **`src/utils/cert_line_items.ts`** — `extractCertLineItems(text)` extrae (operación, monto, etiqueta) de cualquier cert. 2 detectores generales y CONSERVADORES: (1) línea con etiqueta de **payoff inequívoca** ("Saldo Deuda/Insoluto/Total a Pagar", "Costo Total del/Monetario Prepago"); (2) tabla de **Certificado de Liquidación/portabilidad** (Nº Operación + monto). Excluye cupo/autorizado/aprobado/**facturado del mes**/no-vencido/indirecta (cero falsos positivos).
-- **Backstop de completitud**: por cada cert (texto vía `-layout`, imagen vía OCR), agrega los ítems que el LLM OMITIÓ — override de monto si el banco tiene fila CMF sin reclamar, o NO-CMF si es solo-en-cert. Aditivo. Resuelve **BCI cuenta corriente $615** y **BancoEstado línea $389.848** sin depender del LLM.
+- **Backstop de completitud**: por cada cert **con capa de texto** (re-leído vía `-layout`), agrega los ítems que el LLM OMITIÓ — override de monto si el banco tiene fila CMF sin reclamar, o NO-CMF si es solo-en-cert. Aditivo. Resuelve **BCI cuenta corriente $615** y **BancoEstado línea $389.848** sin depender del LLM. ⚠️ **Tesseract eliminado (Mejora #1)**: en **escaneos/imágenes ya NO hay OCR** → este chequeo determinista de completitud **solo aplica a PDFs con capa de texto**. En certs escaneados/imagen el monto lo lee **Claude nativo** (`nativePdfBase64` / bloque imagen), validado aguas abajo (tolerancia vs CMF + cross-check de RUT). NO reintroducir Tesseract: la lectura nativa demostró ser más confiable.
 - **`canonicalInstitutionKey` quita sufijos "— descriptor" + paréntesis** antes del alias: el LLM escribe "Banco de Chile — Tarjeta de crédito (*2949)" → "banco de chile". Sin romper "Santander-Chile" (requiere guión rodeado de espacios).
 - **Reconciliación `additional`→`identified261`**: un producto del CMF mal puesto en `additionalCreditors` por el LLM, cuyo monto cae cerca (≤30% o ≤$500k) de una fila CMF del mismo banco sin reclamar, se mueve a override (evita doble conteo: fila CMF + fila NO-CMF). NO-CMF genuino (CCAF/TGR, o banco con todas sus filas reclamadas) queda como additional.
 - **`isCovered` por `document_filename`**: "ya cubierto por el LLM" se decide primero por filename + monto (robusto a cómo nombre la institución), fallback al banco canónico. Evita duplicar un producto que el LLM sí emitió.
@@ -153,7 +153,8 @@ Los acreedores **Art.260** suben el MISMO certificado **dos veces**: una como "A
 ### Step 3 — Auto-asociación cert→acreedor por RUT (`cert_institution_resolver.ts`)
 Antes del Centinela, `resolveCertInstitutions(supabase, client, logger)` deriva el `institucion_cmf` de cada `client_document` por **RUT** (descarga el PDF → `pdftotext` → `extractRutsFromText` → `findCatalogEntryByRut`), con fallback por keyword del filename (`FILENAME_KEYWORDS` → `matchAcreedor`). Persiste el nombre canónico en `client_documents.institucion_cmf`. El dashboard ya **no exige** que el abogado elija el banco. `deterministic_mapeador` propaga ese nombre a `AcreditacionDoc.catalogInstitucion`, que `step3` usa como **fallback** para hallar el RUT cuando el nombre CMF/Centinela no matchea el catálogo (ej. "Tenpo Payments" vs "Tenpo Prepago"). Los NO-CMF cuyo RUT no aparece en el documento (ej. La Polar, cuyo cert solo imprime el RUT del administrador) los identifica el Centinela por contenido.
 - **Aliases-como-dato + crosswalk**: cuando el nombre del CMF/cert no calza con el catálogo (ej. "Tenpo Payments" vs "Tenpo Prepago", "Santander Consumer Finance Limitada" vs "Santander Consumer Chile"), la variante se registra en **`docs/acreedores-crosswalk.md`** y se carga en la columna **`acreedores_canonicos.nombres_alternativos`** (sandbox; `migration_sandbox_v7.sql`). **Regla de oro: verificar que el RUT de la fila sea la MISMA empresa que el alias** (RUT del cert > catálogo; ojo Banco Falabella≠CMR, Banco Ripley≠CAR). Pendiente: que `acreedor_matcher.ts` lea esa columna.
-- **OCR robusto a imágenes** (`ocr_helper.ts`): muchos certs son fotos/capturas PNG/JPEG; el OCR detecta el tipo por magic bytes y las procesa con tesseract directo (sin `pdftoppm`), y degrada a vacío si el archivo no es un PDF válido — un documento ilegible no debe tumbar el job del Centinela.
+- **Lectura nativa de PDF/imagen por Claude (Mejora #1, reemplaza a Tesseract)** (`sentinel.ts`): muchos certs son escaneos/fotos PNG/JPEG o PDFs sin capa de texto limpia. `pdfNativeReason` decide ante la duda (texto <50 chars, imagen raster grande embebida, o densidad <200 chars/página) y adjunta el PDF **nativo** a Claude (`nativePdfBase64`, ≤6 MB) en vez de OCR; las imágenes van como bloque `image`. El OCR de Tesseract fue **eliminado** (la lectura nativa demostró leer mejor montos/tablas/escaneos). Si el PDF es ilegible y supera el tope, queda placeholder + alerta (no tumba el job). El texto digital limpio (`pdftotext`) se sigue confiando sin llamar a Claude nativo.
+- **Validación anti-error de la lectura de Claude** (`sentinel.ts`, REGLA 11): como Claude lee nativo (sin red determinista por-texto en escaneos), se le exige un objeto **`evidence`** por acreedor (`rut_emisor`, `numero_operacion`, `moneda`, `cita_monto`, `cita_fecha`, `confidence`) en las **4 listas** (reclassified/identified261/deReclassified/additional/cmf260Override). TS verifica los HECHOS, **no la estructura**: (1) **auto-cita** — el monto debe aparecer verbatim en `cita_monto` (anti-alucinación; tolera UF y sumas de cupos); (2) **cross-check de RUT** — `rut_emisor`→catálogo debe ser la institución asignada; (3) **confianza** <0.70 → alerta. Las discrepancias salen en `SentinelResult.claudeReadIssues[]` (informativo, no bloquea). ⚠️ Pendiente: propagar `claudeReadIssues` a la `automation_alert` del worker. Lecciones vivas en `lecciones/paso3-acreedores.md`.
 
 ### Agente Tributario — Contribuciones (Impuesto Territorial)
 - **Función**: `detectContribucionesDeuda(pdfPath, logger)` en `src/utils/pdf_analyzer.ts`. Usa `pdftotext -layout` para preservar columnas.
@@ -175,6 +176,14 @@ Para que el cliente pueda iniciar una sesión de renegociación deben cumplirse 
 - **`#dlgImportante` blocking `#btnGuardarEmpresa`**: After saving a representante legal, the portal shows `#dlgImportante` which intercepts all pointer events. The fix is `dismissBlockingDialogs(page, log)`, called both after `#modalRepresentante` closes and immediately before clicking `#btnGuardarEmpresa`.
 - **`Subir Documento` is a plain `<a>`, not `<a class="btn">`**: Use `getByText(/subir documento/i)` as the primary selector. Document attachment only works after ALL creditors have been added (portal enables the links then). This requires the two-phase approach: add all creditors first, then attach documents.
 
+### Step 5 — Ingresos (`step5_ingresos.ts` + `ingresos_agent.ts` + `income_extractor.ts`)
+Pipeline general (no hardcodeado): `gatherStep5Input` (worker) reúne los docs de ingreso de `client_documents` por keyword de filename → `runIngresosAgent` (Claude **lee nativo** los docs → hechos) → `income_extractor.ts` (TS blinda la estructura) → `fillStep5` (Playwright, tras el Paso 4). Reglas clave (validadas con Jorge Romero, detalle en `lecciones/paso5-ingresos.md`):
+- **Monto = "Líquido a pagar"** (NO "Alcance Líquido", que sobre-declara). El ingreso real = líquido + **descuentos voluntarios** sumados de vuelta (préstamo empleador/CCAF, APV); los **legales** (AFP/salud/cesantía/impuesto) NO se suman. TS clasifica legal vs voluntario por keyword; las dudas se alertan.
+- **Promedio mensualizado**: permanentes (sueldo/pensión/arriendo) = últimos **3 meses**; honorarios = **12 meses**. Periodicidad declarada **siempre Mensual** (value 4) salvo única vez.
+- **Crosswalk determinista doc→(tipo_ingreso, tipo_documento)** en TS (el LLM solo clasifica la categoría semántica): remuneración→(1,28), pensión→(2,29), arriendo→(7,32), honorarios→(10,45), etc.
+- **Certificado de Cotizaciones Previsionales**: upload **obligatorio** aparte (`#fileCertificadoCotizaciones`), últimos 12 meses, ≤30 días, con RUT de la entidad pagadora. NO es un ingreso.
+- Si no hay docs de ingreso, el Paso 5 se **omite** (no rompe el flujo 1→4). `migration_sandbox_v8_ingresos.sql` agrega `'ingresos'` al CHECK de `agent_runs` (correr en el SQL Editor del sandbox).
+
 ### Cadena Multi-Agente (`src/agents/`)
 
 El worker no llama directamente a `analyzeTaxCategory`, `runSentinelCheck` ni `runCognitiveOrchestrator`. Toda la cadena pasa por los agentes:
@@ -184,9 +193,10 @@ CMF download → analyzeCmfPdf (TS)
             → runTributarioAgent   (step 2) → agent_runs
             → runCentinelaAgent    (step 3) → agent_runs
             → runMapeadorAgent     (step 3) → agent_runs → Playwright
+            → runIngresosAgent     (step 5) → agent_runs → Playwright
 ```
 
-- **`types.ts`** — interfaces tipadas: `TributarioOutput`, `CmfParseOutput`, `CentinelaOutput`, `MapeadorOutput`, `AgentRunRow<T>`.
+- **`types.ts`** — interfaces tipadas: `TributarioOutput`, `CmfParseOutput`, `CentinelaOutput`, `MapeadorOutput`, `IngresosOutput`, `AgentRunRow<T>`.
 - **`agent_runs.ts`** — CRUD: `insertAgentRun`, `markRunning`, `completeRun`, `failRun`, `getLatestRun`.
 - **`validator.ts`** — type guards + reglas de negocio por agente (30d bypasseable, ≥2 prods, ≥80 UF, RUT, filenames únicos). `mergeResults` + `logValidationResult`.
 - **Idempotencia**: tributario = SHA-256 del PDF de la carpeta tributaria; centinela = SHA-256 del CMF; mapeador = run ID del centinela.

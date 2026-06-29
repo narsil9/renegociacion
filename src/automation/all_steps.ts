@@ -4,6 +4,7 @@ import { fillStep1, ClientData } from './step1_personal';
 import { fillStep2 } from './step2_declaraciones';
 import { fillStep3, AcreditacionDoc, CmfDocumentOverride, Step3Report } from './step3_acreedores';
 import { fillStep4 } from './step4_apoderado';
+import { fillStep5, Step5Input } from './step5_ingresos';
 import { ReclassifiedCreditor, AdditionalCreditor, Identified261Creditor, DeReclassified261Creditor } from '../utils/sentinel';
 
 interface SimpleLogger {
@@ -36,7 +37,10 @@ export async function fillAllSteps(
   deReclassified261Creditors?: DeReclassified261Creditor[],
   // Callback opcional de progreso "en vivo" para el panel del dashboard. Recibe un
   // texto en lenguaje claro al iniciar cada paso. Best-effort: nunca interrumpe el flujo.
-  onProgress?: (msg: string) => void | Promise<void>
+  onProgress?: (msg: string) => void | Promise<void>,
+  // Paso 5 (Ingresos). Si viene, se declara tras el Paso 4. Si es null/undefined,
+  // se omite el Paso 5 (el flujo queda igual que antes — 1→4).
+  step5Input?: Step5Input | null
 ): Promise<Step3Report | undefined> {
   const log = (msg: string) => {
     if (logger) {
@@ -113,6 +117,23 @@ export async function fillAllSteps(
   }
   await fillStep4(page, logger);
   log('✓ Paso 4 completado.');
+
+  // --- PASO 5 (Ingresos) ---
+  if (step5Input && (step5Input.incomes.length > 0 || step5Input.cotizacionesPath)) {
+    log('\n📝 === INICIANDO PASO 5 (Ingresos) ===');
+    await reportStep('Declarando los ingresos del cliente (Paso 5)…');
+    const step5Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verIngresos`;
+    if (!page.url().includes('verIngresos')) {
+      log(`→ Navegando a Paso 5: ${step5Url}`);
+      await page.goto(step5Url, { waitUntil: 'domcontentloaded' });
+    } else {
+      log('→ Ya redirigido a la página de Paso 5.');
+    }
+    await fillStep5(page, step5Input, logger);
+    log('✓ Paso 5 completado.');
+  } else {
+    log('\n⏭️  === PASO 5 OMITIDO (Ingresos) — sin datos de ingreso para este cliente ===');
+  }
 
   log('\n🎉 Flujo de todos los pasos completado con éxito.');
   return step3Report;

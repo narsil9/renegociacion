@@ -13,7 +13,7 @@
 |---|---|---|
 | [`principios-generales.md`](principios-generales.md) | Transversal (aplica a todo) | Todos los agentes |
 | [`paso3-acreedores.md`](paso3-acreedores.md) | Paso 3 — Acreedores (260/261) | Centinela (`sentinel.ts`) |
-| [`paso5-ingresos.md`](paso5-ingresos.md) | Paso 5 — Ingresos | Agente de ingresos (futuro) / tributario |
+| [`paso5-ingresos.md`](paso5-ingresos.md) | Paso 5 — Ingresos | Agente de ingresos (`ingresos_agent.ts` + `income_extractor.ts`) |
 
 > A medida que trabajemos un paso nuevo, se agrega su archivo `pasoN-<nombre>.md` y se suma a esta tabla.
 
