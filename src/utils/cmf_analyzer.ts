@@ -130,7 +130,42 @@ const KNOWN_TYPES = [
   { keywords: ['otros'], value: 'Otros créditos' }
 ];
 
-function cleanTipoCredito(rawTipo: string): string {
+/**
+ * Verificación (regla dura del parser CMF, importada del flujo del supervisor):
+ * "Cupo disponible NO es deuda salvo monto_utilizado > 0". Las líneas/cupos disponibles
+ * y sin usar viven en la sección "Créditos Disponibles" del CMF, que NUNCA debe generar
+ * un acreedor. Esta función aísla SOLO los bloques de deuda real ("Deuda Directa" y
+ * "Deuda Indirecta"), acotados al inicio de "Créditos Disponibles" — de modo que esa
+ * sección queda fuera del parseo. Pura y exportada para poder testear el invariante.
+ */
+export function sliceCmfDebtBlocks(layoutText: string): {
+  directBlock: string;
+  indirectBlock: string;
+  hasDirect: boolean;
+} {
+  const lower = layoutText.toLowerCase();
+  const directIdx = lower.indexOf('deuda directa');
+  const indirectIdx = lower.indexOf('deuda indirecta');
+  const creditosIdx = lower.indexOf('créditos disponibles') !== -1
+    ? lower.indexOf('créditos disponibles')
+    : lower.indexOf('creditos disponibles');
+
+  let directBlock = '';
+  if (directIdx !== -1) {
+    const directEnd = indirectIdx !== -1 ? indirectIdx : (creditosIdx !== -1 ? creditosIdx : layoutText.length);
+    directBlock = layoutText.substring(directIdx, directEnd);
+  }
+
+  let indirectBlock = '';
+  if (indirectIdx !== -1) {
+    const indirectEnd = creditosIdx !== -1 && creditosIdx > indirectIdx ? creditosIdx : layoutText.length;
+    indirectBlock = layoutText.substring(indirectIdx, indirectEnd);
+  }
+
+  return { directBlock, indirectBlock, hasDirect: directIdx !== -1 };
+}
+
+export function cleanTipoCredito(rawTipo: string): string {
   const clean = rawTipo.replace(/\s+/g, ' ').trim();
   const lower = clean.toLowerCase();
   for (const item of KNOWN_TYPES) {
@@ -295,29 +330,20 @@ export async function extractCreditors(
 
   log(`📋 Extrayendo lista de acreedores del Informe CMF: ${pdfPath}...`);
   const layoutText = await extractTextFromPdfLayout(pdfPath);
-  const lower = layoutText.toLowerCase();
 
-  const directIdx = lower.indexOf('deuda directa');
-  const indirectIdx = lower.indexOf('deuda indirecta');
-  const creditosIdx = lower.indexOf('créditos disponibles') !== -1
-    ? lower.indexOf('créditos disponibles')
-    : lower.indexOf('creditos disponibles');
+  const { directBlock, indirectBlock, hasDirect } = sliceCmfDebtBlocks(layoutText);
 
   const creditors: CmfCreditor[] = [];
 
   // Deuda Directa block: from "deuda directa" up to "deuda indirecta" (or créditos disponibles)
-  if (directIdx !== -1) {
-    const directEnd = indirectIdx !== -1 ? indirectIdx : (creditosIdx !== -1 ? creditosIdx : layoutText.length);
-    const directBlock = layoutText.substring(directIdx, directEnd);
+  if (hasDirect) {
     creditors.push(...parseCreditorTable(directBlock, false, log));
   } else {
     log('   ⚠️ No se encontró la sección "Deuda Directa".');
   }
 
   // Deuda Indirecta block: from "deuda indirecta" up to "créditos disponibles"
-  if (indirectIdx !== -1) {
-    const indirectEnd = creditosIdx !== -1 && creditosIdx > indirectIdx ? creditosIdx : layoutText.length;
-    const indirectBlock = layoutText.substring(indirectIdx, indirectEnd);
+  if (indirectBlock) {
     creditors.push(...parseCreditorTable(indirectBlock, true, log));
   }
 

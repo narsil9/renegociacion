@@ -106,11 +106,13 @@ cita_monto, cita_fecha, confidence) y TS lo valida → `SentinelResult.claudeRea
 - **Capa 2 (cross-check de RUT)** ⚠️ — funciona cuando Claude da `rut_emisor`, pero lo puebla casi nunca → **dormida** (lección L3, abierta).
 - **Lecciones** en `lecciones/paso3-acreedores.md` (L2 resuelto, L3 abierto, L4/L5).
 
-**Pendientes (pedido del usuario, 2026-06-29):**
-- [ ] **Revisar esta implementación anti-error** (Capas 0/1/2) — revisión de código + de diseño.
-- [ ] **Correr pruebas E2E** del Paso 3 con la validación activa (más allá del arnés `compare_vs_baseline`): worker queue real / portal, ver que `claudeReadIssues` llegue a la alerta del dashboard (propagar `claudeReadIssues` por la cadena `centinela_agent`→`worker`→`automation_alert`, hoy NO propagado).
-- [ ] **L3 — `rut_emisor` dormido**: fallback determinista que extraiga el RUT del **texto** del cert cuando exista, para que la Capa 2 no dependa de que Claude lo reporte.
-- [ ] **Implementar las otras mejoras de `docs/integracion/mejoras-desde-flujo-supervisor.md`**: #2 nº de operación (desambiguador multiproducto/dedup), #3 UF vs pesos (tie-breaker vivienda/consumo), #4 catálogo de falsos positivos (cartola/screenshot/comprobante de pago ≠ acreditación), #5 confidence/reasoning en alertas (parcial: ya hay `confidence` en `evidence`), #6 top-N candidatos, + Verificaciones del parser CMF.
+**Estado (2026-06-29) — sesión de revisión + mejoras (branch `paso-3`):**
+- [x] **Revisión anti-error (Capas 0/1/2)** — validada contra los 3 casos reales: 0 falsos positivos en lecturas limpias; capturó lecturas dudosas reales (Itaú conf 0.62/0.65; Cristian BancoEstado/CCAF/Santander 0.28–0.55; Néctor `monto_sin_respaldo_en_cita` BancoChile $35.977.919 vs cita $37.700.317).
+- [x] **Propagación `claudeReadIssues`** por la cadena `sentinel`→`centinela_agent` (`CentinelaOutput.claudeReadIssues`, idempotencia v16)→`worker` (`buildReadIssuesAlert` → **una** `automation_alert` `needs_review`). Verificado E2E con el agente real (`casos/_shared/test_e2e_read_issues.ts`). **Ya no se pierden.**
+- [x] **L3 — fallback determinista de `rut_emisor`** desde el texto del cert (reusa `computeRutCheckLocal`). Capa 2 ya no depende de que Claude lo reporte. 0 FP en los 3 casos. Resta solo el caso imagen-sin-texto.
+- [x] **Mejoras del supervisor implementadas**: #2 dedup por nº de operación, #3 moneda UF vs pesos (cross-check), #4 documentos que no acreditan (comprobante de pago/cartola, detección por contenido + regla en el prompt), #6 top-N candidatos del catálogo en la alerta de saltados, + #5 (confidence/reasoning ya viajan en las señales). **Verificaciones parser CMF**: `sliceCmfDebtBlocks` (cupo disponible fuera del parseo) + `cleanTipoCredito` (tarjeta siempre tarjeta_credito) confirmadas con tests. Todo en `casos/_shared/test_reglas_deterministas.ts` (**26/26 OK**, sin API).
+- [ ] **Pendiente menor**: Capa 2 en imágenes sin texto; validar #4 sobre un comprobante/cartola CON capa de texto real; L5 cosmético (cita verbatim). Ver `lecciones/paso3-acreedores.md` (L3–L8).
+- [ ] **Pendiente integración**: merge de `paso-3` a `main` cuando se decida; correr migración v7 (alias) sigue aparte.
 
 ## 📋 Backlog acotado (no bloqueante)
 

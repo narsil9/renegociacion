@@ -17,6 +17,51 @@
  * no-vencido y deudas indirectas (codeudor/aval/fiador). Reusable por sentinel.ts.
  */
 
+/**
+ * Mejora #3 — Detecta la MONEDA predominante de los montos de deuda de un documento.
+ * Tie-breaker determinista para distinguir vivienda (hipotecario, casi siempre en UF) de
+ * consumo/comercial (en pesos) cuando un mismo acreedor aparece en ambos. NO decide la
+ * estructura: es una señal de apoyo (logging + cross-check de evidence.moneda + clasificación
+ * de tipo de crédito). General para cualquier banco.
+ *
+ * Conservador: solo devuelve 'UF' si el documento ASOCIA UF a un monto de deuda (no por una
+ * mención suelta de "UF"); 'CLP' si el payoff está en pesos; null si no hay señal clara.
+ */
+export function detectDocumentCurrency(text: string | null | undefined): 'UF' | 'CLP' | null {
+  if (!text || text.trim().length < 20) return null;
+  // UF asociada a un monto: "Saldo … (UF): 3.538,959", "3.559,669 UF", "Unidad de Fomento".
+  const ufHits =
+    (text.match(/\b\d{1,3}(?:\.\d{3})*(?:,\d+)?\s*UF\b/gi) || []).length +
+    (text.match(/\bUF\s*[:\)]?\s*\d/gi) || []).length +
+    (text.match(/\(UF\)/gi) || []).length +
+    (text.match(/unidad(?:es)?\s+de\s+fomento/gi) || []).length;
+  // Pesos asociados a un monto: "$36.130.323", "pesos".
+  const clpHits =
+    (text.match(/\$\s*\d{1,3}(?:\.\d{3})+/g) || []).length +
+    (text.match(/\b(?:en\s+)?pesos\b/gi) || []).length;
+  if (ufHits === 0 && clpHits === 0) return null;
+  // UF gana solo si tiene presencia real (≥2 señales) y supera a pesos — un hipotecario suele
+  // citar varias cifras en UF; evita que una sola mención marginal de "UF" gane.
+  if (ufHits >= 2 && ufHits >= clpHits) return 'UF';
+  if (clpHits > 0) return 'CLP';
+  return null;
+}
+
+/**
+ * Mejora #2 — Normaliza un número de operación/contrato/tarjeta para comparar productos del
+ * MISMO banco (dedup de estados de cuenta mensuales repetidos; desambiguación multiproducto).
+ * Quita separadores y enmascarado de tarjetas: "5546-XXXX-9558" → "5546XXXX9558";
+ * "CRE - 00039038355" → "CRE00039038355". Devuelve null si queda muy corto para ser fiable.
+ */
+export function normalizeOperationId(op: string | null | undefined): string | null {
+  if (!op) return null;
+  const norm = op.toUpperCase().replace(/[\s\-._]/g, '');
+  // Debe tener suficientes dígitos/letras significativas para no colisionar por casualidad.
+  const significant = norm.replace(/X+/g, '').replace(/[^A-Z0-9]/g, '');
+  if (significant.length < 4) return null;
+  return norm;
+}
+
 export interface CertLineItem {
   /** Identificador de la operación si el documento lo trae (CRE-…, Nº Operación, D…). */
   operationId: string | null;

@@ -88,6 +88,14 @@ export interface CentinelaOutput {
    */
   deReclassified261Creditors?: import('../utils/sentinel').DeReclassified261Creditor[];
   fechasClave: import('../utils/sentinel').FechaClave[];
+  /**
+   * Señales de la validación anti-error sobre la lectura nativa de Claude
+   * (auto-cita, cross-check de RUT, confianza < 0.70). Informativas, no bloquean:
+   * el worker las consolida en una automation_alert para que el abogado revise
+   * los montos que el robot leyó con poca certeza. Opcional para compatibilidad
+   * con runs persistidos antes de esta validación.
+   */
+  claudeReadIssues?: import('../utils/sentinel').ClaudeReadIssue[];
 }
 
 // ---------------------------------------------------------------------------

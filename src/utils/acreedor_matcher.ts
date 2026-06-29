@@ -434,6 +434,52 @@ export function canonicalInstitutionKey(name: string | null | undefined): string
 }
 
 /**
+ * Mejora #6 — Top-N candidatos del catálogo por similitud de nombre, para cuando
+ * `matchAcreedor` no resuelve único (not_found/ambiguous). En vez de alertar "sin match"
+ * a secas, ofrece las instituciones más parecidas para que el abogado elija de una lista.
+ * Determinista (solapamiento de tokens + bonus por contención); reusa la misma normalización
+ * que el matcher. Considera nombre, nombre_normalizado y nombres_alternativos del catálogo.
+ */
+export interface CandidateSuggestion {
+  entry: AcreedorCatalogEntry;
+  score: number; // 0..~1.2
+}
+
+export function topNCandidates(
+  name: string | null | undefined,
+  catalog: AcreedorCatalogEntry[],
+  n = 3
+): CandidateSuggestion[] {
+  if (!name) return [];
+  const q = stripCreditTypeTokens(normalizeText(name));
+  if (!q) return [];
+  const qTokens = new Set(q.split(' ').filter(Boolean));
+  if (qTokens.size === 0) return [];
+
+  const scored: CandidateSuggestion[] = [];
+  for (const e of catalog) {
+    const variants = [e.nombre, e.nombre_normalizado, ...(e.nombres_alternativos ?? [])].filter(
+      (v): v is string => typeof v === 'string' && v.length > 0
+    );
+    let best = 0;
+    for (const v of variants) {
+      const vn = stripCreditTypeTokens(normalizeText(v));
+      if (!vn) continue;
+      const vTokens = new Set(vn.split(' ').filter(Boolean));
+      if (vTokens.size === 0) continue;
+      const inter = [...qTokens].filter((t) => vTokens.has(t)).length;
+      const union = new Set([...qTokens, ...vTokens]).size;
+      const jaccard = union ? inter / union : 0;
+      const contains = vn.includes(q) || q.includes(vn) ? 0.25 : 0;
+      best = Math.max(best, jaccard + contains);
+    }
+    if (best > 0) scored.push({ entry: e, score: best });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, n);
+}
+
+/**
  * True if all whitespace-separated tokens of `needle` appear, in order and
  * contiguously, within `haystack`. Avoids loose substring false-positives
  * (e.g. "cat" matching "catolica").

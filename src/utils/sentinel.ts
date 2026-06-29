@@ -14,7 +14,11 @@ import {
   AcreedorCatalogEntry,
 } from './acreedor_matcher';
 import { extractDatesFromText, extractEmissionDateFromText, ClientDocument } from './cognitive_orchestrator';
-import { extractCertLineItems } from './cert_line_items';
+import { extractCertLineItems, detectDocumentCurrency, normalizeOperationId } from './cert_line_items';
+import { runPerDocExtraction } from './sentinel_per_doc';
+import { applyDeterministicBackstops, isChatDocument, classifyNonAccreditingDoc } from './sentinel_backstops';
+// Re-export para compatibilidad (otros módulos/tests importan estos helpers desde sentinel.ts).
+export { isChatDocument, classifyNonAccreditingDoc } from './sentinel_backstops';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
@@ -102,7 +106,7 @@ export interface ClaudeReadIssue {
   document_filename: string;
   institucion: string;
   monto_clp: number;
-  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia';
+  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado';
   detalle: string;
 }
 
@@ -179,6 +183,53 @@ export function isChatDocument(textContent: string | null | undefined, filename:
     return true;
   }
   return false;
+}
+
+/**
+ * Detecta documentos que NO acreditan por sí solos el MONTO de una deuda (mejora #4,
+ * importada del flujo del supervisor). CONSERVADOR y por CONTENIDO (no por filename):
+ * NUNCA descarta el acreedor ni pone $0 (regla rectora G2: jamás bajar un valor en
+ * silencio) — solo MARCA para que el abogado verifique el monto contra un cert formal.
+ * Solo dispara si el documento NO trae ningún rótulo de payoff/saldo (esos sí acreditan).
+ *
+ *  - comprobante_pago: comprobante de pago/transferencia (prueba un PAGO, no la deuda).
+ *    Es el más peligroso (puede inducir "deuda saldada → $0"); ver lección L1.
+ *  - cartola: cartola/detalle de movimientos SIN rótulo de saldo/deuda a pagar.
+ *
+ * En imágenes/escaneos (textContent es placeholder) devuelve null: ahí no hay texto
+ * determinista → la disciplina recae en la confianza que reporta Claude (ver prompt).
+ */
+export function classifyNonAccreditingDoc(
+  textContent: string | null | undefined,
+  _filename: string
+): { tipo: 'comprobante_pago' | 'cartola' | null; motivo: string } {
+  const text = (textContent || '').toLowerCase();
+  if (text.length < 25 || text.trim().startsWith('[')) return { tipo: null, motivo: '' };
+
+  // Rótulos de payoff/saldo que SÍ acreditan una deuda vigente. Si el doc trae alguno,
+  // no lo tratamos como comprobante/cartola por más que mencione "pago" o "movimientos".
+  const tienePayoff =
+    /saldo\s+(insoluto|deuda|adeudad|total|capital|para\s+(liquidar|prepago))/i.test(text) ||
+    /(monto\s+total\s+a\s+pagar|deuda\s+total|total\s+a\s+pagar|total\s+adeudado|monto\s+utilizado)/i.test(text) ||
+    /costo\s+(de\s+prepago|monetario\s+(de\s+)?prepago|total\s+(del|monetario)\s+prepago)/i.test(text) ||
+    /cartera\s+vencida|cobranza\s+(judicial|prejudicial)|deuda\s+prejudicial/i.test(text);
+
+  if (tienePayoff) return { tipo: null, motivo: '' };
+
+  const esComprobantePago =
+    /comprobante\s+de\s+(pago|transferencia|transacci[oó]n)/i.test(text) ||
+    /(pago|transferencia|transacci[oó]n)\s+(exitosa|exitoso|realizad[oa]|aprobad[oa]|recibid[oa]|procesad[oa])/i.test(text) ||
+    /tu\s+pago\s+(fue|ha\s+sido)\s+(procesad|recibid|aprobad)/i.test(text);
+  if (esComprobantePago)
+    return { tipo: 'comprobante_pago', motivo: 'parece un COMPROBANTE DE PAGO, no un certificado de deuda. Un pago no acredita el monto adeudado — verificar con un certificado formal' };
+
+  const esCartola =
+    /cartola(\s+(hist[oó]rica|de\s+movimientos|nacional|cuatrimestral|mensual|electr[oó]nica))?/i.test(text) ||
+    /detalle\s+de\s+movimientos/i.test(text);
+  if (esCartola)
+    return { tipo: 'cartola', motivo: 'parece una CARTOLA / detalle de movimientos, que no acredita por sí sola el saldo de la deuda — verificar con estado de cuenta o certificado' };
+
+  return { tipo: null, motivo: '' };
 }
 
 /**
@@ -776,6 +827,19 @@ Si el documento tiene texto extraíble, verifica que el RUT del emisor correspon
 
 (B) **VARIOS CUPOS / LÍNEAS en la misma tarjeta**: una tarjeta puede tener MÁS DE UN cupo o línea de crédito (ej. "Cupo Compras" + "Cupo Avances en Efectivo" / "Avances XL" / "Súper Avance" / "Avance NN"). El monto a declarar es la **SUMA de los "Cupo Utilizado" de TODOS los componentes** del período más reciente, no solo el primero/principal. ⚠️ Es un error frecuente declarar solo el cupo de Compras y omitir el de Avances. (Ej. real La Polar: Cupo Compras utilizado $258.543 + Cupo Avances XL utilizado $495.755 = **$754.298** a declarar — NO $258.543.)
 
+(C) **DOCUMENTOS QUE NO ACREDITAN el monto de la deuda por sí solos** (no inventes un monto a partir de ellos; si es tu única fuente para un acreedor, BAJA la confianza (<0.70) y dilo en "reason"):
+- **Comprobante/voucher de PAGO o transferencia** ("pago exitoso", "transferencia realizada", "comprobante de pago"): prueba un PAGO, NO el saldo adeudado. ⚠️ Un comprobante de pago NUNCA significa que la deuda quedó en $0: la deuda se prueba con un certificado de saldo, no con un pago.
+- **Cartola / detalle de movimientos**: lista transacciones, NO certifica el saldo de la deuda (distinto de un "estado de cuenta" con cupo utilizado / deuda total del período).
+- **Captura de pantalla** de la app/web banking: úsala solo si muestra claramente un saldo/deuda; ante baja calidad o duda, baja la confianza.
+⚠️ Esto NO te autoriza a poner $0 ni a omitir un acreedor: si el documento muestra un valor de deuda > 0, decláralo y baja la confianza para que el abogado lo verifique (regla: nunca bajar un monto en silencio).
+
+(D) **CERTIFICADO DE DEUDA "GLOBAL/RESUMEN" (totales por moneda) — NO es un producto, es la SUMA de varios.**
+Algunos bancos emiten un "Certificado de Deuda" que lista SOLO **totales por moneda** (ej. "Total deudas en PESO CHILENO $37.700.317", "Total deudas en DÓLAR USA US$14,80", "Total deudas en UNIDAD DE FOMENTO 3.539,77 UF") **sin desglosar por operación/producto**. Reglas OBLIGATORIAS:
+- **NUNCA declares el total global como un acreedor/producto** (ni como "consumo", ni partiéndolo a ojo entre productos). Ese total es la SUMA de TODOS los créditos del banco.
+- Los productos individuales se declaran desde SUS certificados/estados de cuenta propios (tarjeta, línea, hipotecario) y desde las filas del **CMF** (que sí lista las operaciones del banco). El número de productos del banco lo fija el **CMF**, no este resumen.
+- El total global es solo un **chequeo de sanidad**: la suma de los productos en pesos debe acercarse al "Total en PESO CHILENO"; el "Total en UF" corresponde al **crédito hipotecario/vivienda** (un solo producto en UF), nunca a un producto en pesos.
+- ⚠️ Declarar el total global **Y** los productos individuales = **DOBLE CONTEO** (error grave). Si solo tienes el resumen global y ningún cert por producto, NO inventes montos por producto: declara los productos según las filas del CMF (monto del CMF) y baja la confianza.
+
 ---
 **REGLA 7 — Identificar deudas Art. 261 (deudas vigentes, sin mora ≥91d)**
 Para CADA documento adjunto cuyo acreedor NO fue reclasificado a Art. 260, analiza si corresponde a una deuda vigente (al día o con mora <91d). Si es así, agrégalo a "identified261Creditors" con:
@@ -918,6 +982,25 @@ Esquema JSON esperado:
 \`\`\`
 `;
 
+    // --- Camino POR-DOCUMENTO (flag CENTINELA_PER_DOC) ---
+    // Una llamada por certificado (solo extracción) + ensamblador determinista en TS, en vez de la
+    // mega-llamada con todos los docs. Produce el mismo objeto `raw` (5 listas) que el LLM, y los
+    // backstops post-LLM de abajo lo refinan igual. Ataca la causa raíz de la inestabilidad (L14).
+    let raw: any;
+    const perDocMode = process.env.CENTINELA_PER_DOC === 'true';
+    if (perDocMode) {
+      const perDocModel = process.env.CENTINELA_PER_DOC_MODEL || 'claude-opus-4-8';
+      raw = await runPerDocExtraction(
+        documents as any,
+        cmfResult as any,
+        catalog,
+        clientRutForCerts,
+        todayStr,
+        anthropic,
+        perDocModel,
+        logger
+      );
+    } else {
     const userMessageParts: any[] = [];
     userMessageParts.push({
       type: 'text',
@@ -997,7 +1080,8 @@ Esquema JSON esperado:
       throw new Error('No se encontró el bloque XML <json> en la respuesta de Claude.');
     }
 
-    const raw = JSON.parse(jsonMatch[1].trim());
+    raw = JSON.parse(jsonMatch[1].trim());
+    } // fin del camino mega-llamada (perDocMode === false)
     const docTextByName = new Map<string, string | undefined>(
       documents.map((d) => [d.filename, d.textContent])
     );
@@ -1388,6 +1472,22 @@ Esquema JSON esperado:
         ...(result.additionalCreditors ?? []).map(c => ({ filename: c.document_filename, institucion: c.institucion_cmf, monto: c.total_credito_clp, ev: c.evidence })),
         ...(result.cmf260DirectOverrides ?? []).map(c => ({ filename: c.document_filename, institucion: c.institucion_cmf, monto: c.monto_clp, ev: c.evidence })),
       ];
+      // L3 — fallback determinista para Capa 2: el RUT del emisor extraído del TEXTO del cert
+      // (vía computeRutCheckLocal, ya calculado en certificateAnalyses), para no depender de que
+      // Claude reporte `evidence.rut_emisor` (que casi nunca puebla). Solo aplica a certs con capa
+      // de texto; en imágenes/escaneos no hay texto → queda a cargo de lo que reporte Claude.
+      const detectedByFilename = new Map<string, { rut: string | null; banco: string | null }>();
+      for (const ca of certificateAnalyses) {
+        if (ca.isImageDoc) continue;
+        if (ca.rutEmisorDetectado || ca.bancoSegunRut) {
+          detectedByFilename.set(ca.filename, { rut: ca.rutEmisorDetectado ?? null, banco: ca.bancoSegunRut ?? null });
+        }
+      }
+
+      // #4 — texto por filename para detectar documentos que no acreditan (comprobante de pago / cartola).
+      const textByFilename = new Map<string, string>();
+      for (const d of documents) textByFilename.set(d.filename, d.textContent || '');
+
       let withEvidence = 0;
       for (const e of emitted) {
         if (!e.ev) continue; // agregado por backstop TS o LLM no pobló evidence → no se verifica acá
@@ -1395,19 +1495,33 @@ Esquema JSON esperado:
         const ev = e.ev;
 
         // Capa 2 — cross-check de RUT del emisor contra el catálogo (identidad de la institución).
-        if (ev.rut_emisor && catalog.length > 0) {
-          const rutNorm = normalizeRut(ev.rut_emisor);
-          if (rutNorm && rutNorm !== (clientRutForCerts ? normalizeRut(clientRutForCerts) : null)) {
-            const detected = findCatalogEntryByRut([rutNorm], catalog, clientRutForCerts);
-            if (detected && canonicalInstitutionKey(detected.nombre) !== canonicalInstitutionKey(e.institucion)) {
-              issues.push({
-                document_filename: e.filename,
-                institucion: e.institucion,
-                monto_clp: e.monto,
-                tipo: 'rut_no_coincide',
-                detalle: `El RUT del emisor ${rutNorm} pertenece a "${detected.nombre}", pero Claude asignó el cert a "${e.institucion}". Verificar institución.`,
-              });
+        // Fuente del RUT: lo que reportó Claude (ev.rut_emisor) o, si no lo dio, el RUT detectado
+        // determinísticamente en el texto del cert (L3). La verificación es la misma en ambos casos.
+        if (catalog.length > 0) {
+          let detected: { nombre: string } | null = null;
+          let rutMostrado: string | null = null;
+          let fuente: 'reportado por Claude' | 'leído del documento' | null = null;
+
+          const clientRutNorm = clientRutForCerts ? normalizeRut(clientRutForCerts) : null;
+          if (ev.rut_emisor) {
+            const rutNorm = normalizeRut(ev.rut_emisor);
+            if (rutNorm && rutNorm !== clientRutNorm) {
+              const d = findCatalogEntryByRut([rutNorm], catalog, clientRutForCerts);
+              if (d) { detected = d; rutMostrado = rutNorm; fuente = 'reportado por Claude'; }
             }
+          } else {
+            const det = detectedByFilename.get(e.filename);
+            if (det?.banco) { detected = { nombre: det.banco }; rutMostrado = det.rut; fuente = 'leído del documento'; }
+          }
+
+          if (detected && canonicalInstitutionKey(detected.nombre) !== canonicalInstitutionKey(e.institucion)) {
+            issues.push({
+              document_filename: e.filename,
+              institucion: e.institucion,
+              monto_clp: e.monto,
+              tipo: 'rut_no_coincide',
+              detalle: `El RUT del emisor${rutMostrado ? ` ${rutMostrado}` : ''} (${fuente}) pertenece a "${detected.nombre}", pero el cert quedó asignado a "${e.institucion}". Verificar institución.`,
+            });
           }
         }
 
@@ -1424,6 +1538,53 @@ Esquema JSON esperado:
         // ej. Itaú "Cart.Veida" conf 0.65 — ver lección L4).
         if (typeof ev.confidence === 'number' && ev.confidence < 0.7) {
           issues.push({ document_filename: e.filename, institucion: e.institucion, monto_clp: e.monto, tipo: 'baja_confianza', detalle: `Claude reportó confidence ${ev.confidence.toFixed(2)} al leer este certificado.` });
+        }
+
+        // #4 — el documento que respalda este monto NO acredita por sí solo (comprobante de pago /
+        // cartola). No se descarta el acreedor ni se toca el monto; solo se marca para revisión.
+        if (e.monto > 0) {
+          const naDoc = classifyNonAccreditingDoc(textByFilename.get(e.filename), e.filename);
+          if (naDoc.tipo) {
+            issues.push({ document_filename: e.filename, institucion: e.institucion, monto_clp: e.monto, tipo: 'documento_no_acredita', detalle: `El documento que respalda $${e.monto.toLocaleString('es-CL')} ${naDoc.motivo}.` });
+          }
+        }
+
+        // #3 — consistencia de moneda: si Claude leyó el monto en CLP pero el documento está
+        // claramente en UF (o viceversa), el monto puede estar mal interpretado (una cifra en UF
+        // leída como pesos infla la deuda ~38.000×). Solo se marca; no se toca el monto.
+        if (ev.moneda) {
+          const docCur = detectDocumentCurrency(textByFilename.get(e.filename));
+          if (docCur && docCur !== ev.moneda) {
+            issues.push({ document_filename: e.filename, institucion: e.institucion, monto_clp: e.monto, tipo: 'moneda_inconsistente', detalle: `Claude leyó el monto en ${ev.moneda}, pero el documento parece estar denominado en ${docCur}. Verificar moneda y monto (una cifra en UF leída como pesos cambia la deuda drásticamente).` });
+          }
+        }
+      }
+
+      // #2 — dedup por nº de operación: dos acreedores emitidos con la MISMA institución canónica
+      // y el MISMO nº de operación normalizado son el mismo producto (típico: dos estados de cuenta
+      // mensuales del mismo crédito). Se marca para revisión (no se descarta automáticamente: el
+      // split 260/261 lo decide TS aguas abajo; esto solo avisa de un posible doble conteo).
+      {
+        const byOp = new Map<string, { filename: string; institucion: string; monto: number }[]>();
+        for (const e of emitted) {
+          const op = normalizeOperationId(e.ev?.numero_operacion);
+          if (!op) continue;
+          const key = `${canonicalInstitutionKey(e.institucion)}|${op}`;
+          if (!byOp.has(key)) byOp.set(key, []);
+          byOp.get(key)!.push({ filename: e.filename, institucion: e.institucion, monto: e.monto });
+        }
+        for (const [, group] of byOp) {
+          if (group.length < 2) continue;
+          // Distintos montos en el mismo producto → posible doble conteo (el abogado revisa).
+          const montos = [...new Set(group.map(g => g.monto))];
+          const g0 = group[0];
+          issues.push({
+            document_filename: g0.filename,
+            institucion: g0.institucion,
+            monto_clp: Math.max(...group.map(g => g.monto)),
+            tipo: 'posible_duplicado',
+            detalle: `El mismo producto (${g0.institucion}, Nº operación ${normalizeOperationId(emitted.find(e => e.filename === g0.filename)?.ev?.numero_operacion)}) aparece ${group.length} veces${montos.length > 1 ? ` con montos distintos (${montos.map(m => '$' + m.toLocaleString('es-CL')).join(', ')})` : ''}. Verificar que no se declare dos veces.`,
+          });
         }
       }
 

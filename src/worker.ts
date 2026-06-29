@@ -21,6 +21,8 @@ import { createAlert, clearAlert } from './utils/alerts';
 import { cleanupDraft } from './automation/cleanup';
 import { runCentinelaAgent, CentinelaBlockedError } from './agents/centinela_agent';
 import { resolveCertInstitutions } from './utils/cert_institution_resolver';
+import { fetchAcreedoresCatalog, topNCandidates } from './utils/acreedor_matcher';
+import { buildReadIssuesAlert } from './utils/read_issues_alert';
 import { runMapeadorAgent } from './agents/mapeador_agent';
 import { CentinelaOutput } from './agents/types';
 
@@ -946,8 +948,26 @@ async function processJob(job: any): Promise<void> {
             remanente_trivial: '', // no accionable (no se alerta)
             movido_a_261: '',      // no accionable (no se alerta)
           };
+          // #6 — para acreedores sin match en el catálogo, ofrecer los candidatos más parecidos
+          // (en vez de "no está en el catálogo" a secas) → el abogado elige de una lista corta.
+          let catalogForSuggestions: Awaited<ReturnType<typeof fetchAcreedoresCatalog>> = [];
+          const needsCandidates = accionables.some((s) => s.code === 'sin_catalogo' || s.code === 'catalogo_ambiguo');
+          if (needsCandidates) {
+            try {
+              catalogForSuggestions = await fetchAcreedoresCatalog(supabase);
+            } catch (catErr: any) {
+              logger.error('⚠️ No se pudo cargar el catálogo para sugerir candidatos:', catErr?.message || catErr);
+            }
+          }
           const bullets = accionables
-            .map((s) => `• ${prettyInst(s.institucion)}${s.monto ? ` (${clp(s.monto)})` : ''}: ${accionPorCodigo[s.code] || s.reason}.`)
+            .map((s) => {
+              let suf = '';
+              if ((s.code === 'sin_catalogo' || s.code === 'catalogo_ambiguo') && catalogForSuggestions.length > 0) {
+                const cands = topNCandidates(s.institucion, catalogForSuggestions, 3).filter((c) => c.score >= 0.15);
+                if (cands.length > 0) suf = ` Posibles coincidencias: ${cands.map((c) => prettyInst(c.entry.nombre)).join(', ')}.`;
+              }
+              return `• ${prettyInst(s.institucion)}${s.monto ? ` (${clp(s.monto)})` : ''}: ${accionPorCodigo[s.code] || s.reason}.${suf}`;
+            })
             .join('\n');
           const enc = accionables.length === 1
             ? 'Quedó 1 acreedor sin cargar automáticamente en el Paso 3. Revisalo y cargalo a mano en el portal:'
@@ -962,6 +982,28 @@ async function processJob(job: any): Promise<void> {
           } catch (skEx: any) {
             logger.error('⚠️ Excepción al registrar la alerta de acreedores no cargados:', skEx);
           }
+        }
+      }
+
+      // --- Alerta al panel: lecturas de Claude con baja certeza (validación anti-error) ---
+      // El Centinela lee los certificados de forma NATIVA (sin OCR); la red anti-error
+      // (sentinel.ts) verifica los HECHOS que reportó: que el monto aparezca verbatim en su
+      // cita (anti-alucinación), que el RUT del emisor calce con la institución asignada, y
+      // que la confianza autodeclarada no sea baja (<0.70, típico en escaneos garbled). Estas
+      // señales NO bloquean ni cambian la estructura: el monto se declara igual. Son un aviso
+      // para que el abogado revise el monto/identidad de esos acreedores antes de presentar.
+      const readIssues = centinelaOutput.claudeReadIssues ?? [];
+      const readIssuesDesc = buildReadIssuesAlert(readIssues);
+      if (readIssuesDesc) {
+        const desc = readIssuesDesc;
+        logger.log(`🔎 ${desc}`);
+        try {
+          const { error: riErr } = await supabase.from('automation_alerts').insert({
+            job_id: job.id, client_id: client.id, step: 3, alert_type: 'needs_review', description: desc,
+          });
+          if (riErr) logger.error('⚠️ No se pudo registrar la alerta de lecturas de baja certeza:', riErr.message);
+        } catch (riEx: any) {
+          logger.error('⚠️ Excepción al registrar la alerta de lecturas de baja certeza:', riEx);
         }
       }
 

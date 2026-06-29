@@ -74,7 +74,7 @@ export async function runCentinelaAgent(
   // --- Idempotencia ---
   // El sufijo de versión invalida los runs cacheados cuando cambia la LÓGICA del Centinela
   // (no solo el CMF). Subir al cambiar reglas como el backstop de acreditación 260→261.
-  const CENTINELA_LOGIC_VERSION = 'v15-ccaf-alias-covered-by-filename';
+  const CENTINELA_LOGIC_VERSION = 'v18-per-doc-extraction';
   const inputHash = `${hashFile(cmfLocalPath)}:${CENTINELA_LOGIC_VERSION}`;
   const existing = await getLatestRun<CentinelaOutput>(supabase, clientId, 'centinela');
   if (existing?.input_hash === inputHash && existing.output_json) {
@@ -142,6 +142,7 @@ export async function runCentinelaAgent(
       })),
       deReclassified261Creditors: sentinelResult.deReclassified261Creditors ?? [],
       fechasClave: sentinelResult.fechasClave ?? [],
+      claudeReadIssues: sentinelResult.claudeReadIssues ?? [],
     };
 
     const validation = validateCentinelaOutput(output);
