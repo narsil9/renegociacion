@@ -54,6 +54,75 @@ tiene **3 listas** acopladas y un upload obligatorio aparte:
   de cotizaciones). *(Nuestro pipeline lee nativo solo PDF/imagen → un `.docx` se sube tal cual al portal
   pero hay que CONVERTIRLO para que el agente lo lea y extraiga el monto.)*
 
+## Cómo ANALIZAR los documentos — playbook de extracción para el LLM (lectura nativa)
+
+> Esto es lo que aprendí leyendo nativo 60+ PDF reales actuando como el LLM. El agente
+> (`ingresos_agent.ts`, respaldado por la API de Anthropic) debe leer cada documento con
+> esta guía para que TS pueda rellenar bien el Paso 5. **Regla madre: el LLM extrae HECHOS
+> fieles al documento (cifras, etiquetas, fechas, días, RUT) — NO calcula promedios ni decide
+> estructura; eso lo hace TS.** Una llamada por documento (L14).
+
+**0) Antes de extraer, clasifica el documento.** No todo lo que está en la carpeta de ingresos es
+ingreso. Por CONTENIDO, no por nombre de archivo, decide qué es:
+- **Liquidación de sueldo** → `liquidacion_sueldo` (un mes de remuneración).
+- **Informe Anual de Boletas de Honorarios (SII)** o boletas sueltas → `honorarios`.
+- **Liquidación de subsidio por licencia médica** (Compin/ISAPRE) → `licencia_medica`.
+- **Comprobante de depósito/transferencia de un arrendatario** → `comprobante_arriendo`.
+- **Comprobante de pensión/jubilación/montepío** → `comprobante_pension`.
+- **Certificado de cotizaciones previsionales** → `certificado_cotizaciones` (NO es ingreso; va en su
+  campo aparte; igual extrae fecha de emisión + RUT entidad pagadora).
+- **NO es ingreso (ignorar):** cédula de identidad, capturas del SII (agente retenedor), **hoja resumen
+  de crédito hipotecario / contrato de crédito** (¡y ojo si el titular es OTRA persona!), contrato de
+  trabajo (solo respalda si no hay liquidaciones), anexos de contrato, padrón/dominio de vehículos.
+
+**1) Liquidación de sueldo — qué leer (en este orden):**
+- **Período (mes/año):** del CONTENIDO ("Mes: Octubre 2025", "PERIODO: SEPTIEMBRE 2025", "Fecha Inicio
+  Periodo 2025-12-01"), **NUNCA del nombre del archivo** (un `Liquidacion Julio (3).pdf` puede contener
+  Agosto — caso real). Devuélvelo como `period_label`.
+- **Líquido a pagar** (`liquido_a_pagar`): la cifra NETA que la persona recibe. Sus nombres varían
+  (L8/L19): "Líquido a Pagar", "Líquido a Recibir", "Líquido a Cobrar", "Total a Pagar", "Rem. Neta",
+  "Monto Líquido". **Reglas para elegir bien:**
+  - Si coexisten **"Alcance Líquido"** y un **"Líquido a pagar"/"Líq. a Pago" MENOR** → usa el menor
+    (el Alcance es intermedio, antes de los descuentos varios). *(SAESA: ALC. LIQUIDO 1.648.974 vs LIQ.
+    A PAGO 1.378.264 → usa 1.378.264.)*
+  - Si la ÚNICA cifra de neto es **"Alcance Líquido"** (formatos Buk simples, = Total Haberes − Total
+    Descuentos) → ESE es el líquido final, úsalo. *(William: solo "Alcance Líquido $2.429.517".)*
+  - NUNCA uses "Imponible", "Tributable", "Total Haberes" ni "Sueldo Base".
+- **Días trabajados** (`dias_trabajados`): búscalos ("Días Trabajados: 30", "DIAS TRAB. 30", "(-) DIAS
+  LICENCIA (18)", "Días licencia"). Si el mes tiene licencia/ausencia o ingreso-egreso a mitad de mes
+  (días < 28), repórtalo — TS excluirá ese mes parcial del promedio (L16).
+- **RUT del empleador** (`source_key`): el RUT de la empresa pagadora ("Empleador: ... (96.808.570-0)",
+  "RUT EMPRESA 76947101-4"). Necesario para no fusionar dos empleadores distintos (L9) y para no mezclar
+  con la cédula del trabajador.
+- **Líneas de "otros descuentos"** (`deductions`): lista cada línea NO legal con su **etiqueta exacta**
+  y su monto. No hace falta listar las legales (AFP/salud/cesantía/impuesto ya están netas en el líquido),
+  pero si las listas, TS las ignora. TS clasifica legal/voluntario/ambiguo (L2/L10/L17/L20) — tú solo
+  transcribe fielmente la etiqueta (ej. "A.P.V.I. EN AFP", "Préstamos CCAF", "COOPEUCH", "Anticipo
+  Aguinaldo", "Crédito Personal Caja Los Andes").
+- **Evidencia:** por período, devuelve `cita_monto` = fragmento verbatim con la cifra del líquido +
+  `confidence`. (TS verifica que la cifra esté en la cita; red anti-error.)
+
+**2) Honorarios — Informe Anual de Boletas (SII):**
+- Una fila por mes con emisión: extrae **honorario BRUTO**, **retención** (de terceros o contribuyente) y
+  **líquido**. Ignora meses en 0 y las **boletas ANULADAS** (la tabla las separa). `period_label` = mes/año.
+- Reporta el bruto en `monto_bruto` y la retención en `retencion` (TS decide bruto vs líquido y promedia).
+- Es muy común que el cliente tenga **honorarios Y sueldo a la vez**: extrae ambos por separado (TS emite
+  alerta de coexistencia para que el abogado decida si suman o si uno reemplazó al otro — L18).
+
+**3) Subsidio de licencia médica:** muchos pagos parciales por días, con PDFs duplicados y
+reliquidaciones. Extrae cada pago con su "Monto Líquido" y su mes; NO uses el "Promedio mensual" impreso
+(es base de cálculo). TS deduplica y reconstruye el mes (L11).
+
+**4) Comprobante de arriendo:** monto del depósito + fecha + quién paga (arrendatario). Un solo
+comprobante = un período; lo ideal son 3 meses (TS alerta si hay menos).
+
+**5) Multi-pago en un mismo mes:** si un mes trae varias liquidaciones (sueldo + aguinaldo en planilla
+aparte + planillas accesorias/retroactivas), extráelas TODAS con el mismo `period_label` del mes; TS las
+suma como un solo mes (L15). No las descartes ni las promedies entre sí.
+
+**6) Moneda:** si una cifra viene en **UF** (no en pesos), márcala `moneda: 'UF'` (un monto en UF tratado
+como CLP es un error de ~38.000×). El portal declara en CLP.
+
 ## Lecciones
 
 ### L1 — "Líquido a pagar", NUNCA "Alcance Líquido"
@@ -174,6 +243,78 @@ escaneos, `thinking: adaptive`, y evidence (cita+confianza, L8/Capa anti-error).
 
 ---
 
+## Lecciones del lote real `renegociacion_docs` (11 clientes con ingresos, 2026-06-29)
+
+> Lectura nativa actuando como el LLM sobre los PDF reales de cada cliente. Cada hallazgo se blindó con
+> un fix **general** en `income_extractor.ts` + prueba pre/post en `unit_tests.ts` (B10) y un caso en
+> `run_renegociacion_docs.ts`. 11/11 + 5/5 + 106 unit verdes; **ningún fix rompió otro** (regresión intacta).
+
+### L15 — Varios pagos del MISMO mes calendario se SUMAN (divisor = MESES, no líneas de pago)
+Un mismo mes puede traer **varias liquidaciones** (sueldo base + aguinaldo en planilla aparte +
+**planillas accesorias retroactivas** de pagos trimestrales). Son **un solo mes** de ingreso: se **suman**
+sus líquidos y el promedio divide por **número de meses**, no por número de líneas. Antes el promedio
+dividía por líneas → un mes partido en 3 pagos contaba como 3 "meses" y subdeclaraba. Fix general:
+agregar por mes calendario (`parsePeriodKey`) **antes** de promediar; alerta si un mes combina ≥2 pagos.
+*(Testigo: Susana Matamala — Sept = sueldo $1.470.022 + Ley 19.937 $230.300 + Ley 19.490 $38.379 = $1.738.701
+en un mes; quedó fuera de la ventana Oct/Nov/Dic → $1.472.881.)* · **validada + fix** (2026-06-29).
+
+### L16 — Mes PARCIAL (licencia / ingreso-egreso a mitad de mes) se EXCLUYE del promedio
+Un mes con **días trabajados < 28** (licencia médica que parte el mes, ingreso/egreso del trabajador a
+mitad de mes) tiene un líquido **anormalmente bajo** que NO representa el ingreso mensual → se **excluye**
+del promedio a favor de los meses **completos** (si los hay; si TODOS son parciales, se usan igual + alerta).
+El LLM debe extraer `dias_trabajados` cuando el documento los expone (o detectar "licencia"/"días licencia").
+*(Testigos: Betzy Lee — Oct 17 días licencia $1.06M; con el fix promedia Jul/Ago/Sep = $1.723.507, no
+$1.502.977. Jaime Cartes — Oct 12 días (18 licencia) $491k; promedia Ago/Sep = $1.301.969.)* · **validada + fix** (2026-06-29).
+
+### L17 — APV es VOLUNTARIO aunque la etiqueta diga "en AFP" o use puntos ("A.P.V.I.")
+El Ahorro Previsional Voluntario (APV/APVC/depósito convenido) es **ahorro redirigible → se suma de vuelta**
+(L2), pero su etiqueta suele contener "AFP" (que dispara el match **legal** de cotización) y a veces va
+**con puntos** ("A.P.V.I. EN AFP") que no calza con la keyword `apv`. Fix general: detectar APV con
+prioridad sobre lo legal y tolerando puntos/espacios (`a.?p.?v`), sin confundir "AFP" (a-f-p) ni "aporte".
+*(Testigo: Jaime Cartes — "A.P.V.I. EN AFP" $70.000/mes; antes se trataba como legal y NO se sumaba →
+subdeclaraba $70k.)* · **validada + fix** (2026-06-29).
+
+### L18 — Honorarios CON testigo (cierra C6): Informe Anual de Boletas SII + concurrencia con sueldo
+El documento canónico de honorarios es el **"Informe Anual de Boletas de Honorarios Electrónicas" del SII**
+(da por mes: **honorario bruto**, retención de terceros/contribuyente y líquido; ignora las **anuladas**).
+Se declara el **bruto mensualizado** (Σ bruto de la ventana **/ 12**, divisor fijo) + alerta confirmando
+bruto-vs-líquido y ventana. Los honorarios son **irregulares** (meses en 0) → /12 da un promedio bajo
+aunque los meses activos sean altos (alerta de irregularidad). Muy frecuente: el deudor tiene **honorarios
+Y sueldo** → puede ser **concurrente** (boletas en paralelo al empleo → se declaran y suman ambos) o
+**secuencial** (dejó de boletear al entrar a planilla → solo el vigente). TS no puede distinguirlo →
+**alerta de coexistencia** para que el abogado decida. *(Testigos: Irene Arévalo — sueldo $2.448.378 +
+honorarios $517.500, concurrente; Jaime — honorarios Abr-Jul $213.399 LUEGO sueldo Ago-Oct, secuencial;
+Noelia — sueldo $1.744.855 + honorarios $297.271 concurrente.)* · **validada + fix** (2026-06-29).
+
+### L19 — "Alcance Líquido" depende del FORMATO (refina L1)
+L1 ("nunca Alcance Líquido") aplica **cuando hay una línea final aparte** ("Líq. a Pago"/"Líquido a Pagar"
+menor que el Alcance, tras los descuentos varios) → usar esa. Pero en **formatos simples (ej. Buk)** la
+ÚNICA cifra es "Alcance Líquido" = Total Haberes − Total Descuentos = **el neto final** → ahí **sí** es el
+monto a usar. Regla para el LLM: declarar **el neto que la persona recibe** (la cifra más abajo, tras TODOS
+los descuentos); si coexisten "Alcance Líquido" y un "Líquido a pagar" menor, usar el menor. *(Testigos:
+William Montero — solo "Alcance Líquido $2.429.517" = final; Claudia/Irene — "Líquido a pagar" < "Alcance
+Líquido", usar el primero.)* · **validada** (2026-06-29).
+
+### L20 — La ETIQUETA del descuento manda: "PRESTAMO X" → voluntario; nombre a secas → ambiguo
+Refina L2/L10. Cuando la línea dice explícitamente **"Préstamo <institución>"** (Coopeuch, caja, banco) es
+un crédito redirigible → **voluntario, se suma**. Pero el **mismo proveedor a secas** ("COOPEUCH" sin
+"préstamo") es **ambiguo** (podría ser ahorro, cuota social, seguro…) → **NO se suma, se alerta**: no se
+puede saber del solo nombre si es préstamo o ahorro. Esto evita tanto subdeclarar (caso préstamo explícito)
+como sobredeclarar (asumir préstamo sin prueba). *(Testigos: Yoselyn Reyes — "PRESTAMO COOPEUCH" $391.930
++ "Prestamo Caja Los Andes" $399.068 sumados (líquido $642k → capacidad $1.45M); María Paz Bravo —
+"COOPEUCH" a secas $410.890 → ambiguo, alertado, NO sumado.)* · **validada** (2026-06-29).
+
+### L21 — El período sale del CONTENIDO (no del filename); filtrar NO-ingresos; cert puede venir ENCRIPTADO
+La carpeta de ingresos es ruidosa: (a) **el filename miente** — leer mes/año del **contenido** del PDF, no
+del nombre (Nicolás: `Liquidacion Julio (3).pdf` contenía **Agosto**, duplicado de `Agosto (4)` → el dedup
+por mes+monto lo absorbe). (b) **Hay documentos que NO son ingreso** y no deben declararse: una **Hoja
+Resumen de crédito hipotecario** (Jaime — y peor, ¡del **titular de un TERCERO**, Caroline Tapia, donde
+Jaime es solo asegurado!) → se ignora. (c) El **Certificado de Cotizaciones** puede venir **encriptado por
+contraseña** (Susana — el RUT del afiliado no abrió) → no se puede verificar fecha/RUT pagador → **alerta**
+(no es ingreso, no bloquea el cálculo). · **validada** (2026-06-29).
+
+---
+
 ## Pendientes / decisiones abiertas (requieren verdad-terreno del abogado)
 
 > Lo mecánico/estructural quedó en L8–L13 (validado por análisis del lote `casos-paso5`). Acá quedan
@@ -186,8 +327,14 @@ escaneos, `thinking: adaptive`, y evidence (cita+confianza, L8/Capa anti-error).
   **Licencia Médica ≈ $2.700.000**; si reintegrada, **Remuneración $2.395.383**. · `abogado`.
 - **"Cta. Cte. Clínica UF"** (María Elisa, ~$42k/mes): ¿préstamo interno redirigible (sumar) o cargo a
   cuenta corriente (no)? El nombre no lo aclara. · `abogado`.
-- **C6 — Honorarios (Fix 2) sin testigo:** ninguno de los 5 casos declara por boletas → divisor fijo 12,
-  bruto vs líquido y ventana 6 vs 12 **siguen sin validar**. Conseguir un caso de honorarios. · `pendiente`.
+- ~~**C6 — Honorarios (Fix 2) sin testigo**~~ **RESUELTO (L18, 2026-06-29):** 3 testigos reales
+  (Irene/Jaime/Noelia) validaron el camino honorarios (Informe Anual SII, bruto/12, irregularidad,
+  coexistencia con sueldo). Queda solo la decisión de **criterio** del abogado: declarar **bruto o
+  líquido** y **ventana 6 vs 12 meses** (el portal/L3 dice 12; CLAUDE.md mencionaba 6). · `abogado`.
+- **Coexistencia honorarios↔sueldo (concurrente vs secuencial):** el abogado define si se suman ambos
+  (Irene/Noelia, concurrente) o solo el vigente (Jaime, secuencial honorarios→sueldo). · `abogado`.
+- **COOPEUCH / institución a secas (L20):** un descuento "COOPEUCH" (sin "préstamo") queda **ambiguo →
+  alertado, no sumado**. Si el abogado confirma que es crédito, lo suma. *(María Paz, $410.890/mes.)* · `abogado`.
 - **Aporte de terceros (tipo 31):** DJ del tercero + cédula — validar con un caso real. · `pendiente`.
 - **Vigencia 30 días:** en el lote, varios certs de cotizaciones están **vencidos** (Jorge >13 meses;
   Alejandra ~66 días); Alejandro/Alex/María Elisa vigentes. Operacional: refrescar antes de presentar

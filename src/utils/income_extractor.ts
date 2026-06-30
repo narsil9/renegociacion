@@ -69,6 +69,13 @@ export interface IncomePeriod {
   /** Líneas de descuento del período (para clasificar legal vs voluntario, L2). */
   deductions?: DeductionLine[];
   /**
+   * Días trabajados del período (L13). Cuando el documento los expone y son < 28
+   * (licencia médica, ausencias, ingreso/egreso a mitad de mes), el mes es PARCIAL:
+   * su líquido subestima el ingreso normal → se EXCLUYE del promedio a favor de los
+   * meses completos (si los hay) y se ALERTA. null/ausente = se asume completo.
+   */
+  dias_trabajados?: number | null;
+  /**
    * Moneda del monto leído (handoff Paso 3, regla #5). El portal declara en CLP; un monto
    * en UF tratado como CLP es un error de ~38.000×. Si es 'UF' se ALERTA (requiere conversión).
    */
@@ -159,6 +166,13 @@ export interface IncomeComputation {
 // ---------------------------------------------------------------------------
 export const PERIODICIDAD_MENSUAL = 4;
 export const PERIODICIDAD_UNICA_VEZ = 8;
+
+/**
+ * Umbral de días trabajados para considerar un mes COMPLETO (L13). Por debajo de
+ * este valor el mes es parcial (licencia/ingreso/egreso a mitad de mes) y subestima
+ * el ingreso normal. 28 tolera meses de 28-31 días y descuentos de 1-2 días.
+ */
+export const PARTIAL_MONTH_DAYS = 28;
 
 // ---------------------------------------------------------------------------
 // Crosswalk categoría → (tipoIngreso, tipoAntecedente) — L7. DETERMINISTA.
@@ -285,9 +299,23 @@ function startsWordWith(t: string, kw: string): boolean {
   return new RegExp(`(^|[^a-záéíóúñ])${esc}`, 'i').test(t);
 }
 
-/** Clasifica una línea de descuento. Legal primero (más específico/seguro). */
+/**
+ * APV / APVC (Ahorro Previsional Voluntario) — VOLUNTARIO y redirigible, aunque la
+ * etiqueta lo escriba "en AFP" (que dispararía el match legal de 'afp') o con puntos
+ * ("A.P.V.I."). Se detecta con prioridad sobre lo legal. Tolera puntos/espacios entre
+ * letras (A.P.V., A P V). NO confunde "AFP" (a-f-p) ni "aporte" (a-p-o). También cubre
+ * "ahorro previsional voluntario" y "depósito convenido" (otro ahorro voluntario).
+ */
+const APV_RE = /(^|[^a-záéíóúñ])a\.?\s?p\.?\s?v/i;
+function isApvVoluntary(t: string): boolean {
+  return APV_RE.test(t) || t.includes('ahorro previsional voluntario') ||
+    t.includes('deposito convenido') || t.includes('depósito convenido');
+}
+
+/** Clasifica una línea de descuento. APV (voluntario) primero, luego legal, luego voluntario. */
 export function classifyDeduction(label: string): DeductionClass {
   const t = label.toLowerCase();
+  if (isApvVoluntary(t)) return 'voluntary'; // APV gana sobre 'afp' legal (es ahorro redirigible)
   if (LEGAL_DEDUCTION_KEYWORDS.some((k) => startsWordWith(t, k))) return 'legal';
   if (VOLUNTARY_DEDUCTION_KEYWORDS.some((k) => startsWordWith(t, k))) return 'voluntary';
   return 'ambiguous';
@@ -606,34 +634,67 @@ export function computeDeclaredIncomeForDoc(doc: ExtractedIncomeDoc): DeclaredIn
     alerts.push(`"${doc.filename}": se ignoraron ${rawPeriods.length - periods.length} período(s) duplicado(s) (mismo período y monto).`);
   }
   if (periods.length > 0) {
-    // Mensualización por promedio (L3). Ordena por fecha (más reciente primero) y
-    // usa hasta `promedioMeses` períodos; si no hay ventana, promedia los disponibles.
-    const sorted = sortPeriodsDesc(periods);
-    const window = cw.promedioMeses ?? sorted.length;
-    const used = sorted.slice(0, window);
-    // Aviso si hay más períodos que la ventana pero alguno no se pudo ordenar por fecha
-    // → el "últimos N meses" podría no estar tomando los más recientes.
-    if (cw.promedioMeses != null && periods.length > cw.promedioMeses) {
-      const unparseable = periods.filter((p) => parsePeriodKey(p.period_label) == null);
-      if (unparseable.length > 0) {
+    // Mensualización por promedio (L3). El divisor es el nº de MESES calendario, NO el
+    // nº de líneas de pago: varios pagos del mismo mes (sueldo + aguinaldo/retroactivo/
+    // planilla accesoria) se SUMAN en ese mes (L12). Luego se promedian los `promedioMeses`
+    // meses más recientes, prefiriendo meses COMPLETOS (L13).
+    const netParts = periods.map((p) => ({ p, r: periodNetIncome(p) }));
+    netParts.forEach(({ r }) => alerts.push(...r.alerts));
+
+    // Agrupar por MES calendario. Los períodos con etiqueta no parseable (sin clave de
+    // mes) no se pueden fusionar → cada uno es su propia unidad (clave null, va al final).
+    interface MonthUnit { key: number | null; amount: number; count: number; dias: number | null; detalle: string[] }
+    const monthMap = new Map<number, MonthUnit>();
+    const looseUnits: MonthUnit[] = [];
+    for (const { p, r } of netParts) {
+      if (r.amount <= 0) continue; // null/ilegible ya alertado por periodNetIncome
+      const key = parsePeriodKey(p.period_label);
+      const dias = posFinite(p.dias_trabajados);
+      if (key == null) {
+        looseUnits.push({ key: null, amount: r.amount, count: 1, dias, detalle: [r.detalle] });
+        continue;
+      }
+      const m = monthMap.get(key) ?? { key, amount: 0, count: 0, dias: null, detalle: [] };
+      m.amount += r.amount; m.count += 1; m.detalle.push(r.detalle);
+      if (dias != null) m.dias = m.dias == null ? dias : Math.max(m.dias, dias);
+      monthMap.set(key, m);
+    }
+    // L12: avisar de meses con varios pagos sumados (no es un error, pero el abogado debe
+    // saber que ese mes combina sueldo + bono/retroactivo y no es el sueldo "base").
+    for (const m of monthMap.values()) {
+      if (m.count > 1) {
         alerts.push(
-          `No se pudo ordenar por fecha ${unparseable.length} período(s) ` +
-          `(${unparseable.map((p) => `"${p.period_label}"`).join(', ')}) → el promedio de los últimos ` +
-          `${cw.promedioMeses} meses podría no usar los más recientes. Verificar.`
+          `Mes ${m.key}: se sumaron ${m.count} pagos del mismo período (= $${m.amount.toLocaleString('es-CL')}) ` +
+          `— ej. sueldo + aguinaldo/retroactivo/planilla accesoria. Verificar.`
         );
       }
     }
-    let sum = 0;
-    let counted = 0;
-    for (const p of used) {
-      const r = periodNetIncome(p);
-      alerts.push(...r.alerts);
-      if (r.amount > 0) {
-        sum += r.amount;
-        counted += 1;
-        detalleParts.push(r.detalle);
-      }
+    if (looseUnits.length > 0 && cw.promedioMeses != null) {
+      alerts.push(
+        `No se pudo asignar a un mes ${looseUnits.length} período(s) (etiqueta de fecha no parseable) ` +
+        `→ el promedio de los últimos ${cw.promedioMeses} meses podría no usar los más recientes. Verificar.`
+      );
     }
+
+    // L13: preferir meses COMPLETOS (días ≥ umbral o desconocidos). Si TODOS son parciales,
+    // se usan igual (no se descarta el único ingreso disponible) con alerta.
+    const allUnits: MonthUnit[] = [...monthMap.values(), ...looseUnits];
+    const isFull = (u: MonthUnit) => u.dias == null || u.dias >= PARTIAL_MONTH_DAYS;
+    const fullUnits = allUnits.filter(isFull);
+    const partialUnits = allUnits.filter((u) => !isFull(u));
+    const pool = fullUnits.length > 0 ? fullUnits : allUnits;
+    if (fullUnits.length > 0 && partialUnits.length > 0) {
+      alerts.push(
+        `Se excluyó(eron) del promedio ${partialUnits.length} mes(es) PARCIAL(es) ` +
+        `(${partialUnits.map((u) => `${u.key ?? '¿?'}: ${u.dias} días`).join(', ')}) — licencia médica o ` +
+        `ingreso/egreso a mitad de mes subestiman el ingreso normal. El abogado puede reconsiderarlos.`
+      );
+    }
+    // Ordenar meses de más reciente a más antiguo (clave null al final) y tomar la ventana.
+    pool.sort((a, b) => (b.key ?? -Infinity) - (a.key ?? -Infinity));
+    const window = cw.promedioMeses ?? pool.length;
+    const used = pool.slice(0, window);
+    const counted = used.length;
     if (counted === 0) {
       alerts.push(`"${doc.filename}": ningún período con monto legible.`);
       return {
@@ -643,13 +704,14 @@ export function computeDeclaredIncomeForDoc(doc: ExtractedIncomeDoc): DeclaredIn
         documentFilenames: [doc.filename], detalle: 'sin monto legible', alerts,
       };
     }
-    // Divisor = nº de períodos esperado por la regla (si está definido y hay menos
-    // períodos, se alerta) o el nº de períodos contados.
+    used.forEach((u) => detalleParts.push(...u.detalle));
+    // Divisor = nº de MESES esperado por la regla (si hay menos, se alerta) o los contados.
     const divisor = cw.promedioMeses != null ? Math.min(cw.promedioMeses, counted) : counted;
+    const sum = used.reduce((s, u) => s + u.amount, 0);
     monto = round(sum / divisor);
     if (cw.promedioMeses != null && counted < cw.promedioMeses) {
       alerts.push(
-        `Se esperaban ${cw.promedioMeses} períodos para promediar y solo hay ${counted} legibles ` +
+        `Se esperaban ${cw.promedioMeses} meses para promediar y solo hay ${counted} mes(es) completo(s) legible(s) ` +
         `→ promedio sobre ${counted}. Verificar que estén las ${cw.promedioMeses} liquidaciones.`
       );
     }
@@ -753,6 +815,19 @@ export function computeIncomes(
       'Coexisten Remuneración y Licencia Médica: el subsidio por incapacidad REEMPLAZA al sueldo ' +
       'durante la licencia (no se declaran ambos sobre el mismo período). El abogado debe elegir ' +
       'cuál refleja la situación actual del deudor (¿en licencia o reintegrado?).'
+    );
+  }
+
+  // Coexistencia Honorarios ↔ Remuneración (L14): un deudor puede tener boletas de
+  // honorarios Y sueldo. Si son CONCURRENTES (consultoría en paralelo al empleo) se
+  // declaran y suman ambos; si son SECUENCIALES (dejó de boletear al entrar a planilla,
+  // o viceversa) solo el vigente cuenta. TS no puede distinguirlo con certeza → se ALERTA.
+  const hasHonorarios = incomes.some((i) => i.tipoIngreso === 10);
+  if (hasRemuneracion && hasHonorarios) {
+    globalAlerts.push(
+      'Coexisten Remuneración (sueldo) y Honorarios (boletas): verificar si son CONCURRENTES ' +
+      '(se declaran y suman ambos) o SECUENCIALES (transición sueldo↔honorarios → declarar solo ' +
+      'el vigente). El abogado debe confirmar cuál(es) corresponde(n) a la situación actual.'
     );
   }
 

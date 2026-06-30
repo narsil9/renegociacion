@@ -379,6 +379,71 @@ eq('B9 P2.2 no rompe stems: "Cotizaciones Previsionales" legal', classifyDeducti
   near('B9 P3.1 honorarios usa monto declarado [P3.1]', r.monto, 500000);
 }
 
+// =========================================================================== B10 carpeta real renegociacion_docs
+section('B10 hallazgos carpeta real (L12 multi-pago/mes, L13 mes parcial, APV, L14 coexistencia)');
+// L12 — varios pagos del MISMO mes se SUMAN; el divisor cuenta MESES, no líneas de pago.
+{
+  const d = doc('liquidacion_sueldo', [
+    per('Mayo 2026', 1000000), per('Mayo 2026', 500000),   // mismo mes → 1.5M
+    per('Abril 2026', 2000000), per('Marzo 2026', 2000000),
+  ]);
+  const r = computeDeclaredIncomeForDoc(d)!;
+  near('B10 L12 suma intra-mes + divisor=meses', r.monto, Math.round((1500000 + 2000000 + 2000000) / 3));
+  ok('B10 L12 alerta multi-pago [L12]', hasAlert(r.alerts, 'sumaron'));
+}
+{
+  // Susana-like: 3 pagos en un mes ANTIGUO no contamina la ventana de 3 recientes
+  const d = doc('liquidacion_sueldo', [
+    per('08/2025', 1300000), per('09/2025', 1470000), per('09/2025', 230000), per('09/2025', 38000),
+    per('10/2025', 1480000), per('11/2025', 1474000), per('12/2025', 1464000),
+  ]);
+  near('B10 L12 ventana usa Oct/Nov/Dic (Sept agregado pero fuera)', computeDeclaredIncomeForDoc(d)!.monto,
+    Math.round((1480000 + 1474000 + 1464000) / 3));
+}
+// L13 — mes PARCIAL (días < 28) se excluye a favor de meses completos.
+{
+  const d = doc('liquidacion_sueldo', [
+    per('Mayo 2026', 500000, [], { dias_trabajados: 12 }),  // parcial reciente
+    per('Abril 2026', 2000000, [], { dias_trabajados: 30 }),
+    per('Marzo 2026', 2000000, [], { dias_trabajados: 30 }),
+    per('Febrero 2026', 2000000, [], { dias_trabajados: 30 }),
+  ]);
+  const r = computeDeclaredIncomeForDoc(d)!;
+  near('B10 L13 excluye mes parcial', r.monto, 2000000); // NO (0.5+2+2)/3 = 1.5M
+  ok('B10 L13 alerta de mes parcial [L13]', hasAlert(r.alerts, 'parcial'));
+}
+{
+  // L13 fallback: si TODOS son parciales, se usan igual (no se descarta el único ingreso) + finito
+  const d = doc('liquidacion_sueldo', [
+    per('Mayo 2026', 500000, [], { dias_trabajados: 10 }),
+    per('Abril 2026', 600000, [], { dias_trabajados: 12 }),
+  ]);
+  const r = computeDeclaredIncomeForDoc(d)!;
+  ok('B10 L13 fallback todos parciales → monto finito > 0', Number.isFinite(r.monto) && r.monto > 0);
+}
+// APV — voluntario aunque la etiqueta diga "en AFP" o use puntos ("A.P.V.I.").
+eq('B10 APV "A.P.V.I. EN AFP" = voluntary', classifyDeduction('A.P.V.I. EN AFP'), 'voluntary');
+eq('B10 APV "APV en AFP" = voluntary', classifyDeduction('APV en AFP'), 'voluntary');
+eq('B10 APV "Depósito Convenido" = voluntary', classifyDeduction('Depósito Convenido'), 'voluntary');
+eq('B10 "AFP Capital" sigue legal (no APV)', classifyDeduction('AFP Capital'), 'legal');
+eq('B10 "Aporte Bienestar" sigue ambiguo (no APV)', classifyDeduction('Aporte Bienestar'), 'ambiguous');
+{
+  // APVI se suma de vuelta (no se trata como legal por contener "AFP")
+  const d = doc('liquidacion_sueldo', [per('Mayo 2026', 1000000, [ded('A.P.V.I. EN AFP', 70000)])]);
+  near('B10 APVI se suma de vuelta', computeDeclaredIncomeForDoc(d)!.monto, 1070000);
+}
+// PRESTAMO COOPEUCH (voluntario, "prestamo") vs COOPEUCH a secas (ambiguo)
+eq('B10 "PRESTAMO COOPEUCH" = voluntary', classifyDeduction('Prestamo Coopeuch'), 'voluntary');
+eq('B10 "COOPEUCH" a secas = ambiguous', classifyDeduction('COOPEUCH'), 'ambiguous');
+// L14 — coexistencia honorarios + sueldo → alerta
+{
+  const c = computeIncomes([
+    doc('liquidacion_sueldo', [per('Mayo 2026', 2000000)], { source_key: 'A' }),
+    doc('honorarios', [per('2026-05', null, [], { monto_bruto: 600000 })], { source_key: 'BHE' }),
+  ], COT);
+  ok('B10 L14 coexistencia honorarios↔sueldo [L14]', hasAlert(c.alerts, 'Honorarios') && hasAlert(c.alerts, 'CONCURRENTES'));
+}
+
 // =========================================================================== resumen
 console.log(`\n━━━ RESUMEN UNIT ━━━`);
 console.log(`  ${pass} OK, ${fails.length} FAIL`);

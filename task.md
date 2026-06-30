@@ -81,7 +81,8 @@ promedio por tipo, crosswalk a los 2 enums del portal) → `fillStep5` (Playwrig
 
 - **Archivos**: `src/utils/income_extractor.ts`, `src/agents/ingresos_agent.ts`,
   `src/automation/step5_ingresos.ts`; integrados en `all_steps.ts` y `worker.ts`. Lecciones en
-  `lecciones/paso5-ingresos.md` (L1–L14 + **reglas oficiales Superir** verificadas: manual + listado).
+  `lecciones/paso5-ingresos.md` (L1–L21 + **playbook de extracción para el LLM** + **reglas oficiales
+  Superir** verificadas: manual + listado).
 
 ### Endurecimiento (sesión 2026-06-29, branch `paso-5`)
 - **Capa determinista BULLETPROOF** ✅ — `income_extractor.ts` revisado y blindado: dedup de períodos
@@ -95,6 +96,19 @@ promedio por tipo, crosswalk a los 2 enums del portal) → `fillStep5` (Playwrig
 - **Agente: una llamada por documento** ✅ — `ingresos_agent.ts` refactorizado (handoff del Paso 3,
   `mejoras-centinela-lector-pdf.md`): 1 llamada/doc + retry ante vacío + `doc_type` + `rut_pagador`→`source_key`
   + moneda + nunca-$0. Más estable que la mega-llamada.
+- **2º lote `renegociacion_docs` (11 clientes) validado** ✅ — leí nativo actuando como el LLM y corrí toda
+  la cadena determinista. **4 fixes GENERALES nuevos (sin romper regresión, verificado):** L15 varios pagos
+  del MISMO mes se SUMAN (divisor = meses, no líneas); L16 mes PARCIAL (días<28, licencia) se EXCLUYE a favor
+  de meses completos (campo `dias_trabajados`, `PARTIAL_MONTH_DAYS=28`); L17 APV es voluntario aunque la
+  etiqueta diga "en AFP"/use puntos ("A.P.V.I.") → gana sobre el match legal; L18 honorarios CON testigo
+  (cierra C6) + alerta de coexistencia honorarios↔sueldo. Lecciones L19–L21 ("Alcance Líquido" format-dependent,
+  "PRESTAMO X" vs nombre a secas, período del contenido no del filename / filtrar no-ingresos / cert encriptado).
+  **Suite ampliada: `npm test` = 106 unit (B10 nuevo) + 5 + 11 casos, exit 0; build prod limpio.** Archivos:
+  `casos/paso5_pruebas/{fixtures_renegociacion_docs,run_renegociacion_docs}.ts`.
+- **Preguntas de criterio para el abogado** 📋 — `PREGUNTAS_ABOGADO_PASO5.md` (raíz): 8 preguntas con cliente,
+  documentos a mostrar, líneas/números exactos, problema, impacto en $ y pregunta concreta (Coopeuch a secas,
+  honorarios concurrente/secuencial, bruto/líquido + ventana, mes parcial, anticipos, aguinaldos, trimestrales,
+  ahorro devuelto). Las respuestas se vuelven reglas generales (lecciones).
 - [ ] **Fase 2 (lectura nativa real) PENDIENTE — esperando API.** Runner listo:
   `casos/paso5_pruebas/run_native.ts` (lee los PDFs reales con Claude → mismos hechos → `computeIncomes`).
   Comando en `casos/paso5_pruebas/README.md`. Confirma que la lectura real reproduce los montos hardcodeados.
@@ -105,10 +119,14 @@ promedio por tipo, crosswalk a los 2 enums del portal) → `fillStep5` (Playwrig
 - [ ] **Fuente de docs de ingreso en producción**: hoy `gatherStep5Input` los busca en
   `client_documents` por keyword; el dashboard/integración debe subirlos ahí (liquidaciones + cert cotizaciones).
 - [ ] **`fillStep5` DRY_RUN no limpia el borrador** — agregar auto-cleanup como en Paso 2/3.
-- [ ] **Honorarios (Fix 2) sin testigo** — ningún caso del lote declara por boletas; falta validar bruto/líquido
-  y ventana 6-vs-12 contra verdad-terreno. Idem aporte de terceros (DJ). Ver `lecciones/paso5-ingresos.md`.
-- [ ] **Verdad-terreno del abogado** para los 5 casos → cierra las decisiones de criterio (add-back CCAF/Caja,
-  normalizar anticipos, sueldo vs licencia médica, retiro de sociedad).
+- [x] ~~Honorarios (Fix 2) sin testigo~~ — **RESUELTO** con 3 testigos reales (Irene/Jaime/Noelia, lote
+  `renegociacion_docs`). Camino honorarios validado (Informe Anual SII, bruto/12, coexistencia con sueldo).
+  Queda solo el **criterio** del abogado (bruto vs líquido, ventana 6/12, concurrente/secuencial) → P2/P3.
+- [ ] **Verdad-terreno del abogado** → responder `PREGUNTAS_ABOGADO_PASO5.md` (8 preguntas de criterio:
+  Coopeuch a secas, honorarios concurrente/secuencial + bruto/líquido + ventana, mes parcial por licencia,
+  anticipos, aguinaldos en el líquido, pagos trimestrales sector público, ahorro devuelto). Cada respuesta
+  → regla general en `lecciones/paso5-ingresos.md` aplicable a todos los clientes.
+- [ ] **Aporte de terceros (tipo 31)** — sin testigo aún (DJ del tercero + cédula). Validar con un caso real.
 
 ## 🆕 Validación anti-error de la lectura de Claude (Paso 3) — construido (2026-06-29)
 
