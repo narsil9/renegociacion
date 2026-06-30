@@ -411,6 +411,17 @@ export async function applyDeterministicBackstops(
       .map((o) => canonicalInstitutionKey(o.institucion_cmf));
     const reclassKeys = (result.reclassifiedCreditors ?? []).map((r) => canonicalInstitutionKey(r.institucion_cmf));
     const deReclKeys = (result.deReclassified261Creditors ?? []).map((r) => canonicalInstitutionKey(r.institucion_cmf));
+    // Snapshot (ANTES de degradar) de las instituciones que YA tienen representación basada en
+    // certificados — override, identified261, reclasificado o additional. Si un banco 90+d sin
+    // vencimiento YA está representado por sus productos (típico multiproducto: el cert desglosa
+    // N operaciones y el CMF tiene 1 fila → 1 override + (N-1) en identified261), NO se debe
+    // inyectar una fila extra por el TOTAL del CMF (sería doble conteo). El total del CMF solo se
+    // inyecta cuando el banco 90+d NO tiene NINGÚN documento que lo represente (G2: no perderlo).
+    const preRepresentedKeys = new Set<string>();
+    for (const o of result.cmf260DirectOverrides ?? []) preRepresentedKeys.add(canonicalInstitutionKey(o.institucion_cmf));
+    for (const r of result.identified261Creditors ?? []) preRepresentedKeys.add(canonicalInstitutionKey(r.institucion_cmf));
+    for (const r of result.reclassifiedCreditors ?? []) preRepresentedKeys.add(canonicalInstitutionKey(r.institucion_cmf));
+    for (const a of result.additionalCreditors ?? []) preRepresentedKeys.add(canonicalInstitutionKey(a.institucion_cmf));
     for (const c of cmfCreditors) {
       if (c.overdue90Days <= 0) continue;
       const k = canonicalInstitutionKey(c.institucion);
@@ -466,35 +477,38 @@ export async function applyDeterministicBackstops(
       const motivo =
         'Mora 90+d en el CMF SIN documento que acredite el VENCIMIENTO → declarada en ' +
         'Otros Acreedores (Art. 261) por el backstop determinista. Revisar antes de presentar.';
+      const productType = c.tipoCredito === 'tarjeta_credito' || c.tipoCredito === 'credito_consumo' ? c.tipoCredito : 'otro';
 
-      const matches = (result.cmf260DirectOverrides ?? []).filter(o => {
-        const ok = canonicalInstitutionKey(o.institucion_cmf);
-        return ok === k && Math.abs((o.monto_clp ?? 0) - c.totalCredito) / Math.max(o.monto_clp ?? 1, c.totalCredito) <= 0.30;
-      });
-      const assocOverride = matches.length > 0
-        ? matches.reduce((best, o) => Math.abs((o.monto_clp ?? 0) - c.totalCredito) < Math.abs((best.monto_clp ?? 0) - c.totalCredito) ? o : best)
-        : undefined;
-      const montoDegradado = assocOverride ? assocOverride.monto_clp : c.totalCredito;
-      const filenameDegradado = assocOverride?.document_filename ?? assocDoc?.filename ?? '';
+      // Caso 1 — el banco YA tiene override(s) (sin vencimiento, porque keysWithVenc excluyó los que
+      // sí tienen fecha): se DEGRADA cada override a su PROPIO monto (sub-producto del cert) y se
+      // QUITA de cmf260DirectOverrides. Así un banco multiproducto no inyecta el total del CMF
+      // encima de sus sub-productos (bug de doble conteo: ej. Santander de Jaime, 3 ops + total CMF).
+      const overridesForKey = (result.cmf260DirectOverrides ?? []).filter(o => canonicalInstitutionKey(o.institucion_cmf) === k);
+      if (overridesForKey.length > 0) {
+        for (const o of overridesForKey) {
+          result.deReclassified261Creditors!.push({ bank: c.institucion, institucion_cmf: c.institucion, total_credito_clp: o.monto_clp, reason: motivo, document_filename: o.document_filename ?? '' });
+          result.identified261Creditors!.push({ bank: c.institucion, product_type: productType, institucion_cmf: c.institucion, total_credito_clp: o.monto_clp, reason: motivo, document_filename: o.document_filename ?? '', evidence: o.evidence });
+        }
+        result.cmf260DirectOverrides = (result.cmf260DirectOverrides ?? []).filter(o => canonicalInstitutionKey(o.institucion_cmf) !== k);
+        log(`🛡️ [Backstop 260→261] "${c.institucion}" (mora 90+d): ${overridesForKey.length} override(s) sin vencimiento → degradados a Art. 261 (monto del cert, no el total del CMF).`);
+        continue;
+      }
 
-      result.deReclassified261Creditors!.push({
-        bank: c.institucion,
-        institucion_cmf: c.institucion,
-        total_credito_clp: montoDegradado,
-        reason: motivo,
-        document_filename: filenameDegradado,
-      });
-      result.identified261Creditors!.push({
-        bank: c.institucion,
-        product_type: c.tipoCredito === 'tarjeta_credito' || c.tipoCredito === 'credito_consumo' ? c.tipoCredito : 'otro',
-        institucion_cmf: c.institucion,
-        total_credito_clp: montoDegradado,
-        reason: motivo,
-        document_filename: filenameDegradado,
-      });
+      // Caso 2 — el banco NO tiene override pero YA está representado por sus productos
+      // (identified261/reclassified/additional del cert, ej. overflow de multiproducto): NO se
+      // inyecta nada (ya está declarado, en 261); evita la fila fantasma por el total del CMF.
+      if (preRepresentedKeys.has(k)) {
+        log(`🛡️ [Backstop 260→261] "${c.institucion}" (mora 90+d) ya representado por productos del certificado → sin fila extra (evita doble conteo con el total del CMF).`);
+        continue;
+      }
+
+      // Caso 3 — el banco 90+d NO tiene NINGÚN documento que lo represente → se inyecta el total
+      // del CMF como Art. 261 para no perder el acreedor (G2). Es el único caso que usa el total.
+      result.deReclassified261Creditors!.push({ bank: c.institucion, institucion_cmf: c.institucion, total_credito_clp: c.totalCredito, reason: motivo, document_filename: assocDoc?.filename ?? '' });
+      result.identified261Creditors!.push({ bank: c.institucion, product_type: productType, institucion_cmf: c.institucion, total_credito_clp: c.totalCredito, reason: motivo, document_filename: assocDoc?.filename ?? '' });
       log(
         `🛡️ [Backstop 260→261] "${c.institucion}" (mora 90+d $${c.overdue90Days.toLocaleString('es-CL')}) ` +
-        `sin vencimiento acreditable → Art. 261 ($${montoDegradado.toLocaleString('es-CL')}).`
+        `sin vencimiento acreditable ni documento → Art. 261 por el total del CMF ($${c.totalCredito.toLocaleString('es-CL')}).`
       );
     }
   }

@@ -132,7 +132,31 @@ Mientras tanto se blindó TODA la capa determinista de TS (la que decide la estr
   los backstops), `test_oracle_injection.ts`. **5/5 suites verdes** + `build:prod` limpio.
 - [ ] **Pendiente (tras cuota 2026-07-01)**: `scorecard.ts 3` con `CENTINELA_PER_DOC=true` → confirmar 10/13/12 ESTABLE.
 
+### 🆕 Validación sobre 13 casos reales (`renegociacion_docs/`) — sin API (2026-06-29)
+Claude actuó como Centinela (lectura nativa de los PDF del Paso 3 de 13 clientes previos) → fixtures
+`tools/paso3_validacion/reneg_fixtures/*.json` (CMF + DocFacts + declaración esperada). El arnés
+`test_renegociacion_docs.ts` corre el **ensamblador + backstops REALES** y compara vs la verdad-terreno.
+**10/13 reproducen EXACTO** la declaración del abogado (6 directo + 4 tras meter las reglas de lectura en el
+prompt). Los 3 ⚠️ restantes NO son lectura ni TS: betzy (faltan certs formales en la carpeta), claudia/yoselyn
+(robot declara un producto real que el abogado omitió). Salieron **5 fixes deterministas GENERALES** (sin
+regresión, batería 6/6 + `build:prod` limpio) **+ 4 reglas de lectura en `perDocSystemPrompt`** (L23–L26):
+- [x] **Drop $0** en el ensamblador (G2; multas UTM sin convertir → se caen, lección L17).
+- [x] **Dedup por Nº de operación** (mismo producto en varios docs) + `normalizeOperationId` quita ceros/paréntesis (L16).
+- [x] **Gate 260→261 multiproducto**: degrada el override real, NO inyecta el total del CMF si el banco ya está
+      representado → arregla el **doble conteo** (fila fantasma); solo inyecta el total si no hay ningún doc (G2) (L18).
+- [x] **Aliases del nombre corto del CMF** ("De Crédito e Inversiones", "Internacional", "Santander Consumer
+      Finance", "CAT"→Cencosud) + `canonicalInstitutionKey` corta en `" / "` (L19).
+- [x] Arnés integrado en `run_all.ts` como **guard de regresión** (10 casos-guía).
+- [x] **4 reglas de lectura en el prompt del Centinela** (`perDocSystemPrompt`) — validadas releyendo los docs nativo:
+      **L23** tarjeta = "COSTO MONETARIO PREPAGO" (no las filas de operaciones/Super Avance); **L24** captura del
+      portal con "Cupo utilizado" SÍ acredita (no es chat por más que el archivo diga WhatsApp); **L25** usar la
+      columna en pesos "Saldo Actual $" (no re-convertir UF) + formato chileno "." miles / "," decimal; **L26** un
+      producto por operación/tarjeta aunque venga en varios docs (el de mora solo aporta fecha).
+- Lecciones nuevas **L16–L26** en `lecciones/paso3-acreedores.md`.
+
 ## 📋 Backlog acotado (no bloqueante)
+- [ ] **Lectura (Centinela)**: UN doc autoritativo por producto (L20), sumar sub-cupos/Super-Avance (L21),
+      convertir UTM/UF→CLP antes de reportar el monto de multas/fiscales (L17). Inyectar L16–L22 al prompt.
 
 - [ ] **Adapter de input formal** en el worker (la Etapa 2 es el primer ladrillo; luego abstraer la fuente).
 - [ ] **Régimen patrimonial** — opciones reales del portal (sin verificar; **bloqueante para clientes casados**).

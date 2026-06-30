@@ -1,0 +1,259 @@
+{
+  "case": "yoselyn_reyes",
+  "rut": "16.563.374-1",
+  "cmf_cut_date": "2026-02-28",
+  "cmf_rows": [
+    {
+      "institucion": "Banco Estado",
+      "tipoCredito": "Consumo",
+      "totalCredito": 3194822,
+      "overdue90Days": 109510
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "tipoCredito": "Consumo",
+      "totalCredito": 7911253,
+      "overdue90Days": 200255
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "tipoCredito": "Consumo",
+      "totalCredito": 663238,
+      "overdue90Days": 124045
+    },
+    {
+      "institucion": "Coopeuch",
+      "tipoCredito": "Consumo",
+      "totalCredito": 12838870,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2424857,
+      "overdue90Days": 94836
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "CERTIFICADO BCI.pdf",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "BCI",
+      "productos": [
+        {
+          "operacion": "7077",
+          "monto": 7264344,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": "2025-11-05",
+          "dias_mora_doc": 0,
+          "cita_monto": "7077 RENEGOCIADO Saldo Insoluto $7.264.344",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "6841",
+          "monto": 200255,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": "2025-11-05",
+          "dias_mora_doc": 0,
+          "cita_monto": "6841 $200.255 (venc 05/11/2025)",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "8048",
+          "monto": 200255,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": "2025-12-05",
+          "dias_mora_doc": 0,
+          "cita_monto": "8048 $200.255 (venc 05/12/2025)",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO BANCO ESTADO.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "BancoEstado",
+      "productos": [
+        {
+          "operacion": "38173330",
+          "monto": 3311717,
+          "etiqueta_monto": "Saldo Consumo",
+          "moneda": "CLP",
+          "fecha_mora": "2025-11-05",
+          "dias_mora_doc": 0,
+          "cita_monto": "Consumo OP 38173330 saldo $3.311.717 (mora venc 05/11/2025)",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "260 CMR YOSLEYN.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella CMR",
+      "productos": [
+        {
+          "operacion": "",
+          "monto": 2514209,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-11-10",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago $2.514.209, mora cuotas nov/dic/ene (primera 10/11/2025)",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "30_11 CAR YOSELYN.pdf",
+      "institucion_asignada": "CAR - Ripley",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "CAR Ripley",
+      "productos": [
+        {
+          "operacion": "",
+          "monto": 667698,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago $667.698, mora (costos por atraso, $0 pagado meses)",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO COOPEUCH.pdf",
+      "institucion_asignada": "Coopeuch",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Coopeuch",
+      "productos": [
+        {
+          "operacion": "202471652305",
+          "monto": 11991695,
+          "etiqueta_monto": "CRECON Saldo",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "CRECON 202471652305 $11.991.695 (al día)",
+          "confidence": 0.88
+        },
+        {
+          "operacion": "240876011",
+          "monto": 300091,
+          "etiqueta_monto": "CTAVIS Saldo",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "CTAVIS 240876011 $300.091 (al día)",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "credito Caja los andes.pdf",
+      "institucion_asignada": "Caja Los Andes",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Caja de Compensación Los Andes",
+      "productos": [
+        {
+          "operacion": "",
+          "monto": 513124,
+          "etiqueta_monto": "Saldo Cuotas Vigentes",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Saldo Cuotas Vigentes $513.124, 0 cuotas morosas",
+          "confidence": 0.85
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 7264344,
+      "art": 260,
+      "cmf": true,
+      "doc": "CERTIFICADO BCI.pdf",
+      "nota": "Multiproducto: op 7077 RENEGOCIADO. Monto cert >> CMF ($7.911.253); cert es el payoff actual."
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 200255,
+      "art": 260,
+      "cmf": true,
+      "doc": "CERTIFICADO BCI.pdf",
+      "nota": "Op 6841, venc 05/11/2025. Producto separado del multiproducto BCI."
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 200255,
+      "art": 260,
+      "cmf": true,
+      "doc": "CERTIFICADO BCI.pdf",
+      "nota": "Op 8048, venc 05/12/2025. Tercer producto BCI."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 3311717,
+      "art": 260,
+      "cmf": true,
+      "doc": "CERTIFICADO BANCO ESTADO.pdf",
+      "nota": "overdue90=$109.510. Monto cert ($3.311.717) > CMF ($3.194.822), diferencia razonable. Tarjeta Smart al día: NO declarar."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 2514209,
+      "art": 260,
+      "cmf": true,
+      "doc": "260 CMR YOSLEYN.pdf",
+      "nota": "overdue90=$94.836. Payoff cert ($2.514.209) > CMF ($2.424.857)."
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "monto": 667698,
+      "art": 260,
+      "cmf": true,
+      "doc": "30_11 CAR YOSELYN.pdf",
+      "nota": "overdue90=$124.045. Payoff cert ($667.698) ~ CMF ($663.238), diferencia mínima."
+    },
+    {
+      "institucion": "Coopeuch",
+      "monto": 12291786,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO COOPEUCH.pdf",
+      "nota": "overdue90=$0. Al día. 2 productos: CRECON $11.991.695 + CTAVIS $300.091. CMF consolida en 1 fila ($12.838.870); si el portal acepta 1 fila, usar total cert = $12.291.786. Si multiproducto: declarar por separado."
+    },
+    {
+      "institucion": "Caja Los Andes",
+      "monto": 513124,
+      "art": 261,
+      "cmf": false,
+      "doc": "credito Caja los andes.pdf",
+      "nota": "NO-CMF. Caja de Compensación, 0 cuotas morosas → Art.261 puro."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF corte 28/02/2026, emitido 17/03/2026. 5 filas directas, 0 indirectas.",
+    "Coopeuch SÍ está en el CMF con overdue90=$0 (al día). Sus 2 productos del cert ($11.991.695 + $300.091 = $12.291.786) difieren del CMF ($12.838.870) en ~$547k — diferencia fuera de tolerancia normal ($300-500k); usar total cert como payoff más actualizado.",
+    "Caja Los Andes NO aparece en el CMF → NO-CMF Art.261.",
+    "BCI (De Credito e Inversiones): 3 productos en cert vs 1 fila CMF. Multiproducto → declarar 3 filas separadas en 260.",
+    "BancoEstado: tarjeta Smart Visa 6105 al día no se declara. La línea de crédito disponible $500k en CMF es cupo no usado → ignorar.",
+    "CAR Ripley: cert no indica fecha de mora explícita; hay costos por atraso → asumir mora activa, overdue90 confirmado por CMF.",
+    "Nota elegibilidad: 4 acreedores con overdue90>0 (BCI, BancoEstado, CAR, CMR) → cumple mínimo 2 productos 90+d. Suma totalCredito de esos 4 = $7.911.253+$3.194.822+$663.238+$2.424.857 = $14.194.170 >> 80 UF (~$3.253.000) → califica."
+  ]
+}

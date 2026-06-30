@@ -1,0 +1,290 @@
+{
+  "case": "irene_arevalo",
+  "rut": "16.143.425-6",
+  "cmf_cut_date": "2025-12-05",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 60447212,
+      "overdue90Days": 286266,
+      "nota": "Fila única CMF consolida TODOS los productos BdCh. Columna 60-89d = $16.157.845; 30-59d = $1.254.068; Vigente = $42.749.033"
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2061383,
+      "overdue90Days": 0,
+      "nota": "Totalmente vigente al corte CMF"
+    }
+  ],
+
+  "doc_facts": [
+    {
+      "filename": "7984 informe deuda crédito_.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 3956039, "cita": "24-11-2025  3.658.819  152.337  0  36.004  3.956.039" }
+      ],
+      "productos": [
+        {
+          "operacion": "140161434256027984",
+          "monto": 3956039,
+          "etiqueta_monto": "Total a cancelar (Liquidación de prepago, fecha 24-11-2025)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-02",
+          "dias_mora_doc": null,
+          "cita_monto": "24-11-2025  3.658.819  152.337  0  36.004  3.956.039",
+          "cita_fecha": "Estado: Moroso; Valor Cuota: 286.266",
+          "confidence": 0.93,
+          "nota": "Crédito en Cuotas Consumo, cuota 26/36 (10 meses restantes). Saldo capital $3.658.819. Total a cancelar al 24/11 = $3.956.039 (incluye intereses vigentes $152.337 + comisión prepago $36.004). Cuota $286.266 = exactamente el overdue90Days del CMF. Estado Moroso. El doc '7984 Informacion Credito Consumo.pdf' es la versión 'Información' del mismo op (Saldo $3.148.906, Prepago $3.930.277) — la Liquidación es la autoritativa para payoff. Fecha mora estimada: 3 cuotas vencidas × 30d = ~sept 2025."
+        }
+      ]
+    },
+    {
+      "filename": "9774 Informacion credito consumo.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 40938355, "cita": "Costo Total de Prepago  40.938.355" }
+      ],
+      "productos": [
+        {
+          "operacion": "140161434256029774",
+          "monto": 40938355,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-02",
+          "dias_mora_doc": null,
+          "cita_monto": "Costo Total de Prepago  40.938.355",
+          "cita_fecha": "Número Cuota  8/60; Número de Cuotas Vencidas no Pagadas  2; Fecha Próximo Pago  02/12/2025",
+          "confidence": 0.87,
+          "nota": "Crédito consumo cuota 8/60 (53 meses restantes). Saldo del Crédito $49.353.324; Costo Total Prepago $40.938.355 (payoff). 2 cuotas vencidas no pagadas. Cuota $931.194. No hay liquidación formal — se usa Costo Total de Prepago como payoff. El Saldo del Crédito ($49.353.324) es el saldo insoluto contable; el payoff real = $40.938.355. Fecha mora aprox: cuotas 6 y 7 de 60 no pagadas; próximo pago era 02/12/2025. Mora inicio ~oct 2025."
+        }
+      ]
+    },
+    {
+      "filename": "3902 TC.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 15016802, "cita": "Utilizado:  $ 15.016.802" },
+        { "moneda": "USD", "monto": 0, "cita": "Dólares Utilizado:  USD 0,00" }
+      ],
+      "productos": [
+        {
+          "operacion": "000047577653000473902",
+          "monto": 15016802,
+          "etiqueta_monto": "Utilizado (Cupo Tarjeta de Crédito)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": null,
+          "cita_monto": "Utilizado:  $ 15.016.802",
+          "cita_fecha": "Fecha y Hora  24/11/2025 10:37 hrs.",
+          "confidence": 0.90,
+          "nota": "Constancia Cupo Tarjeta de Crédito VISA INFINITE. Cupo Aprobado = $0 (tarjeta bloqueada/cancelada), Cupo Disponible = $0. Utilizado = $15.016.802 es el saldo adeudado. No hay fecha de mora explícita en el doc; la tarjeta tiene Cupo Aprobado $0 lo que indica bloqueo por mora. Doc '3902 TC MORA 7_8.pdf' es estado anterior del mismo producto. El monto declarable es el Cupo Utilizado = $15.016.802."
+        }
+      ]
+    },
+    {
+      "filename": "4795 TC.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 558919, "cita": "Utilizado:  $ 558.919" }
+      ],
+      "productos": [
+        {
+          "operacion": "000047577650001624795",
+          "monto": 558919,
+          "etiqueta_monto": "Utilizado (Cupo Tarjeta de Crédito)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": null,
+          "cita_monto": "Utilizado:  $ 558.919",
+          "cita_fecha": "Fecha y Hora  24/11/2025 10:42 hrs.",
+          "confidence": 0.90,
+          "nota": "Constancia Cupo Tarjeta de Crédito VISA INFINITE. Cupo Aprobado $700.000, Disponible $141.081, Utilizado $558.919. Aún tiene cupo disponible — tarjeta activa. USD utilizado = $0. El monto declarable es el Cupo Utilizado = $558.919. Doc '4795 TC MORA 8_9.pdf' es estado anterior del mismo."
+        }
+      ]
+    },
+    {
+      "filename": "8130 MORA 25_11.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "otro",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 487513, "cita": "Monto Cuota Mensual  $ 487.513" }
+      ],
+      "productos": [
+        {
+          "operacion": "140067032825324138130",
+          "monto": 487513,
+          "etiqueta_monto": "Monto Cuota Mensual (portal Banco de Chile — cuota vencida)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-11-25",
+          "dias_mora_doc": null,
+          "cita_monto": "Monto Cuota Mensual  $ 487.513",
+          "cita_fecha": "Fecha de Vencimiento  25/11/2025; Nº de Cuotas  1",
+          "confidence": 0.72,
+          "nota": "Captura del portal BdCh 'Pagar mi Crédito', tab Crédito de Consumo, op terminado en 8130. Nº Cuotas = 1 (cuota vencida), Fecha Vencimiento 25/11/2025, Monto Cuota $487.513. Monto Total Cuota (con penalidades) = $543.008. Este mismo producto aparece en 'WhatsApp Image...' que es en realidad una cartola de Línea de Crédito BdCh (Nº Línea 01-140-06306-05, Monto Utilizado $487.513 al 24/11). El monto $487.513 coincide: la línea de crédito con op 8130 tiene saldo utilizado de $487.513. Es un screenshot/cartola — confianza moderada. El saldo real de la línea es $487.513."
+        }
+      ]
+    },
+    {
+      "filename": "1425  MORA 8_9.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "otro",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 14940385, "cita": "Monto Cuota Mensual  $ 14.940.385" }
+      ],
+      "productos": [
+        {
+          "operacion": "000161434256001425",
+          "monto": 14940385,
+          "etiqueta_monto": "Monto Cuota Mensual (portal BdCh — 1 cuota vencida acelerada)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-08",
+          "dias_mora_doc": null,
+          "cita_monto": "Monto Cuota Mensual  $ 14.940.385",
+          "cita_fecha": "Fecha de Vencimiento  08/09/2025; Nº de Cuotas  1",
+          "confidence": 0.65,
+          "nota": "Captura portal BdCh 'Pagar mi Crédito', Crédito de Consumo op terminado en 1425. Nº Cuotas = 1, Fecha Vencimiento 08/09/2025 (vencida desde sept 2025 — ~88 días al corte CMF 05/12/2025, justo bajo el umbral de 90d). Monto Cuota $14.940.385 es una cuota enorme → sugiere aceleración de saldo total. Monto Total Cuota con penalidades = $16.029.728. Solo captura de pantalla, sin cert formal. Confianza baja. La fecha de vencimiento 08/09 implica mora acumulada al momento del snapshot (23/12/2025 según reloj del PC)."
+        }
+      ]
+    },
+    {
+      "filename": "WhatsApp Image 2025-11-25 at 7.52.15 AM.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "cartola",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 487513, "cita": "Monto Utilizado  487.513" }
+      ],
+      "productos": [],
+      "nota": "ALERTA: Este archivo NO es un chat de WhatsApp a pesar del nombre. Es una cartola de Línea de Crédito BdCh (Nº Línea 01-140-06306-05, Moneda Pesos CLP, Saldo al 24/11/2025 10:44 Hrs). Monto Autorizado $500.000, Saldo Disponible $12.487, Monto Utilizado $487.513. Movimientos: transacciones 'Transferencia Desde Línea De Crédito' y 'Amortizacion A Linea De Credito'. El monto utilizado $487.513 corresponde al mismo op 8130 (línea de crédito). Productos vacíos: este doc corrobora el monto de op 8130 pero no es un cert autoritativo adicional."
+    },
+    {
+      "filename": "Certificado de deuda.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97036000-K",
+      "emisor_nombre": "Banco Santander-Chile",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 2055633, "cita": "Sdo. Total  $ 2.055.633" }
+      ],
+      "productos": [
+        {
+          "operacion": "800063380139",
+          "monto": 2055633,
+          "etiqueta_monto": "Sdo. Total (Saldo Total certificado al 28/11/2025)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": null,
+          "cita_monto": "Sdo. Total  $ 2.055.633",
+          "cita_fecha": "Al cierre del 28/11/2025; Fecha Otorg: 17/03/2025; Fecha Venc: 31/03/2030",
+          "confidence": 0.92,
+          "nota": "Certificado de deuda Santander al 28/11/2025. Tipo: Tarjeta de crédito. Llave Op 800063380139. Mto Otorg $1.341.926, Sdo. Vigente $2.016.942, Int.Mora $0, Sdo. Mora $0, Sdo. Castigado $0, Sdo. Total $2.055.633. Sin mora — vigente. Coincide con CMF (overdue90Days=0). El estado de cuenta '1702 11_25.pdf' muestra Cupo Utilizado $2.048.732 / Costo Monetario Prepago $2.048.732 — el cert es más autoritativo (firmado). Pequeña diferencia ($2.055.633 vs $2.048.732) normal por fecha de corte distinta (28/11 vs 24/11)."
+        }
+      ]
+    },
+    {
+      "filename": "1702 11_25.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97036000-K",
+      "emisor_nombre": "Banco Santander-Chile",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 2048732, "cita": "COSTO MONETARIO PREPAGO  $ 2.048.732" }
+      ],
+      "productos": [],
+      "nota": "Estado de cuenta tarjeta VISA PLATINUM LATAM *1702, período 22/10-24/11/2025. Cupo Utilizado $2.048.732. Monto Total Facturado $1.520.685. Costo Monetario Prepago $2.048.732. El cert firmado 'Certificado de deuda.pdf' es el doc autoritativo — este estado de cuenta es secundario. Productos vacíos: el producto ya está declarado en el cert. La tarjeta está vigente (sin mora al 90+d en CMF)."
+    }
+  ],
+
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 3956039,
+      "art": 260,
+      "cmf": true,
+      "doc": "7984 informe deuda crédito_.pdf",
+      "nota": "Op 7984 — crédito consumo cuota 26/36. Estado Moroso. Cuota $286.266 = exactamente la columna overdue90Days del CMF para BdCh. Liquidación de prepago 24/11/2025 es el cert autoritativo. Tiene vencimiento acreditable (Estado: Moroso; cuotas vencidas desde ~sept 2025). Art. 260 declarable con monto $3.956.039 y fecha mora ~sept 2025."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 40938355,
+      "art": 261,
+      "cmf": true,
+      "doc": "9774 Informacion credito consumo.pdf",
+      "nota": "Op 9774 — consumo cuota 8/60. 2 cuotas vencidas no pagadas al 24/11. Al corte CMF 05/12, la mora acumulada cae en la columna 60-89d ($16.157.845) — no supera el umbral de 90d en CMF. Sin acreditar vencimiento ≥91d → Art. 261. Payoff: Costo Total Prepago $40.938.355. ALERTA: si el abogado puede demostrar 91+d al momento de la presentación (distinto del corte CMF), podría recalificarse a 260."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 15016802,
+      "art": 261,
+      "cmf": true,
+      "doc": "3902 TC.pdf",
+      "nota": "Op 3902 — tarjeta VISA INFINITE, Cupo Aprobado $0 (bloqueada), Utilizado $15.016.802. El CMF consolida en la fila BdCh pero sin información de 90+d atribuible a este producto específicamente. Sin cert de vencimiento explícito → Art. 261. Monto = Cupo Utilizado $15.016.802."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 558919,
+      "art": 261,
+      "cmf": true,
+      "doc": "4795 TC.pdf",
+      "nota": "Op 4795 — tarjeta VISA INFINITE, Cupo Aprobado $700.000, Utilizado $558.919. Tarjeta activa. Sin mora acreditable en 90+d → Art. 261. Monto = Cupo Utilizado $558.919."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 487513,
+      "art": 261,
+      "cmf": true,
+      "doc": "8130 MORA 25_11.pdf",
+      "nota": "Op 8130 — línea de crédito, saldo utilizado $487.513 (corroborado por cartola WhatsApp Image). Vencimiento 25/11/2025 al momento del screenshot (23/12/2025) = ~28 días de mora al screenshot, sin llegar a 90d. Art. 261. Confianza moderada (screenshot, sin cert formal)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 14940385,
+      "art": 261,
+      "cmf": true,
+      "doc": "1425  MORA 8_9.pdf",
+      "nota": "Op 1425 — crédito consumo, cuota $14.940.385 vencida el 08/09/2025. Al corte CMF 05/12 son ~88 días (justo bajo 90d). Sin un cert formal (solo captura portal). Sin vencimiento acreditable formal → Art. 261. Monto declarable según captura: $14.940.385. ALERTA: needs_lawyer_confirmation = true (solo screenshot, monto enorme, sin cert formal)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 2055633,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado de deuda.pdf",
+      "nota": "Op 800063380139 — tarjeta VISA PLATINUM LATAM *1702. Vigente, overdue90Days = 0. Art. 261. Monto Sdo. Total = $2.055.633."
+    }
+  ],
+
+  "ground_truth_source": "derivado",
+
+  "reading_notes": [
+    "CMF (15/12/2025, datos al 05/12/2025): 2 filas de deuda directa. BdCh consolida TODOS sus productos en una sola fila 'Consumo' — son al menos 6 productos distintos. Santander: 1 tarjeta vigente.",
+    "El archivo 'WhatsApp Image 2025-11-25 at 7.52.15 AM.pdf' NO es un chat: es una cartola de Línea de Crédito BdCh (op 8130, Nº 01-140-06306-05, Utilizado $487.513). Mal nombre de archivo.",
+    "Op 7984 aparece en DOS docs con mismo número de operación: 'Informacion Credito Consumo' (Saldo $3.148.906, Prepago $3.930.277) y 'Liquidación de prepago crédito' (Saldo capital $3.658.819, Total a cancelar $3.956.039). La Liquidación es la autoritativa para payoff. La diferencia de saldo ($3.148.906 vs $3.658.819) sugiere que la 'Información' usa saldo contable y la Liquidación incluye cuotas vencidas no capitalizadas. Se usa Liquidación.",
+    "Op 1425 y 8130 solo tienen capturas de pantalla del portal BdCh — no hay certs formales. Confianza reducida. Necesitan certs formales para declaración robusta.",
+    "Reconciliación BdCh (aproximada): Op 1425 ($14.9M) + Op 9774 payoff ($40.9M) + Op 3902 TC ($15M) + Op 7984 ($3.9M) + Op 4795 TC ($559k) + Op 8130 ($488k) ≈ $75.7M — supera el CMF total de $60.4M. El CMF usa saldos contables distintos al payoff. El saldo contable de op 9774 = $49.3M (vs payoff $40.9M); de op 7984 = $3.1M (vs liquidación $3.6M). Ajustando: $14.9M + $49.3M + $15M + $3.1M + $559k + $488k ≈ $83.3M, aún superior. Probable que op 1425 no sea un producto adicional sino que su 'cuota de $14.9M' sea la cuota vencida de op 9774 acelerada — REVISAR con abogado.",
+    "ALERTA CRÍTICA: La suma de los saldos de todos los productos BdCh identificados supera ampliamente el total CMF de $60.4M. Posible explicación: op 1425 podría ser el mismo crédito que op 9774 con aceleración del saldo, o un producto ya castigado/renegociado que el CMF no muestra completo. Requiere verificación con Banco de Chile.",
+    "Santander: el estado de cuenta '1702 11_25.pdf' muestra cuotas de compras en cuotas vigentes (LATAM.COM $105.609/cuota, MAH QUE COZZA $41.360/cuota). El Cupo Utilizado $2.048.732 incluye rotativo y cuotas en curso. El cert firmado muestra Sdo. Total $2.055.633 — usar el cert.",
+    "Elegibilidad Art. 260: solo op 7984 tiene overdue90Days en CMF ($286.266 = exactamente la cuota de ese producto). El resto de BdCh está en la banda 60-89d al corte. Santander = 0. → Solo 1 producto en Art. 260 según CMF. Si el abogado puede demostrar 91+d para op 1425 (vencimiento 08/09/2025 → a la fecha de presentación serán ~300+ días), podría sumar un segundo 260 y facilitar la elegibilidad de sesión.",
+    "RUT emisor BdCh no aparece explícitamente en los docs leídos (97004000-5 es el RUT conocido del catálogo). RUT Santander (97036000-K) no aparece explícitamente en el cert leído — solo el logo y firma."
+  ]
+}

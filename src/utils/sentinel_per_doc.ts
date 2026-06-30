@@ -19,6 +19,7 @@ import {
   matchAcreedor,
   normalizeRut,
 } from './acreedor_matcher';
+import { normalizeOperationId } from './cert_line_items';
 
 // --- Tipos de extracción (lo único que devuelve el LLM, por documento) ---
 
@@ -103,7 +104,14 @@ CÓMO LEER EL MONTO (reglas generales):
 - MONEDA: si los montos están en UF (hipotecario suele estar en UF) pon moneda="UF" y el monto en UF; si en pesos, moneda="CLP".
 - Un comprobante de PAGO NUNCA significa deuda $0: la deuda se prueba con saldo, no con un pago.
 - Sé HONESTO con "confidence": escaneo borroso/tabla ambigua → baja (<0.70); texto nítido → alta. NUNCA inventes un monto; si no lo lees con certeza, baja la confianza.
-- "cita_monto" debe ser el fragmento TEXTUAL del documento (no tu razonamiento).`;
+- "cita_monto" debe ser el fragmento TEXTUAL del documento (no tu razonamiento).
+
+REGLAS ESPECÍFICAS (validadas en casos reales — evitan errores de lectura frecuentes):
+- TARJETA DE CRÉDITO / CASA COMERCIAL (CMR, CAT/Cencosud, Ripley, etc.): el payoff de la tarjeta es UN solo número, el "COSTO MONETARIO PREPAGO" (o "Costo Total del Prepago"). Es UN producto. La tabla de operaciones del detalle ("Super Avance", "compras en cuotas", avances) son COMPONENTES de esa misma tarjeta, NO productos separados → NO los reportes uno por uno. Tampoco uses el "Monto Total Facturado a Pagar"/"Monto Mínimo" (esos son la cuota del MES, no el saldo total). Una tarjeta = un item con su "COSTO MONETARIO PREPAGO".
+- CAPTURA DE PANTALLA DEL PORTAL BANCARIO (home "Mis Productos", detalle de una cuenta/tarjeta) que muestra "Cupo utilizado / Saldo utilizado / Saldo adeudado / Monto adeudado" → SÍ acredita el saldo: reporta el producto con ese monto. NO la trates como "chat" aunque el archivo se llame "WhatsApp"/"captura": doc_type="chat" es SOLO una conversación entre personas (mensajes), que aporta fecha pero no monto. Clasifica por el CONTENIDO, no por el nombre del archivo.
+- REPORTE DE DEUDA CON COLUMNA EN PESOS Y EN UF: si el documento trae el saldo YA convertido a pesos (columna "Saldo Actual $", "Saldo $", "Capital $"), usá ESE valor en CLP directamente (moneda="CLP") — NO lo re-conviertas desde la UF. Solo si el saldo está EXPRESADO en UF (sin columna en pesos) reportá moneda="UF" con la cifra UF.
+- FORMATO NUMÉRICO CHILENO: el punto "." es separador de MILES y la coma "," es DECIMAL. "2.243,9113 UF" = 2243,9113 UF (≈ $88,9M a $39.643/UF), NO 22.439.113. "$1.407.530" = un millón cuatrocientos mil. No confundas el separador de miles con el decimal (un error infla la cifra ×1000 o más).
+- UN PRODUCTO POR OPERACIÓN/TARJETA, AUNQUE APAREZCA EN VARIOS DOCUMENTOS: si el mismo crédito/tarjeta (mismo Nº de operación o mismos 4 últimos dígitos) aparece en varios archivos (estado de cuenta mensual + pantallazo de mora + certificado de liquidación), reportalo UNA sola vez, usando el documento más autoritativo (certificado/liquidación/constancia o el estado de cuenta más reciente). Los documentos de "mora"/mensuales solo aportan la FECHA de mora, no un producto nuevo.`;
 }
 
 /**
@@ -304,7 +312,7 @@ export function assembleRawFromDocFacts(
   }
 
   // Producto enriquecido con su origen
-  interface PP { p: DocProduct; clp: number; filename: string; bankName: string; rutEmisor?: string; }
+  interface PP { p: DocProduct; clp: number; filename: string; bankName: string; bankKey: string; rutEmisor?: string; inCmf: boolean; docType: DocType; }
 
   // Repartir los productos extraídos: por banco del CMF (in-CMF) vs NO-CMF (additionalCreditors)
   const productsByBank = new Map<string, PP[]>();
@@ -314,35 +322,72 @@ export function assembleRawFromDocFacts(
   const cmf260DirectOverrides: any[] = [];
   const banksWithGlobalSummary = new Set<string>();
 
+  // 1) Reunir TODOS los productos (descartando montos no positivos: nunca declarar $0 — G2).
+  const gathered: PP[] = [];
   for (const facts of factsList) {
     const bankName = facts.institucion_asignada || facts.emisor_nombre || '';
     const bankKey = canonicalInstitutionKey(bankName);
     if (facts.doc_type === 'resumen_global' && bankKey) banksWithGlobalSummary.add(bankKey);
     if (PRODUCTLESS_TYPES.includes(facts.doc_type) || facts.productos.length === 0) continue;
-
     const inCmf = issuerInCmf(facts, facts.institucion_asignada ?? null, cmfKeys, cmfRutSet, catalog, clientRut);
     for (const p of facts.productos) {
-      const pp: PP = { p, clp: toClp(p), filename: facts.filename, bankName, rutEmisor: facts.rut_emisor };
-      if (inCmf && bankKey) {
-        if (!productsByBank.has(bankKey)) productsByBank.set(bankKey, []);
-        productsByBank.get(bankKey)!.push(pp);
-      } else {
-        // NO-CMF: 260 si mora ≥91d acreditable; 261 si no
-        const moraDays = p.fecha_mora ? daysBetween(p.fecha_mora, todayStr) : null;
-        const is260 = moraDays !== null && moraDays >= 91;
-        additionalCreditors.push({
-          bank: bankName, institucion_cmf: bankName,
-          product_type: productTypeOf(p.etiqueta_monto, p.moneda),
-          categoria_articulo: is260 ? 260 : 261,
-          total_credito_clp: pp.clp,
-          delinquency_start_date: is260 ? p.fecha_mora : undefined,
-          delinquency_days: is260 ? moraDays! : undefined,
-          reason: `NO-CMF (emisor no figura en el CMF). doc_type=${facts.doc_type}. ${p.etiqueta_monto}`,
-          document_filename: facts.filename,
-          needs_lawyer_confirmation: true,
-          evidence: mkEvidence(p, facts.rut_emisor),
-        });
-      }
+      const clp = toClp(p);
+      if (!(clp > 0)) continue; // $0 / negativo → no es un producto a declarar
+      gathered.push({ p, clp, filename: facts.filename, bankName, bankKey, rutEmisor: facts.rut_emisor, inCmf, docType: facts.doc_type });
+    }
+  }
+
+  // 2) Dedup por (banco canónico + Nº de operación normalizado): el MISMO producto puede venir
+  //    de varios documentos (estado de cuenta mensual + pantallazo de mora + certificado de
+  //    liquidación) → sin esto, cada doc se vuelve un "producto" y el banco se sobre-declara
+  //    (ej. Itaú op 60451478 en 3 docs, BdCh op 20933 en 2). Se conserva UN producto por
+  //    operación: prioridad liquidacion_payoff > desglose_por_producto > estado_cuenta, luego
+  //    mayor confianza, luego mayor monto; y se hereda la fecha_mora de cualquiera del grupo
+  //    (un doc puede traer el monto y otro la fecha). Productos SIN operación no se deduplican
+  //    (no hay clave fiable; un banco con 2 créditos de monto similar son 2 productos reales).
+  const docTypeScore = (t: DocType): number => (t === 'liquidacion_payoff' ? 3 : t === 'desglose_por_producto' ? 2 : t === 'estado_cuenta' ? 1 : 0);
+  const better = (a: PP, b: PP): PP => {
+    const sa = docTypeScore(a.docType), sb = docTypeScore(b.docType);
+    if (sa !== sb) return sa > sb ? a : b;
+    const ca = a.p.confidence ?? 0, cb = b.p.confidence ?? 0;
+    if (Math.abs(ca - cb) > 0.001) return ca > cb ? a : b;
+    return a.clp >= b.clp ? a : b;
+  };
+  const byOp = new Map<string, PP>();
+  const products: PP[] = [];
+  for (const pp of gathered) {
+    const op = normalizeOperationId(pp.p.operacion);
+    if (!op) { products.push(pp); continue; }
+    const key = `${pp.bankKey}|${op}`;
+    const prev = byOp.get(key);
+    if (!prev) { byOp.set(key, pp); products.push(pp); continue; }
+    const win = better(prev, pp), lose = win === prev ? pp : prev;
+    if (!win.p.fecha_mora && lose.p.fecha_mora) win.p.fecha_mora = lose.p.fecha_mora; // heredar fecha
+    if (win !== prev) { byOp.set(key, win); const i = products.indexOf(prev); if (i >= 0) products[i] = win; }
+    log(`🧹 Dedup por operación: ${pp.bankName} op ${op} aparece en ${lose.filename} y ${win.filename} → se conserva 1 ($${win.clp.toLocaleString('es-CL')}).`);
+  }
+
+  // 3) Rutear: in-CMF → pool por banco; NO-CMF → additionalCreditors (260 si mora ≥91d, si no 261).
+  for (const pp of products) {
+    const { p, bankKey, inCmf } = pp;
+    if (inCmf && bankKey) {
+      if (!productsByBank.has(bankKey)) productsByBank.set(bankKey, []);
+      productsByBank.get(bankKey)!.push(pp);
+    } else {
+      const moraDays = p.fecha_mora ? daysBetween(p.fecha_mora, todayStr) : null;
+      const is260 = moraDays !== null && moraDays >= 91;
+      additionalCreditors.push({
+        bank: pp.bankName, institucion_cmf: pp.bankName,
+        product_type: productTypeOf(p.etiqueta_monto, p.moneda),
+        categoria_articulo: is260 ? 260 : 261,
+        total_credito_clp: pp.clp,
+        delinquency_start_date: is260 ? p.fecha_mora : undefined,
+        delinquency_days: is260 ? moraDays! : undefined,
+        reason: `NO-CMF (emisor no figura en el CMF). doc_type=${pp.docType}. ${p.etiqueta_monto}`,
+        document_filename: pp.filename,
+        needs_lawyer_confirmation: true,
+        evidence: mkEvidence(p, pp.rutEmisor),
+      });
     }
   }
 

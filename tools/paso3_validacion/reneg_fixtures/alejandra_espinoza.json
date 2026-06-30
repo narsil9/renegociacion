@@ -1,0 +1,151 @@
+{
+  "case": "alejandra_espinoza",
+  "rut": "18.738.680-2",
+  "cmf_cut_date": "2025-12-19",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 3125486,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 11228194,
+      "overdue90Days": 298666
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1758145,
+      "overdue90Days": 20896
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Diciembre_2025_EECC.pdf",
+      "institucion_asignada": "CAT (ex CENCOSUD)",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        {
+          "operacion": "tarjeta CAT",
+          "monto": 11275392,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-25",
+          "cita_monto": "Costo Monetario Prepago: 11.275.392",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "Diciembre_2025_CMR.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        {
+          "operacion": "*7865",
+          "monto": 1795257,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-25",
+          "cita_monto": "Costo Monetario Prepago: 1.795.257",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "consultaCredito DE CONSUMO.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        {
+          "operacion": "495187386802035050",
+          "monto": 952815,
+          "etiqueta_monto": "Saldo crédito de consumo",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo crédito de consumo: 952.815",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "productos": [
+        {
+          "operacion": "***8084",
+          "monto": 1407530,
+          "etiqueta_monto": "Saldo liquidación tarjeta Entel Visa",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo liquidación tarjeta Entel Visa: 1.407.530",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "***4870",
+          "monto": 517442,
+          "etiqueta_monto": "Saldo liquidación tarjeta Platinum",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo liquidación tarjeta Platinum: 517.442",
+          "confidence": 0.92
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "monto": 11275392,
+      "art": 260,
+      "cmf": true,
+      "doc": "Diciembre_2025_EECC.pdf",
+      "nota": "overdue90Days $298.666 en CMF. Documento: EECC diciembre 2025. Monto declarar: Costo Monetario Prepago $11.275.392 (más actualizado que CMF $11.228.194). Fecha mora: primera cuota atrasada pendiente de verificar exactamente — el EECC noviembre muestra mora desde agosto, pero CAT no lo indica tan claramente. Necesita certificado de deuda formal (no solo EECC) para acreditar vencimiento inequívoco."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1795257,
+      "art": 260,
+      "cmf": true,
+      "doc": "Diciembre_2025_CMR.pdf",
+      "nota": "overdue90Days $20.896 en CMF (cuota de agosto 2025). Monto declarar: Costo Monetario Prepago $1.795.257. Fecha mora: 2025-08-25 (primera cuota impaga según aviso de cobranza). Documento acredita monto y vencimiento."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 3125486,
+      "art": 261,
+      "cmf": true,
+      "doc": "consultaCredito DE CONSUMO.pdf + CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf",
+      "nota": "overdue90Days = $0. El CMF consolida todo BdCh bajo un solo registro $3.125.486. La carpeta contiene: crédito consumo (consulta cuotas, al día), tarjeta ***8084 ($1.407.530, al día), tarjeta ***4870 ($517.442, al día). La fila del CMF probablemente corresponde solo al crédito de consumo (el CMF dice 'Consumo'). Las 2 tarjetas NO aparecen en el CMF → son productos adicionales BdCh. Clasificación compuesta: crédito consumo → Art.261 CMF. Tarjetas → Art.261 NO-CMF (mismo banco)."
+    },
+    {
+      "institucion": "Banco de Chile (Tarjeta Entel Visa ***8084)",
+      "monto": 1407530,
+      "art": 261,
+      "cmf": false,
+      "doc": "CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf",
+      "nota": "NO-CMF: producto de Banco de Chile no reportado en CMF. Al día. Monto según Certificado de Liquidación: $1.407.530. Art.261 (sin mora)."
+    },
+    {
+      "institucion": "Banco de Chile (Tarjeta Platinum ***4870)",
+      "monto": 517442,
+      "art": 261,
+      "cmf": false,
+      "doc": "CPF-1767634532-649919-cl-REDBANC-ICL 6.pdf",
+      "nota": "NO-CMF: producto de Banco de Chile no reportado en CMF. Al día. Monto según Certificado de Liquidación: $517.442. Art.261 (sin mora)."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "SIN analisis_deudas.md: no hay verdad-terreno del abogado. La expected_declaration es derivada del Centinela.",
+    "CASO BANCO DE CHILE MULTIPRODUCTO: el CMF registra UNA sola fila 'Banco de Chile Consumo' por $3.125.486. Pero la carpeta muestra 3 productos: (1) crédito de consumo al día, (2) tarjeta Entel Visa $1.407.530, (3) tarjeta Platinum $517.442. Las 2 tarjetas NO aparecen en el CMF → son NO-CMF del mismo banco. El CMF casi seguramente solo captó el crédito de consumo.",
+    "CENCOSUD MULTIPRODUCTO: el EECC de diciembre lista 3 Super Avances separados (cuotas 9/48, 6/36 y 16/48) en 2 números de tarjeta distintos (***1741 y ***6580). El CMF los consolida en un único registro $11.228.194. El Costo Monetario Prepago del EECC es $11.275.392, consistente. No hay certificado de deuda formal de CAT — solo estados de cuenta.",
+    "CMR FALABELLA: el 'Costo Monetario Prepago' ($1.795.257) supera el totalCredito CMF ($1.758.145) en ~$37k, dentro de tolerancia. La fecha de mora es claramente 25-agosto-2025 (primera cuota impaga). Documento es EECC mensual, no certificado formal.",
+    "ELEGIBILIDAD 90+d: solo CAT ($298.666) supera claramente 90 días de mora. CMR Falabella tiene $20.896 en 90+d (cuota de agosto 2025 al corte del 19/12/2025 = ~116 días). Banco de Chile sin mora. Solo 2 instituciones con 90+d (CAT + CMR) → cumple el mínimo de 2 productos para Art.260.",
+    "DOCUMENTOS AUTORITATIVOS FALTANTES: CAT no tiene certificado de deuda formal (solo EECC). Para Art.260 se necesita acreditar vencimiento inequívoco — el aviso de cobranza en el EECC de CAT es débil. CMR tampoco tiene certificado formal, pero el aviso de cobranza es más explícito. El Certificado de Liquidación de BdCh (Redbanc) es el más sólido de todos."
+  ]
+}

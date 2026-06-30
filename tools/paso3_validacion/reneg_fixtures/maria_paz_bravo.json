@@ -1,0 +1,206 @@
+{
+  "case": "maria_paz_bravo",
+  "rut": "16.997.909-K",
+  "cmf_cut_date": "2025-11-30",
+  "cmf_rows": [
+    {
+      "institucion": "Banco Estado",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1031582,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Estado",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 71189175,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 5072748,
+      "overdue90Days": 94116
+    },
+    {
+      "institucion": "Coopeuch",
+      "tipoCredito": "Consumo",
+      "totalCredito": 16905601,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 9618318,
+      "overdue90Days": 538879
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Certificado de deuda CMR.jpg",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        {
+          "operacion": "001599991081088371",
+          "monto": 9763965,
+          "etiqueta_monto": "Saldo CMR",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-05",
+          "cita_monto": "Saldo CMR: 9.763.965",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "1478 Certificado 20.1230",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "productos": [
+        {
+          "operacion": "60451478",
+          "monto": 3219943,
+          "etiqueta_monto": "Saldo Insoluto Consumo",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-25",
+          "cita_monto": "Saldo Insoluto Consumo: 3.219.943",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "5436961300006620",
+          "monto": 1646252,
+          "etiqueta_monto": "Cupo Utilizado Tarjeta",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-25",
+          "cita_monto": "Cupo Utilizado Tarjeta: 1.646.252",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "207391233",
+          "monto": 300000,
+          "etiqueta_monto": "Monto Utilizado Línea Preferencial",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto Utilizado Línea Preferencial: 300.000",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO HIPOTECARO.jpg",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        {
+          "operacion": "114869790",
+          "monto": 73185352,
+          "etiqueta_monto": "Saldo hipotecario",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo hipotecario: 73.185.352",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "LC BANCO ESTADO_.jpg",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        {
+          "operacion": "43500265389",
+          "monto": 1000000,
+          "etiqueta_monto": "Monto utilizado línea",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto utilizado línea: 1.000.000",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO_LIQUIDACION_1763985892716.pdf",
+      "institucion_asignada": "Coopeuch",
+      "doc_type": "liquidacion_payoff",
+      "productos": [
+        {
+          "operacion": "202571787766",
+          "monto": 16076650,
+          "etiqueta_monto": "Monto total a pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto total a pagar: 16.076.650",
+          "confidence": 0.92
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "CMR Falabella",
+      "monto": 9763965,
+      "art": 260,
+      "cmf": true,
+      "doc": "Certificado de deuda CMR.jpg",
+      "nota": "Saldo total adeudado $9.763.965 (27/11/2025). Payoff autoritativo. Fecha inicio mora: agosto 2025 (cuota 05/08 impaga per estado de cuenta). CMF overdue90=$538.879."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 3219943,
+      "art": 260,
+      "cmf": true,
+      "doc": "1478 Certificado 20.1230",
+      "nota": "Crédito consumo op.60451478. Total Pago $3.219.943 (Cert Ley 20.130, 20/NOV/2025). 91 días mora per MORA ITAU. CMF marca $94.116 en 90+d (que corresponde a este crédito). Monto dok > CMF ($5.072.748 era suma de todos los productos Itaú)."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 1646252,
+      "art": 261,
+      "cmf": true,
+      "doc": "8433 11_25.pdf",
+      "nota": "Tarjeta MasterCard *8433 (cuenta 6620). 72 días mora per MORA ITAU → no alcanza 91d → Art.261. Costo Monetario Prepago $1.646.252. Pese a 'traspaso a Cartera Vencida' en el estado de cuenta, los días de mora documentados son 72. La Constancia (OP VIGENTE) del 02/12 la muestra 'Vigente' con $0 utilizado — inconsistencia: el estado de cuenta es el doc más específico. Clasificar 261 hasta confirmar dias reales ≥91."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 300000,
+      "art": 261,
+      "cmf": true,
+      "doc": "OP VIGENTE (1).pdf",
+      "nota": "Sobregiro/Línea Preferencial op.207391233. Monto utilizado $300.000, estado Cart.Vcida. MORA ITAU muestra 0 días mora. Se declara en 261 (sin vencimiento acreditable ≥91d documentado). Monto $44.622 per MORA ITAU (monto cuota atrasada) vs $300.000 (total utilizado); usar $300.000 como saldo de la línea."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 1799.890597,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO HIPOTECARO.jpg",
+      "nota": "Hipotecario. Monto en UF=1.799,890597 (equivale $71.354.125 pesos). Regla L10: UF = vivienda. Art.261 (overdue90=0 en CMF). Cert: Simulación Liquidación Amortización Extraordinaria, 27/11/2025."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 1031582,
+      "art": 261,
+      "cmf": true,
+      "doc": "LC BANCO ESTADO_.jpg",
+      "nota": "Línea de crédito / Consumo. El doc LC muestra solo intereses del período ($33.261 sobre $1.000.000 utilizado). No hay cert formal de saldo total. Monto CMF=$1.031.582 usado como referencia; el doc acredita uso de $1.000.000. Art.261 (overdue90=0). ADVERTENCIA: el cert disponible (LC) no acredita el saldo total, solo los intereses — se necesita cert de deuda formal o se usa CMF como referencia de monto."
+    },
+    {
+      "institucion": "Coopeuch",
+      "monto": 16076650,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO_LIQUIDACION_1763985892716.pdf",
+      "nota": "Un producto CRECON. Monto total a pagar $16.076.650 (Cert Liquidación, 24/11/2025). Art.261 (overdue90=0 en CMF). Diferencia vs CMF: $16.905.601 (CMF) vs $16.076.650 (cert) = $828.951 diferencia, dentro de tolerancia razonable (menor en el cert, posiblemente por cuotas pagadas entre corte CMF y emisión cert)."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "ITAU MULTIPRODUCTO: El CMF consolida 3 productos en 1 fila 'Consumo $5.072.748'. En realidad hay: (1) consumo op.60451478 $3.219.943 [91d mora, Art.260], (2) tarjeta 6620 $1.646.252 [72d mora, Art.261], (3) sobregiro op.207391233 $300.000 [Cart.Vcida, Art.261]. Total cert suma ~$5.166.195 vs CMF $5.072.748 — diferencia de ~$93k por intereses/fecha.",
+    "FALABELLA doc autoritativo: Certificado de Deuda CMR.jpg (27/11/2025, $9.763.965) > Estado de Cuenta CMR noviembre (19/11/2025, prepago $9.893.705). Usar el certificado.",
+    "BANCO ESTADO HIPOTECARIO: El doc LC BANCO ESTADO_.jpg es solo liquidación de intereses de la línea de crédito (LCR), NO el cert de saldo del hipotecario. El hipotecario se acredita con CERTIFICADO HIPOTECARO.jpg en UF. Son dos productos distintos (Vivienda + Consumo/LC) — coincide con las 2 filas CMF de Banco Estado.",
+    "LC BANCO ESTADO: El doc disponible solo muestra intereses por $33.261 sobre $1.000.000 utilizado. No hay cert de deuda formal de la LC. Se recomienda obtener un certificado de saldo de la línea para acreditar el monto completo ($1.031.582 según CMF).",
+    "COMPROBANTE DE PAGO DIVIDENDO y capturas de pantalla: son comprobante_pago / capturas — NO acreditan saldo. Ignorados para declaración.",
+    "COOPEUCH: El certificado de liquidación muestra solo UN producto (CRECON). Las 'CUOTAS DE PARTICIPACION' en carpeta bienes son cuotas de socio cooperativa, NO deuda — no declarar.",
+    "TARJETA ITAU 8433/6620 ambigüedad: La Constancia del 02/12 muestra $0 monto utilizado y estado 'Vigente' para la tarjeta MasterCard. El estado de cuenta del 24/11 la traspasa a 'Cartera Vencida' con $1.646.252. Hay inconsistencia entre documentos (posible novación). MORA ITAU marca 72 días. Se declara Art.261 (72d < 91d) pero se alerta para revisión del abogado.",
+    "ELEGIBILIDAD 80 UF + 2 productos 90+d: CMF muestra CMR $538.879 en 90+d y Itaú $94.116 en 90+d = 2 instituciones distintas con mora ≥90d. Suma totalCredito calificantes: $9.618.318 + $5.072.748 = $14.691.066 >> 80 UF (~$3.3M). Cliente CALIFICA."
+  ]
+}

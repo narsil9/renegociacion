@@ -1,0 +1,295 @@
+{
+  "case": "cinthia_rodriguez",
+  "rut": "24.950.897-7",
+  "cmf_cut_date": "2025-11-28",
+  "cmf_rows": [
+    {
+      "institucion": "Banco Estado",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1290159,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1647930,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 6783469,
+      "overdue90Days": 556057
+    },
+    {
+      "institucion": "PRESTO LIDER",
+      "tipoCredito": "Consumo",
+      "totalCredito": 646166,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2558037,
+      "overdue90Days": 324886
+    },
+    {
+      "institucion": "Solventa Tarjetas",
+      "tipoCredito": "Consumo",
+      "totalCredito": 300810,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "CAR Ripley Cinthia.pdf",
+      "institucion_asignada": "CAR S.A. (Tarjeta Ripley)",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "no visible en documento",
+      "emisor_nombre": "CAR S.A.",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "Tarjeta Ripley MASTERCARD CLASICA CHIP 5490********6354",
+          "monto": 1631468,
+          "etiqueta_monto": "TOTAL",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Capital $ 1.598.738 Intereses $ 11.755 Gastos de Cobranza $ 20.975 TOTAL 1.631.468",
+          "cita_fecha": "",
+          "confidence": 0.97
+        }
+      ]
+    },
+    {
+      "filename": "LC Banco Estado.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "cartola",
+      "rut_emisor": "no visible",
+      "emisor_nombre": "Banco Estado",
+      "totales_por_moneda": [],
+      "productos": [],
+      "reading_notes": "Screenshot del portal web de Banco Estado (no certificado). Muestra Cuenta Corriente 34200009322 con $15 disponible y Línea de Crédito 34200009331 con $30.211 disponible / $319.789 usado. No constituye certificado de deuda. El CMF refleja solo consumo $1.290.159 sin línea de crédito separada — la línea está en 'Créditos disponibles' del CMF ($216.859 no utilizado). No acredita deuda para el Paso 3."
+    },
+    {
+      "filename": "Certificado de Deuda.pdf",
+      "institucion_asignada": "Banco Falabella",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "no visible en documento",
+      "emisor_nombre": "Banco Falabella",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "00153001108108138619",
+          "monto": 2570928,
+          "etiqueta_monto": "Deuda Capital",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Deuda Capital : $ 2.570.928",
+          "cita_fecha": "Estado Operación • Vigente - Al día",
+          "confidence": 0.95
+        }
+      ],
+      "reading_notes": "Certificado de Banco Falabella (Tarjeta Mastercard Elite). Banco Falabella NO aparece en el CMF de Cinthia. Este es un acreedor NO-CMF. El cert dice 'Vigente - Al día' por lo que se clasifica Art.261."
+    },
+    {
+      "filename": "Certificado de deuda cinthia.pdf",
+      "institucion_asignada": "Solventa Tarjetas S.A.",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "96.776.000-5",
+      "emisor_nombre": "Solventa Tarjetas Sociedad Anónima",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "Tarjeta de Crédito Cruz Verde",
+          "monto": 284324,
+          "etiqueta_monto": "suma adeudada",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "adeuda a mi representada la suma de $284.324",
+          "cita_fecha": "Santiago, 28 de Noviembre de 2025",
+          "confidence": 0.97
+        }
+      ]
+    },
+    {
+      "filename": "cert_deuda_249508977_202510281424.pdf",
+      "institucion_asignada": "CAT Administradora de Tarjetas S.A. (Cencosud Scotiabank)",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "99.500.840-8",
+      "emisor_nombre": "Cencosud Administradora de Tarjetas",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "Tarjeta xxxx xxxx xxxx 1940",
+          "monto": 0,
+          "etiqueta_monto": "Saldo Deuda Pesos",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Saldo Deuda Pesos: $0.- Situacion Deuda: No vigente",
+          "cita_fecha": "Fecha Emisión Certificado: 28 de octubre de 2025",
+          "confidence": 0.99
+        },
+        {
+          "operacion": "Tarjeta xxxx xxxx xxxx 3105",
+          "monto": 6553197,
+          "etiqueta_monto": "Saldo Deuda Pesos",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Saldo Deuda Pesos: $6.553.197.- Situacion Deuda: Vigente",
+          "cita_fecha": "Fecha Emisión Certificado: 28 de octubre de 2025",
+          "confidence": 0.97
+        }
+      ],
+      "reading_notes": "Dos tarjetas: 1940 con $0 (no vigente, ignorar); 3105 con $6.553.197 vigente. El CMF reporta CAT con 90+d $556.057 y total $6.783.469. El cert es de octubre 2025 (1 mes antes del CMF), diferencia razonable. Producto CMF overdue90Days=$556.057 → cert acredita monto pero NO informa fecha/días específicos de mora → vencimiento a verificar."
+    },
+    {
+      "filename": "249508977 CERT (1).pdf",
+      "institucion_asignada": "PRESTO LIDER (Servicios Financieros y Admin. de Créditos Comerciales S.A. — Tarjeta Lider BCI)",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "77.085.380-K",
+      "emisor_nombre": "Servicios Financieros y Administración de Créditos Comerciales S.A.",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "Tarjeta Lider BCI",
+          "monto": 623064,
+          "etiqueta_monto": "deuda total",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "registra una deuda total de $623.064(SEISCIENTOS VEINTITRES MIL SESENTA Y CUATRO) con cargo a su tarjeta",
+          "cita_fecha": "fecha de facturación de su tarjeta corresponde al día 9 de Noviembre de 2025",
+          "confidence": 0.95
+        }
+      ],
+      "reading_notes": "El CMF llama a este acreedor 'PRESTO LIDER' con total $646.166, sin 90+d. El cert da $623.064 (diferencia de ~$23k, dentro de tolerancia). Sin fecha de mora explícita. Doc_type es certificado de deuda total, no desglose por operación."
+    },
+    {
+      "filename": "8480 Noviembre_.pdf",
+      "institucion_asignada": "Banco Estado — Tarjeta de Crédito Mastercard (terminación 8480)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "no visible",
+      "emisor_nombre": "Banco Estado",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "Tarjeta Mastercard XXXXXXXXXXXX8480",
+          "monto": 403935,
+          "etiqueta_monto": "Monto Total facturado a Pagar / Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Monto Total facturado a Pagar $403.935 / Costo Monetario Prepago $403.935",
+          "cita_fecha": "Estado de Cuenta al 26/11/2025 — PAGAR HASTA 15/12/2025",
+          "confidence": 0.90
+        }
+      ],
+      "reading_notes": "Estado de cuenta de tarjeta de crédito BancoEstado (mastercard 8480), emitido 26/11/2025. Cupo Total $600.000, Cupo Utilizado $403.935. 'Costo Monetario Prepago $403.935' = payoff. El CMF registra para Banco Estado solo $1.290.159 (consumo, sin 90+d). Esta tarjeta de crédito BancoEstado NO aparece como línea separada en el CMF — puede ser que el CMF consolide consumo+tarjeta en una sola fila, o que sea un producto adicional no reportado. ALERTA: revisar si el CMF $1.290.159 ya incluye esta tarjeta o si es acreedor adicional (NO-CMF parcial). En todo caso, sin 90+d y al día al 15/12/2025 → Art.261. El monto acreditable del estado de cuenta ($403.935) difiere sustancialmente del CMF total ($1.290.159) — el CMF podría consolidar crédito de consumo + tarjeta."
+    },
+    {
+      "filename": "document (6).pdf",
+      "institucion_asignada": "Fashion's Park (tarjeta propia, no-CMF)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "no visible en documento",
+      "emisor_nombre": "Fashion's Park",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "Tarjeta Fashion's Park XXXXXXXXXXX5005",
+          "monto": 98716,
+          "etiqueta_monto": "Cupo Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Cupo Total $100.000 Cupo Utilizado $98.716",
+          "cita_fecha": "Fecha: 20/07/2025 — Pagar Hasta 05/08/2025",
+          "confidence": 0.85
+        }
+      ],
+      "reading_notes": "Estado de cuenta Fashion's Park del 20/07/2025 (periodo facturado 21/06/2025–20/07/2025). Fashion's Park NO aparece en el CMF → acreedor NO-CMF. Cupo utilizado $98.716. Monto Total Facturado del período $64.671; Costo Monetario Prepago $107.715. El payoff más representativo es el Cupo Utilizado $98.716 (saldo actual utilizado) dado que es estado de cuenta no certificado de deuda. El doc tiene 5 meses de antigüedad al 2026-06-29 → VENCIDO (>30d). Sirve para detectar el acreedor pero el abogado debería conseguir cert actualizado. Clasificación: Art.261 (sin 90+d; fecha es de julio 2025)."
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "CAT (ex CENCOSUD) / CAT Administradora de Tarjetas",
+      "monto": 6553197,
+      "art": 260,
+      "cmf": true,
+      "doc": "cert_deuda_249508977_202510281424.pdf",
+      "nota": "CMF overdue90Days=$556.057 → Art.260. Cert acredita monto $6.553.197 (tarjeta 3105). Falta fecha de vencimiento explícita en el cert → si no se puede acreditar vencimiento, backstop degrada a 261."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 2558037,
+      "art": 260,
+      "cmf": true,
+      "doc": "",
+      "nota": "CMF overdue90Days=$324.886 → Art.260. NO hay certificado de CMR Falabella en los docs provistos. Solo hay cert de Banco Falabella (acreedor distinto, NO-CMF). Falta cert de CMR → alerta falta_documento. El monto usado es el del CMF."
+    },
+    {
+      "institucion": "CAR - Ripley / CAR S.A.",
+      "monto": 1631468,
+      "art": 261,
+      "cmf": true,
+      "doc": "CAR Ripley Cinthia.pdf",
+      "nota": "CMF overdue90Days=0. Art.261. Monto del cert $1.631.468 vs CMF $1.647.930 (diferencia $16.462, dentro de tolerancia)."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 1290159,
+      "art": 261,
+      "cmf": true,
+      "doc": "8480 Noviembre_.pdf",
+      "nota": "CMF overdue90Days=0, total $1.290.159. El estado de cuenta de la tarjeta 8480 acredita $403.935. Posible que el CMF consolide consumo+tarjeta. El abogado debe verificar si hay cert de deuda consolidada; de lo contrario usar CMF como monto referencial y el estado de cuenta como doc. Clasificación Art.261."
+    },
+    {
+      "institucion": "PRESTO LIDER / Servicios Financieros Lider BCI",
+      "monto": 623064,
+      "art": 261,
+      "cmf": true,
+      "doc": "249508977 CERT (1).pdf",
+      "nota": "CMF overdue90Days=0. Art.261. Monto del cert $623.064 vs CMF $646.166 (diferencia $23k, dentro de tolerancia)."
+    },
+    {
+      "institucion": "Solventa Tarjetas S.A.",
+      "monto": 284324,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado de deuda cinthia.pdf",
+      "nota": "CMF overdue90Days=0. Art.261. Monto del cert $284.324 vs CMF $300.810 (diferencia $16k, dentro de tolerancia). RUT emisor 96.776.000-5."
+    },
+    {
+      "institucion": "Banco Falabella",
+      "monto": 2570928,
+      "art": 261,
+      "cmf": false,
+      "doc": "Certificado de Deuda.pdf",
+      "nota": "NO-CMF. Banco Falabella no aparece en el informe CMF de Cinthia. Cert dice 'Vigente - Al día'. Art.261 (monto $2.570.928). El abogado debe confirmar este acreedor NO-CMF. Nota: INVERSIONES LP aparece en créditos disponibles del CMF ($226.000 cupo no usado) — podría ser Tarjeta La Polar (Inversiones LP S.A.) pero el cert es de Banco Falabella, institución diferente."
+    },
+    {
+      "institucion": "Fashion's Park",
+      "monto": 98716,
+      "art": 261,
+      "cmf": false,
+      "doc": "document (6).pdf",
+      "nota": "NO-CMF. Fashion's Park no aparece en CMF. Estado de cuenta del 20/07/2025 (vencido >30d). Cupo utilizado $98.716. Art.261. Se requiere cert actualizado. Acreedor ya conocido del sistema (caso Cinthia histórico)."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF corte 28/11/2025 — 6 filas directas. Solo 2 con overdue90Days>0: CAT ($556.057) y CMR Falabella ($324.886). Elegibilidad 80 UF OK (total $13.226.571). Elegibilidad ≥2 productos 90+d: cumple con 2.",
+    "LC Banco Estado (cartola web) NO es un certificado de deuda — productos vacíos, no acredita para el Paso 3.",
+    "Banco Falabella (NO-CMF): el cert 'Certificado de Deuda.pdf' certifica $2.570.928 vigente al día. Banco Falabella ≠ CMR Falabella (CMR es la tarjeta retail, Banco Falabella es el banco). Ambos son acreedores distintos.",
+    "CAT cert tiene dos tarjetas: 1940 con $0 (no vigente, ignorar); 3105 con $6.553.197 (la deuda real).",
+    "Falta certificado de CMR Falabella — solo hay cert de Banco Falabella. CMR Falabella ($2.558.037, 90+d $324.886) necesita su propio cert para acreditar en Art.260.",
+    "Fashion's Park (document 6): estado de cuenta julio 2025, vencido para la renegociación actual. Acreedor NO-CMF confirmado.",
+    "INVERSIONES LP aparece en créditos disponibles CMF ($226.000 cupo no usado) — no es deuda directa, es cupo disponible. NO declarar.",
+    "Tarjeta BancoEstado 8480: el CMF podría consolidar crédito de consumo y tarjeta en la fila única de Banco Estado. El estado de cuenta ($403.935) acredita parcialmente. Sin cert de deuda consolidada del banco."
+  ]
+}

@@ -1,0 +1,292 @@
+{
+  "case": "betzy_lee",
+  "rut": "26.199.806-8",
+  "cmf_cut_date": "2025-10-17",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 19195091,
+      "overdue90Days": 0,
+      "_nota": "CMF muestra $0 en 90+d al corte 17/10/2025, pero sí hay 60-89d ($599.384). Mora real confirmada por Socofin 26/11/2025 (cuotas vencidas desde 04/08/2025). Desfase de fecha de corte documentado en analisis_deudas.md."
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 9241545,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "PRESTO LIDER",
+      "tipoCredito": "Consumo",
+      "totalCredito": 647067,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1287888,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Estado de deudas banco de chile socofin.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Socofin S.A. / Banco de Chile (Área Normalización Banca Personas)",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 20121916,
+          "cita": "DEUDA TOTAL $ 20.121.916"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "19250",
+          "monto": 113207,
+          "etiqueta_monto": "Total deuda Prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-22",
+          "dias_mora_doc": 0,
+          "cita_monto": "Total deuda Prejudicial 113.207",
+          "cita_fecha": "Fecha de vencimiento 22 octubre 2025",
+          "confidence": 0.92,
+          "_descripcion": "LINEA DE CREDITO CTA.CTE.REZAG.CONSUMO — Deuda Capital (Incluye Interés Corriente) 100.000"
+        },
+        {
+          "operacion": "89818",
+          "monto": 32255,
+          "etiqueta_monto": "Total deuda Prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-23",
+          "dias_mora_doc": 0,
+          "cita_monto": "Total deuda Prejudicial 32.255",
+          "cita_fecha": "Fecha de vencimiento 23 octubre 2025",
+          "confidence": 0.92,
+          "_descripcion": "VARIOS DEUDORES CTA CTE CONSUMO — Deuda Capital 28.519"
+        },
+        {
+          "operacion": "20933",
+          "monto": 16260219,
+          "etiqueta_monto": "Total deuda Prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-04",
+          "dias_mora_doc": 0,
+          "cita_monto": "Total deuda Prejudicial 16.260.219",
+          "cita_fecha": "Fecha de vencimiento 4 agosto 2025",
+          "confidence": 0.95,
+          "_descripcion": "CREDITO EN CUOTAS CONSUMO — Deuda Capital 15.994.114. NOTA: informeCredito.pdf indica Saldo del Crédito $18.191.754 (más actualizado al 13/11/2025). Monto a declarar: $18.191.754 per abogado."
+        },
+        {
+          "operacion": "00856",
+          "monto": 3716235,
+          "etiqueta_monto": "Total deuda Prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-07",
+          "dias_mora_doc": 0,
+          "cita_monto": "Total deuda Prejudicial 3.716.235",
+          "cita_fecha": "Fecha de vencimiento 7 agosto 2025",
+          "confidence": 0.95,
+          "_descripcion": "CREDITO TARJETAS VENCIDAS CONSUMO"
+        }
+      ]
+    },
+    {
+      "filename": "informeCredito.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 18191754,
+          "cita": "Saldo del Crédito 18.191.754"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "147261998068020933",
+          "monto": 18191754,
+          "etiqueta_monto": "Saldo del Crédito",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-04",
+          "dias_mora_doc": 0,
+          "cita_monto": "Saldo del Crédito 18.191.754",
+          "cita_fecha": "4 cuotas vencidas no pagadas; reconstrucción: cuota 20 venció 04/08/2025",
+          "confidence": 0.93,
+          "_nota": "Costo Total de Prepago = $16.277.025. El 'Saldo del Crédito' ($18.191.754) es la referencia de monto que usa el abogado; el Socofin usa $16.260.219 (Deuda Capital + interés corriente). Diferencia $1.931.535 = intereses y cargos. Monto a declarar: $18.191.754 (más conservador)."
+        }
+      ]
+    },
+    {
+      "filename": "4_8_banco_chile_vencimiento_cuota_20.png",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "otro",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile (portal web)",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "147261998068020933",
+          "monto": 568781,
+          "etiqueta_monto": "Monto Total Cuota",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-04",
+          "dias_mora_doc": 0,
+          "cita_monto": "Monto Total Cuota $ 568.781",
+          "cita_fecha": "Nº de Cuotas 20 / Fecha de Vencimiento 04/08/2025",
+          "confidence": 0.97,
+          "_nota": "Captura portal BdCh: Crédito de Consumo 147261998068020933 (CLP). Cuota 20, Fecha Vencimiento 04/08/2025. Acredita VENCIMIENTO (tipo 23). Monto de la cuota = $568.781 (no es el saldo total)."
+        }
+      ]
+    },
+    {
+      "filename": "Octubre_2025 cencosud.pdf",
+      "institucion_asignada": "CAT (ex CENCOSUD)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": null,
+      "emisor_nombre": "CAT Administradora de Tarjetas S.A. / Cencosud Scotiabank",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 9320812,
+          "cita": "COSTO MONETARIO PREPAGO 9.320.812"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "9198",
+          "monto": 9320812,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "COSTO MONETARIO PREPAGO 9.320.812",
+          "cita_fecha": "PERIODO FACTURADO 21/09/2025 — 20/10/2025 / PAGAR HASTA 04/11/2025",
+          "confidence": 0.75,
+          "_nota": "ALERTA CRÍTICA: El analisis_deudas.md referencia 'certificado de deuda cencosud .jpg' ($9.262.634, emitido 06/11/2025) que NO existe en la carpeta 07_Acreedores_Art261_Al_Dia/CAT_Cencosud/. Solo hay estados de cuenta mensuales (junio-octubre 2025). El estado de cuenta octubre muestra: Cupo Utilizado tarjeta base = $1.284.311; Cupo Super Avance/Reestructuración utilizado = $8.036.501 (operaciones desde oct/2023, tarjeta *1506); Costo Monetario Prepago total = $9.320.812. El Super Avance es un crédito reestructurado separado (tarjeta *1506 vs tarjeta *9198). El CMF reporta $9.241.545 como 'CAT Consumo' — esto incluye el Super Avance. El CERT FORMAL (JPG) ESTÁ AUSENTE. Monto del estado de cuenta no es equivalente certificado."
+        }
+      ]
+    },
+    {
+      "filename": "cmr estado de cuenta octubre.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": null,
+      "emisor_nombre": "CMR Falabella / Banco Falabella",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 1339917,
+          "cita": "Costo Monetario Prepago al 19/10/2025 **** 1.339.917"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "999910******7671 / tarjeta 512269******7784",
+          "monto": 1339917,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago al 19/10/2025 **** 1.339.917",
+          "cita_fecha": "Fecha Facturación Estado de Cuenta: 19/10/2025",
+          "confidence": 0.72,
+          "_nota": "ALERTA: analisis_deudas.md referencia 'certificado-deuda cmr.pdf' ($1.173.246, 06/11/2025) que NO existe en la carpeta. Solo hay estados de cuenta mensuales (junio-octubre). El estado de octubre muestra Cupo Utilizado $1.339.835 (vs $1.287.888 CMF); Costo Monetario Prepago $1.339.917. Monto Interés por Mora = $0 → deuda al día. Divergencia entre CMF ($1.287.888) y estado de cuenta ($1.339.835) dentro de tolerancia <$500k. Saldo declarable: $1.173.246 per analisis (cert formal ausente en carpeta)."
+        }
+      ]
+    },
+    {
+      "filename": "lider bci junio.pdf",
+      "institucion_asignada": "PRESTO LIDER",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": null,
+      "emisor_nombre": "Presto / BCI (tarjeta Líder)",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 460400,
+          "cita": "Costo Monetario Prepago $ 460.400"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "XXXXXXXXXXXX9006",
+          "monto": 460400,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago $ 460.400",
+          "cita_fecha": "Fecha Estado de Cuenta 25/06/2025",
+          "confidence": 0.65,
+          "_nota": "ALERTA: analisis_deudas.md referencia 'certificado de deuda líder bci .jpg' ($682.194, 06/11/2025) que NO existe en la carpeta. Solo hay estados de cuenta (jun-oct). La mayoría de los PDFs de oct/sep son password-protected. El EECC de junio (más antiguo legible) muestra prepago $460.400 — el saldo habría crecido a noviembre. El CMF reporta $647.067. El cert formal ($682.194) está ausente en la carpeta."
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 18191754,
+      "art": 260,
+      "cmf": true,
+      "doc": "informeCredito.pdf (monto) + 4_8_banco_chile_vencimiento_cuota_20.png (vencimiento)",
+      "nota": "Crédito de Consumo Op.20933. Vencimiento cuota más antigua: 04/08/2025 (cuota 20). 4 cuotas impagas al 13/11/2025. Acredita monto ($18.191.754 Saldo del Crédito) + vencimiento (portal BdCh cuota 20 / 04/08/2025). CMF tenía $0 en 90+d por desfase de fecha de corte al 17/10/2025."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 3716235,
+      "art": 260,
+      "cmf": true,
+      "doc": "Estado de deudas banco de chile socofin.pdf",
+      "nota": "Tarjeta de Crédito Visa Op.00856. Vencimiento: 07/08/2025. Socofin 26/11/2025 certifica monto + vencimiento (documento tipo 24 que acredita ambos). CMF consolidó como 'Consumo' $19.195.091 incluyendo este producto."
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "monto": 9262634,
+      "art": 261,
+      "cmf": true,
+      "doc": "certificado de deuda cencosud .jpg [AUSENTE EN CARPETA]",
+      "nota": "CERT FALTANTE: el 'certificado de deuda cencosud .jpg' referenciado en analisis_deudas.md no existe en la carpeta 07_Acreedores_Art261_Al_Dia/CAT_Cencosud/. Solo hay estados de cuenta mensuales. El monto $9.262.634 proviene del cert formal (06/11/2025) que el abogado tiene pero no cargó en la carpeta. CMF $9.241.545 incluye Super Avance $8.036.501 + tarjeta base $1.284.311."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1173246,
+      "art": 261,
+      "cmf": true,
+      "doc": "certificado-deuda cmr.pdf [AUSENTE EN CARPETA]",
+      "nota": "CERT FALTANTE: 'certificado-deuda cmr.pdf' referenciado en analisis_deudas.md no existe en la carpeta 07_Acreedores_Art261_Al_Dia/CMR_Falabella/. Solo hay estados de cuenta mensuales. Monto $1.173.246 del cert formal (06/11/2025). Estado de cuenta oct muestra Cupo Utilizado $1.339.835 y Costo Monetario Prepago $1.339.917."
+    },
+    {
+      "institucion": "PRESTO LIDER",
+      "monto": 682194,
+      "art": 261,
+      "cmf": true,
+      "doc": "certificado de deuda líder bci .jpg [AUSENTE EN CARPETA]",
+      "nota": "CERT FALTANTE: 'certificado de deuda líder bci .jpg' referenciado en analisis_deudas.md no existe en la carpeta 07_Acreedores_Art261_Al_Dia/Presto_Lider/. Solo hay estados de cuenta, la mayoría password-protected. Mora 62d al 06/11/2025 (desde 05/09/2025) — no alcanza 91d → Art.261 correcto."
+    },
+    {
+      "institucion": "Banco de Chile (Línea de Crédito)",
+      "monto": 0,
+      "art": 261,
+      "cmf": true,
+      "doc": "Linea de credito octubre.pdf [PASSWORD-PROTECTED]",
+      "nota": "Saldo $0 según analisis_deudas.md (cupo disponible $100.000, sin saldo deudor). No se declara. El PDF de octubre está password-protected; los de ago/sep/jul también. No se pudo verificar directamente, pero el abogado lo confirmó en analisis_deudas.md."
+    }
+  ],
+  "ground_truth_source": "analisis_deudas.md",
+  "reading_notes": [
+    "CMF DESFASE: La fecha de corte del CMF (17/10/2025) captura el crédito de consumo BdCh en 60-89d ($599.384) y $0 en 90+d. El Socofin del 26/11/2025 certifica que la mora real comenzó el 04/08/2025 (cuota 20) — más de 90 días. Este es el caso documentado en analisis_deudas.md.",
+    "SOCOFIN 4 PRODUCTOS: El cert Socofin lista 4 operaciones BdCh en mora prejudicial: Op.19250 (Línea CTA $113.207, venc.22/10), Op.89818 (Varios Deudores $32.255, venc.23/10), Op.20933 (Consumo $16.260.219, venc.04/08), Op.00856 (Tarjeta $3.716.235, venc.07/08). El abogado solo declara Op.20933 + Op.00856 como Art.260 porque tienen mora ≥91d al 26/11/2025. Op.19250 y Op.89818 vencieron en octubre (días de mora insuficientes para 91d al 26/11: ~35d y ~34d) — no son 260.",
+    "MONTO 20933 DIVERGENCIA: informeCredito.pdf (13/11): Saldo del Crédito $18.191.754. Socofin (26/11): Deuda Capital + Interés Corriente = $15.994.114 + $100.385 = $16.094.499, Total Prejudicial $16.260.219. Diferencia: el Saldo del Crédito incluye cuotas futuras no vencidas. El abogado usa $18.191.754 (saldo vigente completo del crédito). Ambos son válidos; el abogado elige el más conservador/completo.",
+    "CERTS FORMALES AUSENTES EN CARPETA (3 de 5): 'certificado de deuda cencosud .jpg', 'certificado-deuda cmr.pdf' y 'certificado de deuda líder bci .jpg' referenciados en analisis_deudas.md NO existen en las carpetas 07_*. Solo hay estados de cuenta mensuales. Los certs deben cargarse antes de ejecutar el Paso 3.",
+    "CENCOSUD SUPER AVANCE: El estado de cuenta Cencosud octubre muestra que el 'Cupo Super Avance/Reestructuración' utilizado es $8.036.501 (tarjeta *1506, desde oct/2023), separado del cupo base ($1.284.311, tarjeta *9198). El Costo Monetario Prepago total es $9.320.812. El abogado usa $9.262.634 del cert formal (06/11/2025). Esta diferencia es normal por intereses a la fecha.",
+    "PRESTO LIDER PDFs PROTEGIDOS: Los estados de cuenta de agosto, septiembre y octubre de Presto Lider están password-protected. Solo el de junio (25/06/2025) es legible; muestra Costo Monetario Prepago $460.400. El saldo creció a $682.194 para noviembre per cert formal (ausente). No se pudo verificar directamente la mora de 62 días reportada en analisis_deudas.md.",
+    "LÍNEA CRÉDITO BdCh $0: Todos los PDFs de línea de crédito están password-protected. El abogado confirma saldo $0 en analisis_deudas.md — no se declara. Se acepta per ground truth."
+  ]
+}

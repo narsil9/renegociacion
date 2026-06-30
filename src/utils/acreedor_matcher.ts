@@ -305,11 +305,23 @@ const ALIASES: Record<string, string> = {
   'tarjeta presto': 'tarjeta lider',
   'lider': 'tarjeta lider',
   'bci': 'banco de credito e inversiones',
+  // El CMF imprime la columna institución SIN el prefijo "Banco" para varias entidades →
+  // colapsan distinto que el nombre del certificado ("Banco de Crédito e Inversiones",
+  // "Banco Internacional") y el producto no ancla a su fila CMF. Aliases del nombre corto del CMF.
+  'de credito e inversiones': 'banco de credito e inversiones',
+  'internacional': 'banco internacional',
+  // El CMF abrevia "Santander Consumer"; el cert imprime "Santander Consumer Finance (Limitada)".
+  // Mismo acreedor (RUT 79.072.290-3), distinto de "Santander-Chile" (banco).
+  'santander consumer finance': 'santander consumer',
+  'santander consumer finance limitada': 'santander consumer',
   'santander': 'banco santander',
   'santander chile': 'banco santander', // CMF escribe "Santander-Chile" (banco) → distinto de "Santander Consumer"
   'banco santander chile': 'banco santander', // variante con prefijo "Banco"
   'car ripley': 'car s a tarjeta ripley',
   'car': 'car s a tarjeta ripley',
+  // El cert imprime el emisor como "CAR S.A. (Tarjeta Ripley)" → tras quitar el paréntesis queda
+  // "CAR S.A." (≠ "CAR - Ripley" del CMF). Sin este alias el producto Ripley cae a NO-CMF.
+  'car s a': 'car s a tarjeta ripley',
   // CCAF: los documentos usan "Caja de Compensación X" pero el catálogo registra "CCAF X".
   // Sin estos aliases, matchAcreedor devuelve not_found para los NO-CMF de cajas de compensación.
   'caja los andes': 'ccaf los andes',
@@ -353,6 +365,10 @@ const ALIASES: Record<string, string> = {
   // "Cencosud Administradora de Tarjetas S.A." (mismo RUT 99500840-8 que "CAT (ex CENCOSUD)").
   'cat administradora de tarjetas s a': 'cencosud administradora de tarjetas s a',
   'cat administradora de tarjetas': 'cencosud administradora de tarjetas s a',
+  // El CMF abrevia el emisor de la tarjeta Cencosud como "CAT (ex CENCOSUD)" → tras quitar el
+  // paréntesis queda "CAT", que no calzaba con el cert "CAT/Cencosud Administradora de Tarjetas
+  // S.A." → el cert no anclaba a la fila CMF y se duplicaba (1 fila CMF + 1 NO-CMF). Mismo RUT.
+  'cat': 'cencosud administradora de tarjetas s a',
 };
 
 /**
@@ -427,7 +443,9 @@ export function canonicalInstitutionKey(name: string | null | undefined): string
   //  (3) Tokens de tipo de crédito que el parser del CMF pega al nombre ("… Consum").
   // Así "Banco del Estado de Chile Consum", "Banco del Estado de Chile — Operación adicional"
   // y "Banco Estado" colapsan todas a la misma clave.
-  const base = name.replace(/\s+[—–-]\s+.*$/s, '').replace(/\s*\(.*$/s, '');
+  //      También corta en " / " (el LLM a veces escribe el nombre compuesto "CMR Falabella /
+  //      Banco Falabella" o "PRESTO LIDER / Servicios…"): se queda con la institución PRIMARIA.
+  const base = name.replace(/\s+[—–/-]\s+.*$/s, '').replace(/\s*\(.*$/s, '');
   const norm = stripCreditTypeTokens(normalizeText(base));
   // Aliases-como-dato del catálogo (nombres_alternativos) primero, luego el mapa estático.
   return catalogAliasRegistry[norm] ?? ALIASES[norm] ?? norm;

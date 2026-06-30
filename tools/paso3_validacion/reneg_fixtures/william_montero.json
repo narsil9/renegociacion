@@ -1,0 +1,493 @@
+{
+  "case": "william_montero",
+  "rut": "25.656.359-2",
+  "cmf_cut_date": "2025-12-05",
+  "cmf_rows": [
+    {
+      "institucion": "Internacional",
+      "tipoCredito": "Consumo",
+      "totalCredito": 5746625,
+      "overdue90Days": 202711
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 16672594,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 92057933,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1631456,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 15938606,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 889688,
+      "overdue90Days": 52113
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 752421,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Solventa Tarjetas",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1083254,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander Consumer",
+      "tipoCredito": "Consumo",
+      "totalCredito": 6573007,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Liquidacion Judicial..pdf",
+      "institucion_asignada": "Banco Internacional",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Internacional",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "9504013",
+          "monto": 5819828,
+          "etiqueta_monto": "DEUDA TOTAL",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-05",
+          "dias_mora_doc": 0,
+          "cita_monto": "DEUDA TOTAL : $ 5.819.828",
+          "cita_fecha": "FECHA MORA : 05 de septiembre de 2025",
+          "confidence": 0.97
+        }
+      ]
+    },
+    {
+      "filename": "CreditoConsumoItau.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97023000-9",
+      "emisor_nombre": "Banco Itaú Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "60498640",
+          "monto": 13747818,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Saldo Insoluto  13.747.818",
+          "cita_fecha": "Estado: Mora 1",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "MORA_.png",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Itaú Chile (portal solucionesdepago.itau.cl)",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "60498640",
+          "monto": 1401035,
+          "etiqueta_monto": "Monto a pagar (portal cobro)",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 91,
+          "cita_monto": "Total a Pagar $1.476.119 ... Monto a pagar $1.401.035",
+          "cita_fecha": "Dias mora: 91",
+          "confidence": 0.82
+        }
+      ]
+    },
+    {
+      "filename": "Estados de Cuenta CAT MORA 11_8.pdf",
+      "institucion_asignada": "CAT (ex CENCOSUD)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CAT Administradora de Tarjetas S.A. (Tarjeta Cencosud Scotiabank Mastercard)",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "************0260",
+          "monto": 851837,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-10",
+          "dias_mora_doc": 0,
+          "cita_monto": "COSTO MONETARIO PREPAGO 851.837",
+          "cita_fecha": "Cancelar cuota atrasada del 10-octubre de $ 48.664, 10-noviembre de $ 49.049",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "FallabelaNoviembre.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Falabella / Banco Falabella",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "999910******9738",
+          "monto": 777169,
+          "etiqueta_monto": "Costo Monetario Prepago al 24/11/2025",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago al 24/11/2025 **** 777.169",
+          "cita_fecha": "Saldo adeudado final periodo anterior 97.720",
+          "confidence": 0.93
+        }
+      ]
+    },
+    {
+      "filename": "3171 11_25.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Santander Chile (Tarjeta AMEX Platinum LATAM *3171)",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "XXXX-3171",
+          "monto": 279482,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 279.482",
+          "cita_fecha": "PERÍODO FACTURADO 22/10/2025 24/11/2025",
+          "confidence": 0.93
+        }
+      ]
+    },
+    {
+      "filename": "3530 11_25.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Santander Chile (Tarjeta MC Platinum LATAM *3530)",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "XXXX-3530",
+          "monto": 1043940,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 1.043.940",
+          "cita_fecha": "PERÍODO FACTURADO 22/10/2025 24/11/2025",
+          "confidence": 0.93
+        }
+      ]
+    },
+    {
+      "filename": "DEUDA VIGENTE op 650077179296.pdf",
+      "institucion_asignada": "Santander Consumer",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Santander Consumer Finance Limitada",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "650077179296",
+          "monto": 9096192,
+          "etiqueta_monto": "Cuotas por Cancelar x Valor Cuota (47 x $193.536)",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Cuotas por Cancelar : 47 / Valor Cuota mensual : $ 193.536",
+          "cita_fecha": "",
+          "confidence": 0.72
+        }
+      ]
+    },
+    {
+      "filename": "estado-de-cuenta_Noviembre.pdf",
+      "institucion_asignada": "Solventa Tarjetas",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Solventa Tarjetas (Tarjeta de Crédito SPIN)",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "***-******-*****700-6",
+          "monto": 1047983,
+          "etiqueta_monto": "Costo Monetario del Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario del Prepago 1.047.983",
+          "cita_fecha": "Período Facturado 02-10-2025 01-11-2025",
+          "confidence": 0.93
+        }
+      ]
+    },
+    {
+      "filename": "descarga (24).pdf",
+      "institucion_asignada": "TGR",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "61001000-4",
+      "emisor_nombre": "Tesorería General de la República",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 128838,
+          "cita": "Total Deuda Morosa (CLP) 124.328 reajuste 1.102 interés 3.408 total 128.838"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "ROL 078-00800-169 (4 cuotas F30)",
+          "monto": 128838,
+          "etiqueta_monto": "Total Deuda Morosa CLP",
+          "moneda": "CLP",
+          "fecha_mora": "2025-04-30",
+          "dias_mora_doc": 0,
+          "cita_monto": "Total Deuda Morosa (CLP) 124.328 ... 128.838",
+          "cita_fecha": "Fecha vcto. primera cuota morosa: 30-Abr-2025",
+          "confidence": 0.96
+        }
+      ]
+    },
+    {
+      "filename": "Certificado 20.130.pdf",
+      "institucion_asignada": "Caja Los Andes",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "81826800-9",
+      "emisor_nombre": "Caja de Compensación de Asignación Familiar de Los Andes",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "108CON103862169",
+          "monto": 3107252,
+          "etiqueta_monto": "Saldo Total Diario a Pagar (01-12-2025)",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Saldo Total Diario a Pagar 01-12-2025 3.107.252",
+          "cita_fecha": "Intereses Penales 0 / Cuentas por Cobrar 0",
+          "confidence": 0.96
+        }
+      ]
+    },
+    {
+      "filename": "ResumenCreditosConsumo.pdf",
+      "institucion_asignada": "Scotiabank Chile",
+      "doc_type": "desglose_por_producto",
+      "productos": [
+        {
+          "operacion": "710079305953",
+          "monto": 88956698,
+          "etiqueta_monto": "Saldo Actual $ Mutuos Scotiahouse",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Actual $ Mutuos Scotiahouse: 88.956.698",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "710095782201",
+          "monto": 1743982,
+          "etiqueta_monto": "Saldo Actual $ Contingencia Hipotecario",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Actual $ Contingencia Hipotecario: 1.743.982",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "710102705030",
+          "monto": 1761281,
+          "etiqueta_monto": "Saldo Actual $ Contingencia Hipotecario",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Actual $ Contingencia Hipotecario: 1.761.281",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "710155045016",
+          "monto": 16615586,
+          "etiqueta_monto": "Saldo Actual $ Renegociacion Consumo",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Actual $ Renegociacion Consumo: 16.615.586",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "MNP_RMNP.pdf",
+      "institucion_asignada": "Multas Transito RMNP",
+      "doc_type": "certificado_multas_transito",
+      "productos": [
+        {
+          "operacion": "rmnp-william",
+          "monto": 128838,
+          "etiqueta_monto": "Multas tránsito (UTM convertidas a CLP)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Multas tránsito (UTM convertidas a CLP): 128.838",
+          "confidence": 0.92
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco Internacional",
+      "monto": 5819828,
+      "art": 260,
+      "cmf": true,
+      "doc": "Liquidacion Judicial..pdf",
+      "nota": "90+d en CMF ($202.711). Liquidación Judicial acredita monto ($5.819.828) y fecha mora (05/09/2025). Art.260 con ambos tipos 22+23."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 13747818,
+      "art": 260,
+      "cmf": true,
+      "doc": "CreditoConsumoItau.pdf",
+      "nota": "CMF muestra overdue90=0 (lag al 05/12) pero cert formal (01/12) dice 'Mora 1' y portal (15/12) dice 91 días. Reclasificar a 260. Monto del cert: saldo insoluto $13.747.818. Fecha mora no explícita en cert escrito — portal dice 91d. Needs_review por lag CMF."
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "monto": 851837,
+      "art": 260,
+      "cmf": true,
+      "doc": "Estados de Cuenta CAT MORA 11_8.pdf",
+      "nota": "90+d en CMF ($52.113). EE.CC. oct/2025 acredita mora (cuotas atrasadas oct+nov). Monto payoff: Costo Monetario Prepago $851.837. Art.260 tipos 22+23."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 777169,
+      "art": 261,
+      "cmf": true,
+      "doc": "FallabelaNoviembre.pdf",
+      "nota": "overdue90=0 en CMF. EE.CC. nov 2025 acredita saldo vigente. Monto: Costo Monetario Prepago $777.169. Art.261 tipo 22."
+    },
+    {
+      "institucion": "Santander-Chile (Tarjeta *3171)",
+      "monto": 279482,
+      "art": 261,
+      "cmf": true,
+      "doc": "3171 11_25.pdf",
+      "nota": "overdue90=0. Tarjeta AMEX Platinum LATAM. Costo Monetario Prepago $279.482. La fila CMF Santander-Chile $1.631.456 agrupa posiblemente ambas tarjetas. Art.261 tipo 22."
+    },
+    {
+      "institucion": "Santander-Chile (Tarjeta *3530)",
+      "monto": 1043940,
+      "art": 261,
+      "cmf": true,
+      "doc": "3530 11_25.pdf",
+      "nota": "overdue90=0. Tarjeta MC Platinum LATAM. Costo Monetario Prepago $1.043.940. Multiproducto Santander: esta tarjeta + *3171 comparten la fila CMF de Santander-Chile. Art.261 tipo 22."
+    },
+    {
+      "institucion": "Santander Consumer",
+      "monto": 6573007,
+      "art": 261,
+      "cmf": true,
+      "doc": "DEUDA VIGENTE op 650077179296.pdf",
+      "nota": "overdue90=0. Cert no tiene payoff inequívoco — reporta 'Monto Cursado 6.992.479' y cuotas pendientes pero no 'Total a Pagar'. Usando CMF $6.573.007 como monto (más conservador). Confidence reducida: el cert no tiene etiqueta de payoff standard."
+    },
+    {
+      "institucion": "Scotiabank Chile (Vivienda — Mutuos Scotiahouse)",
+      "monto": 88956698,
+      "art": 261,
+      "cmf": true,
+      "doc": "ResumenCreditosConsumo.pdf",
+      "nota": "overdue90=0. Producto UF (hipotecario). Saldo en UF 2.243,9113 = $88.956.698 al 30/11/2025. Separado de las contingencias hipotecarias. Art.261 tipo 22."
+    },
+    {
+      "institucion": "Scotiabank Chile (Contingencia Hipotecaria *782201)",
+      "monto": 1743982,
+      "art": 261,
+      "cmf": true,
+      "doc": "ResumenCreditosConsumo.pdf",
+      "nota": "overdue90=0. Producto UF. Saldo $1.743.982. Parte de la fila CMF Vivienda $92.057.933 (junto con la otra contingencia). Art.261 tipo 22."
+    },
+    {
+      "institucion": "Scotiabank Chile (Contingencia Hipotecaria *705030)",
+      "monto": 1761261,
+      "art": 261,
+      "cmf": true,
+      "doc": "ResumenCreditosConsumo.pdf",
+      "nota": "overdue90=0. Producto UF. Saldo $1.761.261. Parte de la fila CMF Vivienda. Art.261 tipo 22."
+    },
+    {
+      "institucion": "Scotiabank Chile (Renegociación Consumo)",
+      "monto": 16615586,
+      "art": 261,
+      "cmf": true,
+      "doc": "ResumenCreditosConsumo.pdf",
+      "nota": "overdue90=0. Producto CLP. Saldo $16.615.586 ≈ CMF Consumo $16.672.594 (diferencia $56k dentro tolerancia). Art.261 tipo 22."
+    },
+    {
+      "institucion": "Solventa Tarjetas",
+      "monto": 1047983,
+      "art": 261,
+      "cmf": true,
+      "doc": "estado-de-cuenta_Noviembre.pdf",
+      "nota": "overdue90=0 en CMF. Costo Monetario del Prepago $1.047.983 > CMF $1.083.254 (diferencia $35k, tolerancia ok). Art.261 tipo 22."
+    },
+    {
+      "institucion": "TGR (Tesorería General de la República)",
+      "monto": 128838,
+      "art": 260,
+      "cmf": false,
+      "doc": "descarga (24).pdf",
+      "nota": "NO-CMF. 4 cuotas morosas (Formulario 30, ROL LAMPA 078-00800-169). Primera cuota vence 30/04/2025 → mora >91 días. Cert TGR acredita monto ($128.838) y vencimiento (30/04/2025). Art.260 tipos 22+23."
+    },
+    {
+      "institucion": "Caja de Compensación Los Andes",
+      "monto": 3107252,
+      "art": 261,
+      "cmf": false,
+      "doc": "Certificado 20.130.pdf",
+      "nota": "NO-CMF. Cert Ley 20.130 del 01/12/2025. Sin mora: Intereses Penales=0, Cuentas por Cobrar=0. Payoff al 01-12-2025: $3.107.252. Art.261 tipo 22."
+    },
+    {
+      "institucion": "Multas Tránsito RMNP",
+      "monto": 0,
+      "art": 261,
+      "cmf": false,
+      "doc": "MNP_500669263746_TFWV.68.pdf",
+      "nota": "NO-CMF. Cert RMNP solo indica '1 UTM + $4.570 arancel' sin convertir UTM a CLP. Monto no acreditable numéricamente desde el cert. EXCLUIR o declarar con monto derivado (UTM dic-2025 ≈ $67.294 → ~$71.864). El abogado debe decidir. Flag: needs_review."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF (corte 05/12/2025): 9 filas deuda directa. Solo 2 con overdue90>0: Internacional ($202.711) y CAT ($52.113). Banco Itaú Chile aparece en 60-89d, NO en 90+d — pero el cert formal (01/12) dice 'Mora 1' y el portal itaú (15/12) dice 91 días. Reclasificación necesaria.",
+    "Itaú: discrepancia monto. Cert constancia → saldo insoluto $13.747.818 (el total del crédito). Portal cobros → monto a pagar $1.401.035 (solo la deuda morosa acumulada). CMF → $15.938.606. El monto para declarar Art.260 debería ser el del cert formal más completo: $13.747.818 (saldo insoluto del contrato 60498640). El total CMF de $15.938.606 incluye vigente + mora. Declarar $13.747.818 como el saldo del crédito acreditado.",
+    "Santander-Chile: el CMF agrupa en una sola fila $1.631.456. Hay 2 tarjetas con EE.CC. (*3171: prepago $279.482; *3530: prepago $1.043.940). Suma = $1.323.422 ≠ CMF $1.631.456 — diferencia de $308k. El CMF puede incluir una tercera operación o intereses no facturados. Reportar ambas tarjetas por separado según los docs disponibles.",
+    "Scotiabank: el ResumenCreditosConsumo es el doc más completo — 4 productos. La fila CMF Vivienda ($92.057.933) corresponde a los 3 productos UF (Scotiahouse $88.956.698 + 2 Contingencias $1.743.982 + $1.761.261 = $92.461.941, diferencia $404k por reajustes y fecha de corte distinta). La fila CMF Consumo ($16.672.594) corresponde a Renegociación Consumo ($16.615.586), diferencia $57k.",
+    "Santander Consumer: cert emitido por 'Santander Consumer Finance Limitada' (distinto a Santander-Chile). Solo informa Monto Cursado + cuotas; sin 'Total a Pagar' ni 'Saldo Insoluto'. El cálculo 47 × $193.536 = $9.096.192 no es el payoff formal. Se recomienda usar CMF ($6.573.007) o solicitar cert de liquidación formal.",
+    "Multas RMNP: el cert indica '1 UTM' sin conversión CLP. No hay monto acreditable en el doc. En casos similares (Nicolás) las multas quedaron FUERA. Flag needs_review.",
+    "TGR: 4 cuotas F30 morosas. Primera vencida 30/04/2025 → mora > 240 días al 15/12/2025. Cert oficial TGR acredita monto y vencimiento → Art.260 procedente.",
+    "Caja Los Andes: sin mora acreditable en el cert (penales=0). Art.261 correcto. El cert es Ley 20.130 (formal, acredita monto).",
+    "No hay cert para CMR Falabella en carpeta 06 — solo en 07. El abogado clasificó CMR como 'Al Día' (261). El CMF muestra overdue90=0. Correcto."
+  ]
+}

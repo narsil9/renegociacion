@@ -21,6 +21,7 @@ const TESTS = [
   'test_assembler_edge.ts',       // ramas del ensamblador (multiproducto, UF, NO-CMF, overflow, gate…)
   'test_backstops_golden.ts',     // golden de applyDeterministicBackstops (refactor Parte A)
   'test_oracle_injection.ts',     // oráculo → agrupación/dedup = declaración de la abogada
+  'test_renegociacion_docs.ts',   // 13 casos reales de renegociacion_docs/ (fixtures congelados); guard de regresión
 ];
 
 const results: { test: string; passed: boolean }[] = [];

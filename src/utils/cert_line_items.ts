@@ -55,10 +55,16 @@ export function detectDocumentCurrency(text: string | null | undefined): 'UF' | 
  */
 export function normalizeOperationId(op: string | null | undefined): string | null {
   if (!op) return null;
-  const norm = op.toUpperCase().replace(/[\s\-._]/g, '');
+  // Quitar descriptores entre paréntesis que el LLM agrega ("60451478 (Consumo)" → "60451478")
+  // y luego separadores/enmascarado, para que el MISMO producto descrito por documentos
+  // distintos colapse a una sola clave (dedup multiproducto).
+  let norm = op.toUpperCase().replace(/\([^)]*\)/g, '').replace(/[\s\-._]/g, '');
   // Debe tener suficientes dígitos/letras significativas para no colisionar por casualidad.
   const significant = norm.replace(/X+/g, '').replace(/[^A-Z0-9]/g, '');
   if (significant.length < 4) return null;
+  // Operación puramente numérica: quitar ceros a la izquierda ("000060451478" ≡ "60451478").
+  // (Solo si es todo dígitos; los códigos alfanuméricos tipo "D06100206841" se dejan intactos.)
+  if (/^\d+$/.test(norm)) norm = norm.replace(/^0+/, '') || '0';
   return norm;
 }
 

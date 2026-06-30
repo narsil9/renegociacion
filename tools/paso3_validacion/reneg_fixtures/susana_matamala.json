@@ -1,0 +1,223 @@
+{
+  "case": "susana_matamala",
+  "rut": "16983419-9",
+  "cmf_cut_date": "2025-12-05",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 11601044,
+      "overdue90Days": 2570000
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "tipoCredito": "Consumo",
+      "totalCredito": 52560,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 16910767,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 5146199,
+      "overdue90Days": 355738
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "EEDD_7616.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile (Área Normalización Banca Personas / SOCOFIN)",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 13304962,
+          "cita": "TOTAL DEUDA PREJUDICIAL (A) $ 13.304.962"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "34579",
+          "monto": 3030497,
+          "etiqueta_monto": "Total deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-04",
+          "dias_mora_doc": 141,
+          "cita_monto": "34579 LINEA DE CREDITO CTA.CTE.REZAG.CONSUMO $ 4 septiembre 2025 2.570.000 311.890 0 148.607 3.030.497",
+          "cita_fecha": "Fecha de vencimiento: 4 septiembre 2025",
+          "confidence": 0.98
+        },
+        {
+          "operacion": "01235",
+          "monto": 10107707,
+          "etiqueta_monto": "Total deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-08",
+          "dias_mora_doc": 137,
+          "cita_monto": "01235 CRÉDITO TARJETAS VENCIDAS CONSUMO $ 8 septiembre 2025 9.031.044 734.224 0 342.439 10.107.707",
+          "cita_fecha": "Fecha de vencimiento: 8 septiembre 2025",
+          "confidence": 0.98
+        },
+        {
+          "operacion": "34849",
+          "monto": 166758,
+          "etiqueta_monto": "Total deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-04",
+          "dias_mora_doc": 141,
+          "cita_monto": "34849 VARIOS DEUDORES CTA CTE CONSUMO $ 4 septiembre 2025 134.637 20.004 0 12.117 166.758",
+          "cita_fecha": "Fecha de vencimiento: 4 septiembre 2025",
+          "confidence": 0.98
+        }
+      ]
+    },
+    {
+      "filename": "Cmr susana 09-01.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Falabella / Banco Falabella",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 5515144,
+          "cita": "Costo Monetario Prepago al 09/01/2026 **** 5.515.144"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "850910******0879",
+          "monto": 5515144,
+          "etiqueta_monto": "Costo Monetario Prepago al 09/01/2026",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-25",
+          "dias_mora_doc": 137,
+          "cita_monto": "Costo Monetario Prepago al 09/01/2026 **** 5.515.144",
+          "cita_fecha": "AVISO DE COBRANZA: Cancelar cuotas atrasadas del 25-agosto de $ 355.722, 25-septiembre de $ 353.270, 25-octubre de $ 357.563",
+          "confidence": 0.97
+        }
+      ]
+    },
+    {
+      "filename": "Estado de Cuenta Oct - Cencosud.pdf",
+      "institucion_asignada": "CAT (ex CENCOSUD)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CAT Administradora de Tarjetas S.A. / Cencosud Scotiabank",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 17265985,
+          "cita": "COSTO MONETARIO PREPAGO 17.265.985"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "************6326",
+          "monto": 17265985,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "COSTO MONETARIO PREPAGO 17.265.985",
+          "cita_fecha": "SALDO ADEUDADO FINAL PERIODO ANTERIOR 0 (período 26/08/2025-25/09/2025, pagado -511.047)",
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "filename": "Estado de Cuenta Nov - Ripley.pdf",
+      "institucion_asignada": "CAR - Ripley",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Ripley",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 93275,
+          "cita": "Costo Monetario Prepago 93.275"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "XXXXXXXXXXXX5409",
+          "monto": 93275,
+          "etiqueta_monto": "Costo Monetario Prepago / Cupo Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago 93.275",
+          "cita_fecha": "Interés Moratorio 0 / Gastos de Cobranza 0 — deuda al día al 20/11/2025",
+          "confidence": 0.97
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 3030497,
+      "art": 260,
+      "cmf": true,
+      "doc": "EEDD_7616.pdf",
+      "nota": "Op 34579 — Línea de Crédito CTA CTE. Fecha mora 04/09/2025. CMF consolida BdCh en 1 fila ($11.601.044 total, $2.570.000 en 90+d); el cert desglosa 3 productos. Este producto asume la porción mora del CMF."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 10107707,
+      "art": 260,
+      "cmf": true,
+      "doc": "EEDD_7616.pdf",
+      "nota": "Op 01235 — Crédito Tarjetas Vencidas Consumo. Fecha mora 08/09/2025. Multiproducto: mismo cert, segunda fila."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 166758,
+      "art": 260,
+      "cmf": true,
+      "doc": "EEDD_7616.pdf",
+      "nota": "Op 34849 — Varios Deudores CTA CTE Consumo. Fecha mora 04/09/2025. Multiproducto: mismo cert, tercera fila. 'Varios Deudores' = deuda directa del titular junto a otros — se declara (regla abogado)."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 5515144,
+      "art": 260,
+      "cmf": true,
+      "doc": "Cmr susana 09-01.pdf",
+      "nota": "Tarjeta CMR. Fecha mora 25/08/2025 (cuota más antigua). Monto = Costo Monetario Prepago al 09/01/2026, mayor que el CMF ($5.146.199) — usa el del cert (más actual, dentro de tolerancia)."
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "monto": 17265985,
+      "art": 261,
+      "cmf": true,
+      "doc": "Estado de Cuenta Oct - Cencosud.pdf",
+      "nota": "Vigente al día. CMF: $16.910.767 vigente, $0 mora. Cert oct-2025: cupo utilizado $17.265.985 (Costo Monetario Prepago). Diferencia ~$355k dentro de tolerancia. Art 261 (sin mora 90+d)."
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "monto": 93275,
+      "art": 261,
+      "cmf": true,
+      "doc": "Estado de Cuenta Nov - Ripley.pdf",
+      "nota": "Vigente al día. CMF: $52.560. Cert nov-2025: cupo utilizado / costo prepago $93.275 (más actualizado; cliente hizo compras después del corte CMF). $0 interés mora y gastos cobranza confirmado."
+    }
+  ],
+  "ground_truth_source": "analisis_deudas.md",
+  "reading_notes": [
+    "CMF consolida los 3 productos de Banco de Chile en UNA SOLA FILA ($11.601.044 total; $2.570.000 en 90+d, $9.031.044 en 60-89d, $0 vigente). El cert EEDD_7616.pdf desglosa 3 operaciones distintas (34579=$3.030.497, 01235=$10.107.707, 34849=$166.758; total=$13.304.962). El ensamblador TS debe emitir 3 filas 260 separadas aunque el CMF tenga 1 fila — caso claro de multiproducto.",
+    "La fila CMF de BdCh tiene $2.570.000 en 90+d y $9.031.044 en 60-89d. El cert data de 23/01/2026 (>45 días después del corte CMF 05/12/2025), lo que explica que la mora del cert sea mayor — la columna 60-89d migró a 90+d. El cert manda sobre el CMF para montos y clasificación.",
+    "CMR Falabella: CMF reporta $355.738 en 90+d (cuota de agosto). El cert de enero 2026 actualiza el costo de prepago a $5.515.144 (vs $5.146.199 en CMF) — diferencia $368.945, dentro de tolerancia aceptable. El AVISO DE COBRANZA certifica la fecha de mora: 25-agosto.",
+    "Cencosud (CAT): estado de cuenta es del 25/10/2025. El saldo del período anterior estaba en $0 (pagado el mes anterior). El monto correcto a declarar es el Costo Monetario Prepago $17.265.985 (cupo utilizado) — NO la cuota mensual de $475.080.",
+    "Ripley (CAR): estado de cuenta 20/11/2025. Cupo utilizado $93.275 vs CMF $52.560 — la diferencia se explica por compras nuevas realizadas después del corte CMF (23-oct a 04-nov: $88.430 en compras, menos pago -$100.394 previo, + intereses). El cert más reciente manda. Sin mora ($0 interés moratorio, $0 gastos cobranza).",
+    "INVERSIONES LP aparece en CMF bajo 'Créditos disponibles / Líneas de crédito' ($110.000 directo) — es cupo NO UTILIZADO, no deuda directa. No se declara como acreedor.",
+    "No hay documentos en carpeta 08_Acreedores_NO_CMF — sin acreedores NO-CMF en este caso."
+  ]
+}

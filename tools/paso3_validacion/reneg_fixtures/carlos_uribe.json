@@ -1,0 +1,277 @@
+{
+  "case": "carlos_uribe",
+  "rut": "16.523.825-7",
+  "cmf_cut_date": "2026-01-16",
+  "cmf_rows": [
+    {
+      "institucion": "Internacional",
+      "tipoCredito": "Consumo",
+      "totalCredito": 20520699,
+      "overdue90Days": 1301652
+    },
+    {
+      "institucion": "Banco Estado",
+      "tipoCredito": "Consumo",
+      "totalCredito": 3790012,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 5176316,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 26908918,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1784501,
+      "overdue90Days": 232466
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "cert_bancoestado_gen.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Estado",
+      "productos": [
+        {
+          "operacion": "TC Mastercard *3544",
+          "monto": 2764408,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago $2.764.408",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "cert_bancoestado_lc.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Estado",
+      "productos": [
+        {
+          "operacion": "Línea de Crédito 82700021650",
+          "monto": 999032,
+          "etiqueta_monto": "Monto utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Monto utilizado $999.032",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "cert_cmr_eecc_ene.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Falabella",
+      "productos": [
+        {
+          "operacion": "Tarjeta 030710...7259",
+          "monto": 1867320,
+          "etiqueta_monto": "Cupo Utilizado / Costo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-01",
+          "dias_mora_doc": 0,
+          "cita_monto": "Cupo Utilizado/Costo Prepago $1.867.320",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "cert_santander_lc.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Santander-Chile",
+      "productos": [
+        {
+          "operacion": "Línea de Crédito",
+          "monto": 1000000,
+          "etiqueta_monto": "Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Utilizado $1.000.000",
+          "confidence": 0.7
+        }
+      ]
+    },
+    {
+      "filename": "cert_santander_eecc_dic.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Santander-Chile",
+      "productos": [
+        {
+          "operacion": "TC Visa 2318",
+          "monto": 2012424,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago $2.012.424",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "cert_internacional.pdf",
+      "institucion_asignada": "Internacional",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Internacional",
+      "productos": [
+        {
+          "operacion": "Préstamo Consumo 9563213",
+          "monto": 21057908,
+          "etiqueta_monto": "Total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-02",
+          "dias_mora_doc": 0,
+          "cita_monto": "Total a Pagar $21.057.908, 36 cuotas impagas, próximo pago vencido 02/09/2025",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "cert_itau.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Itaú Chile",
+      "productos": [
+        {
+          "operacion": "Consumo 60418684",
+          "monto": 20399506,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Consumo 60418684 Saldo Insoluto $20.399.506",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Línea Preferencial 228445718",
+          "monto": 1999063,
+          "etiqueta_monto": "Monto Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Línea Preferencial 228445718 Monto Utilizado $1.999.063",
+          "confidence": 0.88
+        },
+        {
+          "operacion": "Tarjeta MasterCard 5598001102205700",
+          "monto": 4175053,
+          "etiqueta_monto": "Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Tarjeta MasterCard 5598001102205700 $Utilizado $4.175.053",
+          "confidence": 0.88
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Internacional",
+      "monto": 21057908,
+      "art": 260,
+      "cmf": true,
+      "doc": "cert_internacional.pdf",
+      "nota": "CMF overdue90=$1.301.652; cert acredita monto $21.057.908 + vencimiento 02/09/2025 (36 cuotas impagas). Monto cert > CMF por diferencia razonable."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1867320,
+      "art": 260,
+      "cmf": true,
+      "doc": "cert_cmr_eecc_ene.pdf",
+      "nota": "CMF overdue90=$232.466; cert EECC ene-2026 acredita mora oct/nov/dic 2025. Monto cert $1.867.320 > CMF $1.784.501 (diferencia $82.819, dentro tolerancia)."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 2764408,
+      "art": 261,
+      "cmf": true,
+      "doc": "cert_bancoestado_gen.pdf",
+      "nota": "CMF overdue90=$0. TC Mastercard *3544. Producto 1 de 2 de Banco Estado (CMF consolida en 1 fila Consumo)."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 999032,
+      "art": 261,
+      "cmf": true,
+      "doc": "cert_bancoestado_lc.pdf",
+      "nota": "CMF overdue90=$0. Línea de Crédito 82700021650. Producto 2 de 2. CMF los consolida en 1 fila; certs los separan. Suma aprox. = $3.763.440 vs CMF $3.790.012 (diferencia $26.572, ok)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 1000000,
+      "art": 261,
+      "cmf": true,
+      "doc": "cert_santander_lc.pdf",
+      "nota": "CMF overdue90=$0. Línea de Crédito, doc informal (captura). Confidence 0.7. Producto 1 de 2."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 2012424,
+      "art": 261,
+      "cmf": true,
+      "doc": "cert_santander_eecc_dic.pdf",
+      "nota": "CMF overdue90=$0. TC Visa 2318. Producto 2 de 2. Cta cte -$31.151 trivial, NO declarar. Suma 2 productos = $3.012.424 vs CMF $5.176.316 (brecha grande — posible producto faltante o saldo LC mayor)."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 20399506,
+      "art": 261,
+      "cmf": true,
+      "doc": "cert_itau.pdf",
+      "nota": "CMF overdue90=$0. Constancia 30/12/2025. Consumo 60418684. Producto 1 de 3."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 1999063,
+      "art": 261,
+      "cmf": true,
+      "doc": "cert_itau.pdf",
+      "nota": "CMF overdue90=$0. Línea Preferencial 228445718. Producto 2 de 3."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 4175053,
+      "art": 261,
+      "cmf": true,
+      "doc": "cert_itau.pdf",
+      "nota": "CMF overdue90=$0. TC MasterCard 5598001102205700. Producto 3 de 3. Suma 3 prods = $26.573.622 vs CMF $26.908.918 (diferencia $335.296, dentro tolerancia). Cta cte $0 no declarar."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF corte 16/01/2026, emitido 26/01/2026.",
+    "CMF consolida Banco Itaú Chile en 1 fila Consumo $26.908.918 pero cert muestra 3 productos: Consumo 60418684 + Línea Preferencial 228445718 + TC MasterCard 5598. Multiproducto.",
+    "CMF consolida Santander-Chile en 1 fila Consumo $5.176.316 pero hay 2 certs: LC $1.000.000 + TC Visa 2318 $2.012.424. Suma $3.012.424 deja brecha de ~$2.16M vs CMF — posible que el LC tenga saldo mayor o haya otro producto.",
+    "CMF consolida Banco Estado en 1 fila Consumo $3.790.012 pero hay 2 certs: TC *3544 $2.764.408 + LC 82700021650 $999.032. Suma $3.763.440, diferencia $26.572 dentro de tolerancia.",
+    "Internacional: único producto con mora 90+d ($1.301.652 CMF). Cert acredita vencimiento 02/09/2025 → Art.260 con monto payoff $21.057.908.",
+    "CMR Falabella: mora 90+d ($232.466 CMF). Cert EECC ene-2026 acredita mora oct/nov/dic 2025 → Art.260 con monto $1.867.320.",
+    "Elegibilidad: 2 productos con overdue90 (Internacional + CMR Falabella) = cumple mínimo 2. Suma totalCredito 90+d = $20.520.699 + $1.784.501 = $22.305.200 >> 80 UF.",
+    "Cta cte Santander -$31.151 y cta cte Itaú $0: triviales, NO declarar."
+  ]
+}

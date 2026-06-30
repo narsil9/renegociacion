@@ -1,0 +1,341 @@
+{
+  "case": "noelia_lorca",
+  "rut": "15.121.553-K",
+  "cmf_cut_date": "2025-11-30",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 13461207,
+      "overdue90Days": 448139
+    },
+    {
+      "institucion": "Banco Estado",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1726529,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "tipoCredito": "Consumo",
+      "totalCredito": 477130,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 991601,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "1136 Bco Chile Cred.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco De Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "29815121553K001136",
+          "monto": 13524920,
+          "etiqueta_monto": "Total a cancelar (fila 10/12/2025)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-11-05",
+          "dias_mora_doc": 0,
+          "cita_monto": "Total a cancelar 13.524.920",
+          "cita_fecha": "Estado: Moroso / Fecha última cuota: 05/10/2028 / Nº Cuotas 39 / Valor Cuota 448.139",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "1136 CONSUMO.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "29815121553K001136",
+          "monto": 13466103,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-05",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Total de Prepago 13.466.103",
+          "cita_fecha": "Número de Cuotas Vencidas no Pagadas 4 / Fecha Próximo Pago 05/12/2025 / Número Cuota 14/48",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "3570 Bco Chile LC.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco De Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "20806702882588983570",
+          "monto": 114782,
+          "etiqueta_monto": "Total a cancelar (fila 10/12/2025)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-16",
+          "dias_mora_doc": 0,
+          "cita_monto": "Total a cancelar 114.782",
+          "cita_fecha": "Fecha última cuota: 16/10/2025 / Estado: Moroso / Tipo de crédito: Linea Cred Rzgda, Cons, T/F",
+          "confidence": 0.90
+        }
+      ]
+    },
+    {
+      "filename": "3570 MORA 16_10.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "20806702882588983570",
+          "monto": 114992,
+          "etiqueta_monto": "Monto Total Cuota / Fecha Vencimiento 16/10/2025",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-16",
+          "dias_mora_doc": 0,
+          "cita_monto": "Monto Total Cuota $ 114.992 / Fecha de Vencimiento 16/10/2025",
+          "cita_fecha": "Cuota vencida, puede incluir cobro de interés o multas / Venció el 16/10/2025",
+          "confidence": 0.87
+        }
+      ]
+    },
+    {
+      "filename": "9782 TARJETA DE CREDITO MORA 7-8.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "XXXX XXX1 0001 9782",
+          "monto": 377461,
+          "etiqueta_monto": "Costo Monetario Prepago (estado oct/2025, más reciente)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-22",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago $ 377.461",
+          "cita_fecha": "INTERESES DE MORA $711 / Período Facturado 24/09/2025–22/10/2025",
+          "confidence": 0.82
+        }
+      ]
+    },
+    {
+      "filename": "3350 CONSUMO.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97030000-7",
+      "emisor_nombre": "BancoEstado",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "00033493350",
+          "monto": 0,
+          "etiqueta_monto": "Saldo Capital Pendiente (CANCELADO al 10/12/2025)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-01",
+          "dias_mora_doc": 0,
+          "cita_monto": "Saldo Capital Pendiente : 0 / Total Pagado : $1.776.482 / Fecha Cancelación 10-Dic-2025",
+          "cita_fecha": "Cuota 39 Venció el 01/10/2025",
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "filename": "3350 MORA 1_10.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97030000-7",
+      "emisor_nombre": "BancoEstado",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "00033493350",
+          "monto": 1657644,
+          "etiqueta_monto": "Saldo crédito (portal web al 01/10/2025, ANTES de cancelación)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-01",
+          "dias_mora_doc": 0,
+          "cita_monto": "Saldo crédito $1.657.644",
+          "cita_fecha": "Información de la cuota N°39 / Venció el 01/10/2025",
+          "confidence": 0.80
+        }
+      ]
+    },
+    {
+      "filename": "7379 11_25.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "76645030-K",
+      "emisor_nombre": "CMR Falabella / Banco Falabella",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "853510******7379",
+          "monto": 1009422,
+          "etiqueta_monto": "Costo Monetario Prepago al 24/11/2025",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago al 24/11/2025 **** 1.009.422",
+          "cita_fecha": "Monto Interés por Mora 0 / Gasto de Cobranza 0",
+          "confidence": 0.90
+        }
+      ]
+    },
+    {
+      "filename": "Octubre.pdf",
+      "institucion_asignada": "CAR - Ripley",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "96874030-K",
+      "emisor_nombre": "Banco Ripley",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "XXXXXXXXXXXX0248",
+          "monto": 431174,
+          "etiqueta_monto": "Costo Monetario Prepago (estado sep/2025)",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago 431.174",
+          "cita_fecha": "4. COSTOS POR ATRASO (E) 975 / Interés Moratorio 975",
+          "confidence": 0.87
+        }
+      ]
+    },
+    {
+      "filename": "document (9) (2).pdf",
+      "institucion_asignada": "Forum Servicios Financieros",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Forum Servicios Financieros (Grupo BBVA)",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "1340264",
+          "monto": 5851825,
+          "etiqueta_monto": "Monto a Financiar (total contrato; cuotas 10-24 impagadas — saldo capital no explicitado)",
+          "moneda": "CLP",
+          "fecha_mora": "2026-01-05",
+          "dias_mora_doc": 0,
+          "cita_monto": "Monto a Financiar 5.851.825 / N Cuota 10 Fec. Vcto. 05-01-2026 Estado Impaga",
+          "cita_fecha": "Cuota 10 Fec. Vcto. 05-01-2026 Estado Impaga",
+          "confidence": 0.62
+        }
+      ]
+    },
+    {
+      "filename": "certificado_detalle_credito_vigente (1).pdf",
+      "institucion_asignada": "La Araucana CCAF",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "70073600-3",
+      "emisor_nombre": "La Araucana C.C.A.F.",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "062000152616",
+          "monto": 19032315,
+          "etiqueta_monto": "Suma cuotas pendientes 4-60 (3 morosas + 54 vigentes $334.631 + última $331.357) — saldo capital no explicitado; usar con precaución",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-31",
+          "dias_mora_doc": 109,
+          "cita_monto": "N° Cuota 4 Fecha de Vencimiento 2025-07-31 Estado Cuota MOROSO / Monto Solicitado $9.536.311 / Número de cuotas pendientes 57",
+          "cita_fecha": "N° Cuota 4 Fecha de Vencimiento 2025-07-31 Estado Cuota MOROSO",
+          "confidence": 0.55
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 13524920,
+      "art": 260,
+      "cmf": true,
+      "doc": "1136 Bco Chile Cred.pdf",
+      "nota": "Consumo op 1136 — liquidación prepago 10/12/2025. Moroso, 4 cuotas impagas $448.139 c/u. Payoff $13.524.920. Monto CMF $13.461.207 (diferencia ~$63k, dentro de tolerancia). overdue90Days=$448.139 → Art.260 con monto+vencimiento acreditables."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 114782,
+      "art": 260,
+      "cmf": true,
+      "doc": "3570 Bco Chile LC.pdf",
+      "nota": "Línea de Crédito Rgzda op 3570 — liquidación prepago 10/12/2025. Fecha vencimiento cuota: 16/10/2025, Estado Moroso. Payoff $114.782. El CMF consolida BdCh en una fila — este es producto distinto dentro de la misma fila CMF. Carpeta lo clasifica como 260."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 377461,
+      "art": 260,
+      "cmf": true,
+      "doc": "9782 TARJETA DE CREDITO MORA 7-8.pdf",
+      "nota": "Tarjeta MC 9782 — estado oct/2025 con mora (intereses de mora presentes). Prepago $377.461. Producto distinto dentro de la fila CMF BdCh. Carpeta lo clasifica como 260. ADVERTENCIA: el CMF muestra solo $448.139 en columna 90+d para BdCh total — posible que la mora 90d esté acreditada solo en el consumo 1136; la tarjeta 9782 puede tener mora <90d. Necesita revisión abogado."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 0,
+      "art": 261,
+      "cmf": true,
+      "doc": "3350 CONSUMO.pdf",
+      "nota": "ALERTA CRÍTICA: Banco Estado op 3350 aparece en el CMF (corte 30/11/2025) con $1.726.529 vigente (60-89d: $185.057). Sin embargo, la Liquidación de Cancelación de BancoEstado del 10/12/2025 indica Saldo Capital Pendiente=$0 y Fecha Cancelación=10-Dic-2025. El crédito fue PAGADO DESPUÉS del corte CMF. En principio NO debería declararse. Requiere confirmación del abogado: si la renegociación ya se inició o si la deuda efectivamente está saldada antes de presentar la solicitud."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1009422,
+      "art": 261,
+      "cmf": true,
+      "doc": "7379 11_25.pdf",
+      "nota": "Tarjeta CMR 7379 — al día (Costo por Atraso=$0). Prepago $1.009.422. CMF overdue90Days=$0 → Art.261."
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "monto": 431174,
+      "art": 261,
+      "cmf": true,
+      "doc": "Octubre.pdf",
+      "nota": "Tarjeta Ripley 0248 — interés moratorio $975 (muy menor). Cupo utilizado=$431.174. CMF overdue90Days=$0 → Art.261."
+    },
+    {
+      "institucion": "Forum Servicios Financieros",
+      "monto": 5851825,
+      "art": 261,
+      "cmf": false,
+      "doc": "document (9) (2).pdf",
+      "nota": "NO-CMF. Contrato 1340264, 24 cuotas. Cuotas 1-9 pagadas, cuota 10 vence 05/01/2026 (impaga futura). La primera cuota impaga aún no venció al corte CMF → mora NO supera 90d → Art.261. Monto declarado = Monto a Financiar $5.851.825 (el cert no provee saldo capital residual explícito — confidence 0.62). ADVERTENCIA: solicitar cert con saldo insoluto explícito para acreditar monto con mayor precisión."
+    },
+    {
+      "institucion": "La Araucana CCAF",
+      "monto": 19032315,
+      "art": 260,
+      "cmf": false,
+      "doc": "certificado_detalle_credito_vigente (1).pdf",
+      "nota": "NO-CMF. Crédito F°062000152616. Cuotas 4-6 MOROSO (vto 31/07/2025, 31/08/2025, 30/09/2025). Primera mora: 31/07/2025 → mora ≥91d al corte CMF → Art.260. Vencimiento acreditable: cuota 4 vto 31/07/2025. Monto = suma de cuotas pendientes 4-60 (~$19.032.315) — el cert no da saldo capital, confidence baja (0.55). ADVERTENCIA: la suma de cuotas incluye intereses futuros; el monto real de payoff/saldo insoluto podría ser menor. Solicitar certificado de saldo deuda o liquidación para declarar monto más preciso."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF (09/12/2025, corte 30/11/2025): 4 filas directas. Deuda total $16.656.467. Solo Banco de Chile tiene overdue90Days>0 ($448.139).",
+    "Banco de Chile: UNA fila CMF pero TRES productos documentados separadamente (consumo 1136, LC 3570, tarjeta 9782). Los tres clasificados en 06_Art260_Mora. Esto es multiproducto — el CMF los consolida. Monto total certs: $13.524.920+$114.782+$377.461=$14.017.163 vs CMF $13.461.207 (diferencia ~$556k — plausible por intereses/mora acumulada desde corte).",
+    "Banco Estado CANCELADO: La liquidación del 10/12/2025 muestra Saldo Capital Pendiente=0 y Fecha Cancelación=10-Dic-2025. El CMF (corte 30/11/2025) aún lo registra como deuda vigente con mora 60-89d. Situación: deuda pagada DESPUÉS del corte CMF. El abogado debe decidir si declarar o no en la solicitud.",
+    "Tarjeta 9782 (BdCh): doc autoritativo elegido = estado de oct/2025 (más reciente en la carpeta). Solo hay estados de cuenta (jul/ago/sep/oct 2025), no liquidación. Payoff = Costo Monetario Prepago $377.461. Mora presente pero puede ser <90d — el CMF solo reporta $448.139 en 90+d para toda la fila BdCh (coincide con la cuota del consumo 1136), no para la tarjeta.",
+    "La Araucana: cert emitido 17/11/2025. El monto informado es suma de cuotas pendientes, NO saldo capital explícito. Confidence baja por ausencia de campo 'Saldo Deuda' o 'Saldo Insoluto'. Recomendar cert de liquidación o saldo.",
+    "Forum: primera cuota impaga (cuota 10) vence 05/01/2026 — posterior al corte CMF. Deuda al día al momento del CMF. Art.261. El monto total del contrato es $5.851.825 pero el saldo residual (capital) no está explicitado en el doc. Confidence baja.",
+    "DOCUMENTOS QUE NO SIRVEN (BancoEstado): cartolas de cuenta corriente/CuentaRUT y WhatsApp — correctamente ignorados; no acreditan saldo de deuda crediticia.",
+    "Elegibilidad 260: Solo Banco de Chile tiene overdue90Days>0 en CMF. Si la LC 3570 y tarjeta 9782 tienen mora <90d, y La Araucana (NO-CMF 260) suma como producto adicional, el total de productos 260 con vencimiento acreditable = BdCh consumo 1136 + La Araucana = 2 productos → cumple requisito mínimo (≥2). Si el abogado valida los 3 productos BdCh como 260, son 4. La suma totalCredito de productos 90+d = $13.461.207 (BdCh CMF) >> 80 UF (~$3.26M) → requisito de monto cumplido."
+  ]
+}

@@ -1,0 +1,266 @@
+{
+  "case": "jaime_cartes",
+  "rut": "17.596.599-8",
+  "cmf_cut_date": "2025-11-14",
+  "cmf_rows": [
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 7050726,
+      "overdue90Days": 223942,
+      "nota": "Fila única consolidada — cubre 3 operaciones distintas (8004, 8140, 2982 TC)"
+    },
+    {
+      "institucion": "Tenpo Payments S.A.",
+      "tipoCredito": "Consumo",
+      "totalCredito": 298964,
+      "overdue90Days": 298964
+    }
+  ],
+  "cmf_indirect": [
+    {
+      "institucion": "Coopeuch",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 103633300,
+      "overdue90Days": 0,
+      "rol": "Fiador y Codeudor Solidario",
+      "titular": "CAROLINE ANDREA TAPIA RIVAS",
+      "nota": "Deuda INDIRECTA — Jaime solo figura como fiador/codeudor solidario. NO se declara en Paso 3."
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Santander creditos.pdf",
+      "institucion_asignada": "Banco Santander-Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97.036.000-K",
+      "emisor_nombre": "Banco Santander-Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "8004",
+          "monto": 376199,
+          "etiqueta_monto": "TOTAL A PAGAR",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "TOTAL A PAGAR :376.199,00",
+          "cita_fecha": "",
+          "confidence": 0.88,
+          "nota": "Prepayment slip 'PAGO TOTAL DEL PRESTAMO'. N° PRESTAMO: 00350401650050828004. Fecha: 03/11/2025. Sin fecha de mora explícita."
+        },
+        {
+          "operacion": "8140",
+          "monto": 4146401,
+          "etiqueta_monto": "TOTAL A PAGAR",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "TOTAL A PAGAR :4.146.401,00",
+          "cita_fecha": "",
+          "confidence": 0.88,
+          "nota": "Prepayment slip 'PAGO TOTAL DEL PRESTAMO'. N° PRESTAMO: 00350045650044278140. Fecha: 03/11/2025. Sin fecha de mora explícita."
+        }
+      ]
+    },
+    {
+      "filename": "estado-de-cuenta (13).pdf",
+      "institucion_asignada": "Banco Santander-Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97.036.000-K",
+      "emisor_nombre": "Banco Santander-Chile",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 2766636,
+          "cita": "COSTO MONETARIO PREPAGO $ 2.766.636"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "2982",
+          "monto": 2766636,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-22",
+          "dias_mora_doc": 0,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 2.766.636",
+          "cita_fecha": "MONTO PAGADO PERÍODO ANTERIOR $0 (período 23/09/2025–22/10/2025)",
+          "confidence": 0.82,
+          "nota": "Tarjeta Mastercard Gold XXXX 2982. Fecha estado: 24/11/2025, período 22/10–24/11/2025. Monto pagado período anterior = $0 (inicio de mora verificable). Gasto de cobranza cobrado 30/10/25. No hay 'días de mora' impreso. Cupo total $3.485.772; cupo utilizado $2.730.267 (vigente disponible). Payoff = COSTO MONETARIO PREPAGO $2.766.636. No usar Cupo Utilizado como deuda (es saldo disponible del período)."
+        }
+      ]
+    },
+    {
+      "filename": "2982 TC ESTADOS DE CUENTA MORA 8_8.pdf",
+      "institucion_asignada": "Banco Santander-Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97.036.000-K",
+      "emisor_nombre": "Banco Santander-Chile",
+      "totales_por_moneda": [],
+      "productos": [],
+      "nota": "PDF completamente ilegible — 12 páginas escaneadas como imágenes, sin capa de texto. Contiene estados de cuenta mensuales de la tarjeta 2982 de julio a octubre 2025 (nombre del archivo: MORA 8_8 = 8 meses en mora / mes 8). Los datos de saldo se extraen exclusivamente de 'estado-de-cuenta (13).pdf' que es el más reciente (24/11/2025).",
+      "confidence": 0.0
+    },
+    {
+      "filename": "8004 CREDITO.pdf",
+      "institucion_asignada": "Banco Santander-Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97.036.000-K",
+      "emisor_nombre": "Banco Santander-Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "8004",
+          "monto": 376199,
+          "etiqueta_monto": "TOTAL A PAGAR",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "TOTAL A PAGAR :376.199,00",
+          "cita_fecha": "",
+          "confidence": 0.88,
+          "nota": "Idéntico a la página 1 de 'Santander creditos.pdf'. N° PRESTAMO: 00350401650050828004. Fecha: 03/11/2025."
+        }
+      ]
+    },
+    {
+      "filename": "8140 CREDITO.pdf",
+      "institucion_asignada": "Banco Santander-Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97.036.000-K",
+      "emisor_nombre": "Banco Santander-Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "8140",
+          "monto": 4146401,
+          "etiqueta_monto": "TOTAL A PAGAR",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "TOTAL A PAGAR :4.146.401,00",
+          "cita_fecha": "",
+          "confidence": 0.88,
+          "nota": "Idéntico a la página 2 de 'Santander creditos.pdf'. N° PRESTAMO: 00350045650044278140. Fecha: 03/11/2025."
+        }
+      ]
+    },
+    {
+      "filename": "8004 MORA 16_10.pdf",
+      "institucion_asignada": "Banco Santander-Chile",
+      "doc_type": "otro",
+      "rut_emisor": "97.036.000-K",
+      "emisor_nombre": "Banco Santander-Chile",
+      "totales_por_moneda": [],
+      "productos": [],
+      "nota": "PDF de 1 página, imagen escaneada (iLovePDF, sin capa de texto). Sin datos extraíbles. Nombre sugiere fecha de inicio de mora: 16/10/2025. NO usar el nombre del archivo como fuente de fecha — es un dato no verificado.",
+      "confidence": 0.0
+    },
+    {
+      "filename": "8140 MORA 05_8.pdf",
+      "institucion_asignada": "Banco Santander-Chile",
+      "doc_type": "otro",
+      "rut_emisor": "97.036.000-K",
+      "emisor_nombre": "Banco Santander-Chile",
+      "totales_por_moneda": [],
+      "productos": [],
+      "nota": "PDF de 1 página, imagen escaneada (iLovePDF, sin capa de texto). Sin datos extraíbles. Nombre sugiere fecha de inicio de mora: 05/08/2025. NO usar el nombre del archivo como fuente de fecha — es un dato no verificado.",
+      "confidence": 0.0
+    },
+    {
+      "filename": "Constancia de Deuda 17596599-8 .pdf",
+      "institucion_asignada": "Tenpo Payments S.A.",
+      "doc_type": "resumen_global",
+      "rut_emisor": "76.967.692-9",
+      "emisor_nombre": "Tenpo Payments S.A.",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 298964,
+          "cita": "$ Utilizado $ 298.964"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "5155xxxxxxxx9924",
+          "monto": 298964,
+          "etiqueta_monto": "Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": "",
+          "dias_mora_doc": 0,
+          "cita_monto": "$ Utilizado $ 298.964",
+          "cita_fecha": "",
+          "confidence": 0.95,
+          "nota": "Estado: CARTERA VENCIDA. Cupo aprobado $330.000. Sin fecha de mora ni días impresos en el documento. Tenpo SÍ aparece en CMF como deuda directa con $298.964 en 90+d — es acreedor CMF, no NO-CMF."
+        }
+      ]
+    },
+    {
+      "filename": "Hoja Resumen - 2025-06-27T151837.177.pdf",
+      "institucion_asignada": "Coopeuch",
+      "doc_type": "otro",
+      "rut_emisor": "",
+      "emisor_nombre": "Coopeuch",
+      "totales_por_moneda": [
+        {
+          "moneda": "UF",
+          "monto": 2614.125,
+          "cita": "Monto líquido del crédito (UF) 2.614,1250"
+        }
+      ],
+      "productos": [],
+      "nota": "EXCLUIDO DEL PASO 3. Titular del crédito: CAROLINE ANDREA TAPIA RIVAS (RUT 17.830.364-3). Jaime Cartes figura únicamente como 'Nombre asegurado' y Fiador y Codeudor Solidario, confirmado por el texto: 'El fiador y codeudor solidario es un deudor indirecto, informado como tal a la Superintendencia de Bancos.' Deuda INDIRECTA = NO declarar. Consistente con el CMF que clasifica Coopeuch como deuda indirecta ($103.633.300 vigente, 0 en 90+d).",
+      "confidence": 0.97
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco Santander-Chile",
+      "operacion": "8004",
+      "monto": 376199,
+      "art": 260,
+      "cmf": true,
+      "doc": "8004 CREDITO.pdf",
+      "nota": "Crédito de consumo. Payoff TOTAL A PAGAR $376.199. Mora acreditada por CMF (fila Santander $223.942 en 90+d). Fecha de mora: no extraíble de documentos textuales — MORA 16_10.pdf es imagen. Necesita revisión del abogado para confirmar fecha exacta o el sistema la infiere como >90d desde el nombre del archivo."
+    },
+    {
+      "institucion": "Banco Santander-Chile",
+      "operacion": "8140",
+      "monto": 4146401,
+      "art": 260,
+      "cmf": true,
+      "doc": "8140 CREDITO.pdf",
+      "nota": "Crédito de consumo. Payoff TOTAL A PAGAR $4.146.401. Mora acreditada por CMF. Fecha de mora: no extraíble de documentos textuales — MORA 05_8.pdf es imagen."
+    },
+    {
+      "institucion": "Banco Santander-Chile",
+      "operacion": "2982",
+      "monto": 2766636,
+      "art": 260,
+      "cmf": true,
+      "doc": "estado-de-cuenta (13).pdf",
+      "nota": "Tarjeta de crédito TC 2982. Payoff = COSTO MONETARIO PREPAGO $2.766.636 (estado de cuenta 24/11/2025). Mora: primer período sin pago = sep-oct 2025 ($0 pagado en período 23/09–22/10/2025). Cargo de cobranza cobrado 30/10/25."
+    },
+    {
+      "institucion": "Tenpo Payments S.A.",
+      "operacion": "5155xxxxxxxx9924",
+      "monto": 298964,
+      "art": 260,
+      "cmf": true,
+      "doc": "Constancia de Deuda 17596599-8 .pdf",
+      "nota": "CARTERA VENCIDA, 100% en 90+d según CMF. Monto: $298.964 (utilizado). SIN fecha de mora explícita en el documento — para Art.260 se necesita fecha de vencimiento acreditable. ALERTA: si no hay otra fuente de fecha, degradar a Art.261 (solo monto). El nombre de la tarjeta termina en 9924."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CRÍTICO: El CMF consolida las 3 operaciones Santander (8004 + 8140 + 2982 TC) en UNA SOLA FILA ($7.050.726, $223.942 en 90+d). En Paso 3 debe declararse como multiproducto: 3 filas separadas con sus payoffs individuales ($376.199 + $4.146.401 + $2.766.636 = $7.289.200 total vs CMF $7.050.726, diferencia ~$238k dentro de tolerancia).",
+    "CRÍTICO: Coopeuch NO se declara. Jaime es fiador/codeudor solidario de un crédito cuya titular es Caroline Tapia Rivas (RUT 17.830.364-3). El CMF lo clasifica correctamente como deuda indirecta. El documento (Hoja Resumen) no tiene RUT de Coopeuch impreso.",
+    "ALERTA: 2982 TC ESTADOS DE CUENTA MORA 8_8.pdf es 100% imagen escaneada (12 páginas, sin capa de texto). Ilegible por pdftotext. El archivo autoritativo para la TC 2982 es 'estado-de-cuenta (13).pdf' (24/11/2025, texto completo).",
+    "ALERTA: 8004 MORA 16_10.pdf y 8140 MORA 05_8.pdf son imágenes escaneadas de 1 página (iLovePDF). Sin texto extraíble. Los nombres de archivo sugieren fechas de inicio de mora (16/10/2025 y 05/08/2025 respectivamente) pero no son datos verificados.",
+    "Santander creditos.pdf y Santander creditos (1).pdf son IDÉNTICOS — ambos contienen los 2 slips de 'PAGO TOTAL DEL PRESTAMO' de las operaciones 8004 ($376.199) y 8140 ($4.146.401). Los archivos 8004 CREDITO.pdf y 8140 CREDITO.pdf son duplicados individuales de cada slip.",
+    "Tenpo Payments: SÍ aparece en CMF como deuda directa ($298.964, 100% en 90+d). RUT del emisor: 76.967.692-9 (verificado en el documento). Clasificar como acreedor CMF en Paso 3, no como NO-CMF.",
+    "Fecha de vencimiento para Art.260: los payoff slips de 8004/8140 NO tienen fecha de mora impresa. Los MORA PDFs son imágenes ilegibles. Para declarar en 260 se necesita la fecha — puede usarse la info del CMF (14/11/2025 corte, mora ya establecida) pero no es una 'fecha de primera cuota impaga'. Revisar con el abogado.",
+    "Elegibilidad: 2 productos directos con 90+d (Santander $223.942 + Tenpo $298.964 = $522.906). Total deuda directa = $7.349.690. Suma Art.260 estimada = ~$7.289.200 (los 3 Santander, 90+d parcial). Supera 80 UF (~$3.2M) con holgura."
+  ]
+}

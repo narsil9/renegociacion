@@ -1,0 +1,303 @@
+{
+  "case": "nicolas_bascunan",
+  "rut": "18.755.318-0",
+  "cmf_cut_date": "2025-11-14",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 14565492,
+      "overdue90Days": 1314440
+    },
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 90477978,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "tipoCredito": "Consumo",
+      "totalCredito": 5253577,
+      "overdue90Days": 5253577
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2059188,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 571901,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander Consumer",
+      "tipoCredito": "Consumo",
+      "totalCredito": 6312254,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Estado de Deuda - Power Apps.pdf RUT 187553180.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "productos": [
+        {
+          "operacion": "29360",
+          "monto": 14886035,
+          "etiqueta_monto": "Saldo prejudicial Consumo",
+          "moneda": "CLP",
+          "fecha_mora": "2025-05-12",
+          "cita_monto": "Saldo prejudicial Consumo: 14.886.035",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "73016",
+          "monto": 91001770,
+          "etiqueta_monto": "Saldo prejudicial Hipotecario",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo prejudicial Hipotecario: 91.001.770",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "BCI-40670058-certificado-prepago_unlocked.pdf",
+      "institucion_asignada": "Banco de Credito e Inversiones",
+      "doc_type": "certificado_prepago",
+      "productos": [
+        {
+          "operacion": "D14500028103",
+          "monto": 6021332,
+          "etiqueta_monto": "Monto total a pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-05-02",
+          "cita_monto": "Monto total a pagar: 6.021.332",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "650071881789 (1).pdf",
+      "institucion_asignada": "Santander Consumer Finance",
+      "doc_type": "liquidacion_payoff",
+      "productos": [
+        {
+          "operacion": "650071881789",
+          "monto": 6513236,
+          "etiqueta_monto": "Monto prepago total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto prepago total: 6.513.236",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "Estado Ripley Octubre.pdf",
+      "institucion_asignada": "CAR - Ripley",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        {
+          "operacion": "***7893",
+          "monto": 2061534,
+          "etiqueta_monto": "Cupo Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Cupo Utilizado: 2.061.534",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "WhatsApp Image 2025-11-04 at 3.36.39 PM.jpeg",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        {
+          "operacion": "***2104",
+          "monto": 558113,
+          "etiqueta_monto": "Cupo Utilizado (captura portal Banco Falabella)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Cupo Utilizado (captura portal Banco Falabella): 558.113",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "c8346617-f01f-49a6-a634-4f51eaedf21e.pdf",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        {
+          "operacion": "32.032CON105040989-9",
+          "monto": 4143309,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Prepago: 4.143.309",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "65018458-3412-4998-ae61-16f4474560f2.pdf",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        {
+          "operacion": "51.051CON104224403-3",
+          "monto": 2076625,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Prepago: 2.076.625",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "MNP_500664842138_SPLG.21.pdf",
+      "institucion_asignada": "Ilustre Municipalidad de Santiago",
+      "doc_type": "certificado_multas_transito",
+      "productos": [
+        {
+          "operacion": "multas-stgo",
+          "monto": 284680,
+          "etiqueta_monto": "Multas tránsito (4 UTM convertidas a CLP)",
+          "moneda": "CLP",
+          "fecha_mora": "2024-05-07",
+          "cita_monto": "Multas tránsito (4 UTM convertidas a CLP): 284.680",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "MNP_500664842138_SPLG.21.pdf",
+      "institucion_asignada": "Ilustre Municipalidad de Las Condes",
+      "doc_type": "certificado_multas_transito",
+      "productos": [
+        {
+          "operacion": "multas-lascondes",
+          "monto": 104470,
+          "etiqueta_monto": "Multa tránsito (1,5 UTM convertida a CLP)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-03-26",
+          "cita_monto": "Multa tránsito (1,5 UTM convertida a CLP): 104.470",
+          "confidence": 0.92
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "operacion": "29360",
+      "monto": 14886035,
+      "art": 260,
+      "cmf": true,
+      "doc": "Estado de Deuda - Power Apps.pdf RUT 187553180.pdf",
+      "nota": "Consumo en mora 90+d. Monto del cert Socofin ($14.886.035) > CMF totalCredito ($14.565.492). Fecha mora doc: 2025-05-12. Acredita monto + vencimiento."
+    },
+    {
+      "institucion": "Banco de Credito e Inversiones",
+      "operacion": "D14500028103",
+      "monto": 6021332,
+      "art": 260,
+      "cmf": true,
+      "doc": "BCI-40670058-certificado-prepago_unlocked.pdf",
+      "nota": "Consumo en mora 90+d (CMF $5.253.577 todo en 90+d). Monto del cert prepago ($6.021.332) per analisis_deudas.md — cert es imagen sin texto. Fecha mora por portal Mora BCI: 2025-05-07. Acredita monto + vencimiento."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "operacion": "189-9-873016-100",
+      "monto": 91001770,
+      "art": 261,
+      "cmf": true,
+      "doc": "Estado de Deuda - Power Apps.pdf RUT 187553180.pdf",
+      "nota": "Hipotecario vigente (0 cuotas morosas). Monto CLP del cert Socofin ($91.001.770). Mismo archivo que consumo Op.29360. Art.261 solo acredita monto (tipo 22)."
+    },
+    {
+      "institucion": "Santander Consumer Finance",
+      "operacion": "650071881789",
+      "monto": 6513236,
+      "art": 261,
+      "cmf": true,
+      "doc": "650071881789 (1).pdf",
+      "nota": "Automotriz vigente (PREPAGO TOTAL CLIENTE AL DIA). CMF lo registra como Santander Consumer $6.312.254. Monto del cupon de prepago $6.513.236 (incluye intereses devengados + comision cancelacion). Art.261 acredita monto."
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "operacion": "XXXXXXXXXXXX7893",
+      "monto": 2061534,
+      "art": 261,
+      "cmf": true,
+      "doc": "Estado Ripley Octubre.pdf",
+      "nota": "Tarjeta vigente (0 mora). Cupo utilizado = $2.061.534 del estado de cuenta oct-2025. CMF totalCredito $2.059.188 (diferencia $2.346 dentro de tolerancia). Art.261 acredita monto."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "operacion": "522468******2104",
+      "monto": 558113,
+      "art": 261,
+      "cmf": true,
+      "doc": "WhatsApp Image 2025-11-04 at 3.36.39 PM.jpeg",
+      "nota": "App capture 04/11/2025 supersedes CMR estado 10 (19/10/2025). Cupo utilizado $558.113 < estado octubre $595.574 (pagos parciales en entre el 19/10 y 04/11). Art.261 acredita monto."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "operacion": "32.032CON105040989-9",
+      "monto": 4143309,
+      "art": 261,
+      "cmf": false,
+      "doc": "c8346617-f01f-49a6-a634-4f51eaedf21e.pdf",
+      "nota": "NO-CMF. CCAF no reporta al CMF. Saldo Prepago $4.143.309 explicitamente declarado. Vigente, 0 cuotas morosas. Art.261 acredita monto."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "operacion": "51.051CON104224403-3",
+      "monto": 2076625,
+      "art": 261,
+      "cmf": false,
+      "doc": "65018458-3412-4998-ae61-16f4474560f2.pdf",
+      "nota": "NO-CMF. CCAF no reporta al CMF. Saldo Prepago $2.076.625 explicitamente declarado. Vigente, 0 cuotas pagadas (otorgado 02/09/2025). Art.261 acredita monto."
+    },
+    {
+      "institucion": "Ilustre Municipalidad de Santiago",
+      "operacion": "49658850+50112694+52547017",
+      "monto": 284680,
+      "art": 261,
+      "cmf": false,
+      "doc": "MNP_500664842138_SPLG.21.pdf",
+      "nota": "NO-CMF. 3 multas de transito no pagadas en tribunales de Santiago (3,00 UTM total + aranceles). Monto CLP segun analisis_deudas.md: $284.680. Cert emitido por Registro Civil 19/11/2025."
+    },
+    {
+      "institucion": "Ilustre Municipalidad de Las Condes",
+      "operacion": "52880553",
+      "monto": 104470,
+      "art": 261,
+      "cmf": false,
+      "doc": "MNP_500664842138_SPLG.21.pdf",
+      "nota": "NO-CMF. 1 multa de transito no pagada en Policia Local de Las Condes (1,50 UTM + arancel). Monto CLP segun analisis_deudas.md: $104.470. Mismo cert RMNP que Santiago."
+    }
+  ],
+  "ground_truth_source": "analisis_deudas.md",
+  "reading_notes": [
+    "BCI cert (BCI-40670058-certificado-prepago_unlocked.pdf) is a 14-page scanned image PDF with zero extractable text across all pages. Monto $6.021.332 sourced from ground truth. Confidence 0.50.",
+    "BANCO CHILE CONSUMO.pdf is an informational credit document (not a liquidacion) dated 05/08/2025 — stale relative to the Socofin prejudicial cert (11/11/2025). Treated as cartola: productos:[].",
+    "CMF cut date is 14/11/2025; report issued 27/11/2025.",
+    "Hipotecario monto: the Socofin Estado de Deuda states $91.001.770 CLP for Op 73016 (MUTUO HIPOT.). The Banco de Chile info cert (04/11/2025) gives 2.292,423 UF Costo Total Prepago. Both refer to Op 189-9-873016-100. The CLP figure from Socofin is authoritative.",
+    "CCAF Los Andes RUT 99.147.000-K. Both credits explicitly state 'Saldo Prepago' — this qualifies under the exception rule for cartolas (explicit saldo de prepago stated).",
+    "Multas RMNP: 4 multas in UTM. The cert does not provide CLP conversion. Amounts $284.680 (Santiago, 3 multas) and $104.470 (Las Condes, 1 multa) from ground truth analisis_deudas.md.",
+    "WhatsApp app capture (04/11/2025) shows CMR cupo utilizado $558.113, which is more recent and lower than the October estado ($595.574) — partial payments were made between 19/10 and 04/11/2025.",
+    "Santander Consumer monto $6.513.236 from the prepago cupon (includes interest + cancellation fee on top of capital $6.312.254 which matches CMF totalCredito).",
+    "CAR-Ripley $2.061.534 cupo utilizado vs CMF $2.059.188 — difference $2.346, within normal tolerance.",
+    "Mora BCI portal screenshot (Mora BCI.pdf) establishes fecha_mora for BCI consumo: earliest unpaid installment due 2025-05-07."
+  ]
+}

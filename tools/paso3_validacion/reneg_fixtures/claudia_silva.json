@@ -1,0 +1,143 @@
+{
+  "case": "claudia_silva",
+  "rut": "18.810.379-0",
+  "cmf_cut_date": "2024-11-08",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 38901386,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1207589,
+      "overdue90Days": 479941
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "informeCredito.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "225188103790012177",
+          "monto": 39526040,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2024-12-03",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Total de Prepago 39.526.040",
+          "cita_fecha": "Fecha Próximo Pago 03/12/2024",
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "filename": "ACFrOgCRpl...octubre.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "XXXXXXXXXXXX3988",
+          "monto": 65864,
+          "etiqueta_monto": "Monto Total Facturado a Pagar / Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2024-11-07",
+          "dias_mora_doc": 0,
+          "cita_monto": "MONTO TOTAL FACTURADO A PAGAR ( A + B + C + D + E + F +G ) $ 65.864 / COSTO MONETARIO PREPAGO $ 65.864",
+          "cita_fecha": "PAGAR HASTA 07/11/2024",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Certificado_liquidacionXCL18.810.379X0.pdf",
+      "institucion_asignada": "CAR - Ripley",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97947000-2",
+      "emisor_nombre": "Banco Ripley",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "XXXXXXXXXXXX0690",
+          "monto": 951767,
+          "etiqueta_monto": "Monto Total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-01-17",
+          "dias_mora_doc": 0,
+          "cita_monto": "MONTO TOTAL A PAGAR AL 17-01-2025 POR TODOS LOS PRODUCTOS Y/O SERVICIOS Y DEMAS OBLIGACIONES $ 951.767",
+          "cita_fecha": "Cobranza Judicial Iniciada NO / Monto en Mora $ 791.614 / N° de Cuotas Impagas 5",
+          "confidence": 0.97
+        }
+      ]
+    },
+    {
+      "filename": "RIPLEY NOVIEMBRE.pdf",
+      "institucion_asignada": "CAR - Ripley",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97947000-2",
+      "emisor_nombre": "Banco Ripley",
+      "totales_por_moneda": [],
+      "productos": [
+        {
+          "operacion": "XXXXXXXXXXXX0690",
+          "monto": 1218565,
+          "etiqueta_monto": "Monto Total facturado / Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2024-11-25",
+          "dias_mora_doc": 0,
+          "cita_monto": "Monto Total facturado ( A+B+C+D+E ) 1.218.565 / Costo Monetario Prepago 1.218.565",
+          "cita_fecha": "VENCIMIENTO 25/NOV/2024 / Inicio morosidad CMF 11/SEP/2024",
+          "confidence": 0.90
+        }
+      ]
+    },
+    {
+      "filename": "Certificado_Vigente_Deposito_a_Plazo_00014027048.pdf",
+      "institucion_asignada": "N/A - ACTIVO, NO DEUDA",
+      "doc_type": "otro",
+      "rut_emisor": "",
+      "emisor_nombre": "",
+      "totales_por_moneda": [],
+      "productos": []
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 39526040,
+      "art": 261,
+      "cmf": true,
+      "doc": "informeCredito.pdf",
+      "nota": "CMF overdue90Days=0 → Art.261. Doc: Costo Total de Prepago $39.526.040 (fecha info 20/11/2024). El TC BdCh ($65.864 cupo utilizado) no aparece como fila CMF separada; podría estar consolidado en la fila Consumo o ser un producto NO-CMF de monto trivial. Si el Centinela lo detecta como producto distinto → Art.261 adicional."
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "monto": 951767,
+      "art": 260,
+      "cmf": true,
+      "doc": "Certificado_liquidacionXCL18.810.379X0.pdf",
+      "nota": "CMF overdue90Days=$479.941 → Art.260. Certificado de Liquidación al 17-01-2025 con Monto Total a Pagar $951.767. El estado de cuenta de noviembre ($1.218.565) es posterior pero el cert de liquidación es el autoritativo para payoff. Mora acreditada: 5 cuotas impagas, $791.614 en mora, inicio morosidad CMF 11/09/2024 (>90 días). No hay cobranza judicial."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF corte 08/11/2024, emitido 21/11/2024. Solo 2 filas de crédito directo. Sin deuda indirecta.",
+    "BdCh: ÚNICA fila CMF 'Consumo' $38.9M con overdue90Days=0. El cert autoritativo es informeCredito.pdf (20/11/2024): Costo Total de Prepago $39.526.040 para crédito consumo op#225188103790012177. Diferencia CMF vs payoff ~$625k, dentro de tolerancia.",
+    "BdCh TC (tarjeta XXXX3988): cupo utilizado $65.864 al 22/10/2024. NO aparece como fila CMF separada. Podría estar embebido en la fila Consumo del CMF o ser un producto aparte de monto trivial. Sin cert de liquidación/deuda específico para la TC → declaración requiere el estado de cuenta como acreditación de monto.",
+    "Ripley: overdue90Days=$479.941. Cert de Liquidación Portabilidad (17-01-2025, vigencia hasta 16-02-2025) emitido por Banco Ripley RUT 97947000-2. Monto Total a Pagar $951.767. Morosidad acreditada: 5 cuotas impagas, $791.614 en mora, inicio mora 11/09/2024. El estado de cuenta de noviembre muestra $1.218.565 (más reciente) pero el certificado de liquidación es el doc autoritativo para Paso 3.",
+    "Certificado_Vigente_Deposito_a_Plazo_00014027048.pdf: ACTIVO, no deuda. Monto $10.000.000 en depósito a plazo 21 días, tasa 0.266%, intereses $26.600. NO declarar como acreedor.",
+    "ACFrOgByF_2M...pdf: Notificación de cargo en cuenta corriente por deuda vencida TC BdCh ($14.210 cargados el 15/11/2024). Es aviso administrativo, no certificado de deuda. No usar como acreditación de monto.",
+    "informe.pdf: Informe comercial MAAT (créditos castigados/morosidad externa). Información de referencia, no autoritativa para Paso 3.",
+    "ALERTA: La tarjeta BdCh ($65.864) no tiene un certificado de deuda/liquidación propio. El estado de cuenta mensual puede usarse como acreditación de monto (Art.261 si CMF no la reporta separada). Requiere revisión si el Centinela la clasifica como producto adicional."
+  ]
+}
