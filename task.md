@@ -109,15 +109,25 @@ promedio por tipo, crosswalk a los 2 enums del portal) → `fillStep5` (Playwrig
   documentos a mostrar, líneas/números exactos, problema, impacto en $ y pregunta concreta (Coopeuch a secas,
   honorarios concurrente/secuencial, bruto/líquido + ventana, mes parcial, anticipos, aguinaldos, trimestrales,
   ahorro devuelto). Las respuestas se vuelven reglas generales (lecciones).
+- **3er lote `casos_constanza_mulchi` (30) + 1er caso con VERDAD-TERRENO REAL del abogado** ✅
+  (2026-07-01, `6fbe593`) — leí nativo los 30 casos + el caso **Alfonso Martínez** (screenshots del portal
+  de la abogada). El motor determinista dio **$2.033.410 idéntico al peso** a lo que declaró la abogada
+  (3 liquidaciones Buk, empleador único). **6 fixes generales del lote (L27–L32)** + **L33–L35** (liquidación
+  líquido manda sobre resumen SII imponible; "LÍQUIDO A RECIBIR" sinónimo; robustez de detección de docs).
+  Arnés `casos/paso5_pruebas/{run_constanza,fixtures_constanza/*.json}` (28/31). **Suite: 132 unit + 5 + 11 + 28/31.**
+- **L35 — falso negativo silencioso RESUELTO** ✅ — `gatherStep5Input` ya NO depende del keyword del filename
+  (un `ilovepdf_merged.pdf` real se perdía → Paso 5 omitido en silencio). Nueva regla general: candidato a
+  ingreso = todo lo que NO es cert de acreedor (por metadata `institucion_cmf`/`acreditacion_tipo`/`document_type`,
+  no por nombre); lo que se cuele lo descarta el LLM. + si no hay docs de ingreso, el flujo completo emite
+  `automation_alert` (step 5, needs_review) en vez de omitir sin avisar.
 - [ ] **Fase 2 (lectura nativa real) PENDIENTE — esperando API.** Runner listo:
   `casos/paso5_pruebas/run_native.ts` (lee los PDFs reales con Claude → mismos hechos → `computeIncomes`).
   Comando en `casos/paso5_pruebas/README.md`. Confirma que la lectura real reproduce los montos hardcodeados.
+  **Los fixtures del lote (40+ casos con hechos + esperado) son ahora el test de regresión del prompt.**
 
 ### Pendientes Paso 5
 - [ ] **CORRER `supabase/migration_sandbox_v8_ingresos.sql`** en el SQL Editor del sandbox
   (agrega `'ingresos'` al CHECK de `agent_runs.agent_type`). DDL → lo corre el usuario.
-- [ ] **Fuente de docs de ingreso en producción**: hoy `gatherStep5Input` los busca en
-  `client_documents` por keyword; el dashboard/integración debe subirlos ahí (liquidaciones + cert cotizaciones).
 - [ ] **`fillStep5` DRY_RUN no limpia el borrador** — agregar auto-cleanup como en Paso 2/3.
 - [x] ~~Honorarios (Fix 2) sin testigo~~ — **RESUELTO** con 3 testigos reales (Irene/Jaime/Noelia, lote
   `renegociacion_docs`). Camino honorarios validado (Informe Anual SII, bruto/12, coexistencia con sueldo).
