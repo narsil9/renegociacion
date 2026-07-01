@@ -1,0 +1,76 @@
+{
+  "name": "Fernando Gonzalez Silva",
+  "rut": "19757881-5",
+  "docs": [
+    {
+      "filename": "Remuneración Junio.png",
+      "category": "liquidacion_sueldo",
+      "source_key": "96908970-K",
+      "periods": [
+        { "period_label": "Junio 2025", "liquido_a_pagar": 1140806, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Anticipo de Sueldo", "amount": 100000 },
+            { "label": "Consumo Casino C&P Ltda", "amount": 27700 },
+            { "label": "Anticipo Moviliz/Colac Neg Col", "amount": 208000 },
+            { "label": "Prestamo Especial Empresa (NC)", "amount": 90577 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "TOTAL A PAGAR $ 1.140.806", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "Remuneración Julio.png",
+      "category": "liquidacion_sueldo",
+      "source_key": "96908970-K",
+      "periods": [
+        { "period_label": "Julio 2025", "liquido_a_pagar": 1103817, "dias_trabajados": 28,
+          "deductions": [
+            { "label": "Anticipo de Sueldo", "amount": 100000 },
+            { "label": "Consumo Casino C&P Ltda", "amount": 58900 },
+            { "label": "Anticipo Moviliz/Colac Neg Col", "amount": 208000 },
+            { "label": "Prestamo Especial Empresa (NC)", "amount": 90374 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "TOTAL A PAGAR $ 1.103.817", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "Remuneración Agosto.png",
+      "category": "liquidacion_sueldo",
+      "source_key": "96908970-K",
+      "periods": [
+        { "period_label": "Agosto 2025", "liquido_a_pagar": 1179128, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Anticipo de Sueldo", "amount": 100000 },
+            { "label": "Consumo Casino C&P Ltda", "amount": 28200 },
+            { "label": "Anticipo Moviliz/Colac Neg Col", "amount": 208000 },
+            { "label": "Prestamo Especial Empresa (NC)", "amount": 90845 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "TOTAL A PAGAR $ 1.179.128", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "liquidación septiembre.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "96908970-K",
+      "periods": [
+        { "period_label": "Septiembre 2025", "liquido_a_pagar": 90681, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Anticipo de Sueldo", "amount": 100000 },
+            { "label": "Anticipo Gratif. 25% Art.50", "amount": 486000 },
+            { "label": "Anticipo Aguinaldos/ Comp.Sind", "amount": 109000 },
+            { "label": "Consumo Casino C&P Ltda", "amount": 33500 },
+            { "label": "Anticipo Moviliz/Colac Neg Col", "amount": 208000 },
+            { "label": "Prestamo Especial Empresa (NC)", "amount": 91082 },
+            { "label": "Prestamo Especial Empresa (ESP NECO)", "amount": 50214 },
+            { "label": "Anticipo Liquidacion anterior", "amount": 1124587 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "TOTAL A PAGAR $ 90.681", "confidence": 0.6 } }
+      ]
+    }
+  ],
+  "cotizaciones": { "filename": "CertificadoAfpHabitat.pdf", "fecha_emision": "2025-09-12", "rut_entidad_pagadora": "96908970-K" },
+  "expectedIncomes": [
+    { "tipoIngreso": 1, "label": "Remuneración", "montoMin": 1180000, "montoMax": 1290000 }
+  ],
+  "expectAlertSubstrings": ["Prestamo Especial Empresa", "Anticipo"],
+  "notes": "Trabajador dependiente unico empleador San Antonio Terminal Internacional S.A. (RUT 96908970-K), Ingeniero de Proyectos Electricos. Sin honorarios (SII Agentes Retenedores muestra solo form 1887 renta del trabajo, no 1879). Sin arriendo ni pension. Base = promedio de 3 meses limpios Junio/Julio/Agosto usando TOTAL A PAGAR (liquido) + reintegro del descuento voluntario redirigible 'Prestamo Especial Empresa (NC)' (prestamo del empleador, ver Declaracion Jurada CREDITO CON EL EMPLEADOR: UF 1,2718/cuota descontado por planilla). Jun 1.140.806+90.577=1.231.383; Jul 1.103.817+90.374=1.194.191; Ago 1.179.128+90.845=1.269.973; promedio ~1.231.849. Rango con tolerancia por si el TS decide sumar o no el prestamo del empleador. NO sumo 'Anticipo de Sueldo', 'Anticipo Moviliz/Colac' ni 'Consumo Casino' (anticipos/consumos -> ambiguos, se alertan). SEPTIEMBRE EXCLUIDO del promedio: mes anomalo con Gratificacion 25 Art.50, Aguinaldos y reliquidaciones, ademas de 'Anticipo Liquidacion anterior' $1.124.587 que deja el TOTAL A PAGAR en solo $90.681 (no representativo del ingreso mensual permanente). Julio tiene 28 dias trabajados (Subsidio 3 primeros dias LM) - en el limite de 28, lo mantengo."
+}

@@ -1,0 +1,63 @@
+{
+  "name": "Rodrigo Alejandro Cuevas Panes",
+  "rut": "15810825-9",
+  "docs": [
+    {
+      "filename": "Lnor202601042022424605.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "61607301-K",
+      "periods": [
+        { "period_label": "Octubre 2025", "liquido_a_pagar": 998192, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "0265 Prestamos coopeuch", "amount": 199220 },
+            { "label": "0165 Ahorro coopeuch", "amount": 60000 },
+            { "label": "0164 Cuota social copeuch", "amount": 35700 },
+            { "label": "0020 Cod. 20 imponente bienestar", "amount": 22856 },
+            { "label": "0090 Fundacion arturo lopez perez", "amount": 8800 },
+            { "label": "0250 Cod. 250 fenats", "amount": 4447 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "Liquido a Pagar 998.192", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "Lnor202601042022451315.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "61607301-K",
+      "periods": [
+        { "period_label": "Noviembre 2025", "liquido_a_pagar": 998341, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "0265 Prestamos coopeuch", "amount": 199220 },
+            { "label": "0165 Ahorro coopeuch", "amount": 60000 },
+            { "label": "0164 Cuota social copeuch", "amount": 35700 },
+            { "label": "0020 Cod. 20 imponente bienestar", "amount": 22856 },
+            { "label": "0090 Fundacion arturo lopez perez", "amount": 8800 },
+            { "label": "0250 Cod. 250 fenats", "amount": 4447 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "Liquido a Pagar 998.341", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "Lnor202601042023009547.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "61607301-K",
+      "periods": [
+        { "period_label": "Diciembre 2025", "liquido_a_pagar": 1067896, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "0265 Prestamos coopeuch", "amount": 199220 },
+            { "label": "0165 Ahorro coopeuch", "amount": 60000 },
+            { "label": "0164 Cuota social copeuch", "amount": 35700 },
+            { "label": "0020 Cod. 20 imponente bienestar", "amount": 22856 },
+            { "label": "0090 Fundacion arturo lopez perez", "amount": 8800 },
+            { "label": "0250 Cod. 250 fenats", "amount": 4447 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "Liquido a Pagar 1.067.896", "confidence": 0.95 } }
+      ]
+    }
+  ],
+  "cotizaciones": { "filename": "Certificado_Cotizaciones_RUT_Empleador (1).pdf", "fecha_emision": "2025-12-09", "rut_entidad_pagadora": "61607301-K" },
+  "expectedIncomes": [
+    { "tipoIngreso": 1, "label": "Remuneracion", "montoMin": 1180000, "montoMax": 1270000 }
+  ],
+  "expectAlertSubstrings": ["Prestamos coopeuch"],
+  "notes": "Un solo empleador: Complejo Asistencial Dr. Victor Rios Ruiz (RUT 61.607.301-K, confirmado por el certificado de cotizaciones AFP Habitat). 3 liquidaciones consecutivas (oct/nov/dic 2025), 30 dias trabajados cada una. Promedio de liquido = (998.192+998.341+1.067.896)/3 = 1.021.476. Sumo el descuento voluntario redirigible 'Prestamos coopeuch' $199.220 (mismo monto los 3 meses) => ingreso mensualizado ~1.220.696. Rango 1.180.000-1.270.000 con tolerancia. Los otros descuentos (Ahorro coopeuch, Cuota social copeuch, imponente bienestar, Fundacion arturo lopez perez, fenats) son ambiguos (ahorro/social/seguro) => los transcribo pero NO los sumo; que TS los clasifique/alerte. Diciembre incluye 'Hrs.extras diurnas' $72.453 dentro del liquido (mismo empleador, no es fuente aparte). No hay honorarios ni licencias medicas; la carpeta SII solo trae Agentes Retenedores (para paso 2/3), no Informe Anual de Boletas."
+}

@@ -282,6 +282,8 @@ const LEGAL_DEDUCTION_KEYWORDS = [
 // secas (demasiado amplio) — esos caen a 'ambiguous' → se ALERTAN, no se suman.
 const VOLUNTARY_DEDUCTION_KEYWORDS = [
   'prestamo', 'préstamo', 'ptmo', 'ccaf', 'caja de compensacion', 'caja de compensación',
+  // el rótulo a menudo omite el "de": "Crédito Caja Compensación", "Caja Compensacion Los Andes"
+  'caja compensacion', 'caja compensación', 'credito social', 'crédito social',
   'los andes', 'la araucana', 'los heroes', 'los héroes', '18 de septiembre', 'gabriela mistral',
   'apv', 'ahorro voluntario', 'aporte voluntario', 'credito personal', 'crédito personal',
 ];
@@ -309,14 +311,27 @@ function startsWordWith(t: string, kw: string): boolean {
 const APV_RE = /(^|[^a-záéíóúñ])a\.?\s?p\.?\s?v/i;
 function isApvVoluntary(t: string): boolean {
   return APV_RE.test(t) || t.includes('ahorro previsional voluntario') ||
-    t.includes('deposito convenido') || t.includes('depósito convenido');
+    t.includes('deposito convenido') || t.includes('depósito convenido') ||
+    // "Cotización (Previsional) Voluntaria" / "Ahorro Previsional Voluntario" — es APVC:
+    // ahorro REDIRIGIBLE. El keyword legal 'cotiz'/'prevision' la sombreaba → se corrige aquí
+    // (L27). Solo cuando la etiqueta dice "voluntari" (no toca la cotización obligatoria).
+    (/voluntari/.test(t) && /(cotiz|prevision|previsión|ahorro)/.test(t));
 }
 
 /** Clasifica una línea de descuento. APV (voluntario) primero, luego legal, luego voluntario. */
 export function classifyDeduction(label: string): DeductionClass {
   const t = label.toLowerCase();
-  if (isApvVoluntary(t)) return 'voluntary'; // APV gana sobre 'afp' legal (es ahorro redirigible)
+  if (isApvVoluntary(t)) return 'voluntary'; // APV/APVC gana sobre 'afp'/'cotiz' legal (es ahorro redirigible)
+  // "Ahorro AFP" / "Ahorro Previsional" (no explícitamente "voluntario", ya cubierto arriba): ahorro
+  // en la AFP que puede ser redirigible o forzoso → AMBIGUO (se alerta, no se suma). Va antes del legal
+  // para que el keyword 'afp' no lo trague como cotización obligatoria. Acotado a afp/previsión para no
+  // pisar "Ahorro Caja Los Andes"/"Ahorro CCAF" (préstamo/ahorro redirigible → voluntario). L31.
+  if (/(^|[^a-záéíóúñ])ahorro/.test(t) && /(^|[^a-záéíóúñ])a\.?f\.?p|previsi/.test(t)) return 'ambiguous';
   if (LEGAL_DEDUCTION_KEYWORDS.some((k) => startsWordWith(t, k))) return 'legal';
+  // Un "Préstamo de Negociación/Contrato COLECTIVO" NO es un préstamo personal redirigible
+  // (aporte ligado a la negociación colectiva/sindicato) → ambiguo, se ALERTA (no se suma
+  // por el solo keyword 'prestamo'). L28.
+  if (/negociaci[oó]n colectiv|contrato colectiv/.test(t)) return 'ambiguous';
   if (VOLUNTARY_DEDUCTION_KEYWORDS.some((k) => startsWordWith(t, k))) return 'voluntary';
   return 'ambiguous';
 }
@@ -501,6 +516,15 @@ function periodNetIncome(p: IncomePeriod): PeriodAmountResult {
     }
   }
   const amount = liquido + voluntarySum;
+  if (voluntarySum > 0) {
+    // No sumar en silencio: avisar al abogado QUÉ descuentos se re-sumaron (materia de L10:
+    // conciliar contra el documento del préstamo). Surface, no decisión silenciosa (G2).
+    alerts.push(
+      `En "${p.period_label}" se SUMARON de vuelta descuento(s) VOLUNTARIO(s) [${voluntaryDetails.join(', ')}] ` +
+      `= +$${voluntarySum.toLocaleString('es-CL')} sobre el líquido. Verificar que sean préstamos/ahorro ` +
+      `REDIRIGIBLES (L2/L10); si alguno es un gasto real, el abogado debe restarlo.`
+    );
+  }
   const detalle =
     voluntarySum > 0
       ? `${p.period_label}: líquido ${liquido} + voluntarios ${voluntaryDetails.join(' ')} = ${amount}`
@@ -682,13 +706,44 @@ export function computeDeclaredIncomeForDoc(doc: ExtractedIncomeDoc): DeclaredIn
     const isFull = (u: MonthUnit) => u.dias == null || u.dias >= PARTIAL_MONTH_DAYS;
     const fullUnits = allUnits.filter(isFull);
     const partialUnits = allUnits.filter((u) => !isFull(u));
-    const pool = fullUnits.length > 0 ? fullUnits : allUnits;
+    let pool = fullUnits.length > 0 ? fullUnits : allUnits;
     if (fullUnits.length > 0 && partialUnits.length > 0) {
       alerts.push(
         `Se excluyó(eron) del promedio ${partialUnits.length} mes(es) PARCIAL(es) ` +
         `(${partialUnits.map((u) => `${u.key ?? '¿?'}: ${u.dias} días`).join(', ')}) — licencia médica o ` +
         `ingreso/egreso a mitad de mes subestiman el ingreso normal. El abogado puede reconsiderarlos.`
       );
+    }
+    // L29: mes con líquido ANÓMALO-BAJO (< 50% de la mediana del pool) — típicamente un
+    // clawback de anticipo/liquidación anterior o ausencia no reflejada en "días" — subestima
+    // el ingreso normal igual que un mes parcial → se EXCLUYE si quedan ≥1 mes normal + alerta.
+    // Simétrico a L16 (mes parcial). Conservador: no toca meses ALTOS (bonos/aguinaldos), que
+    // son ingreso real y los decide el abogado; solo saca los bajos anómalos.
+    if (pool.length >= 2) {
+      const amts = pool.map((u) => u.amount).sort((a, b) => a - b);
+      const mid = Math.floor(amts.length / 2);
+      const median = amts.length % 2 ? amts[mid] : (amts[mid - 1] + amts[mid]) / 2;
+      const lowOutliers = pool.filter((u) => u.amount < 0.5 * median);
+      if (lowOutliers.length > 0 && pool.length - lowOutliers.length >= 1) {
+        pool = pool.filter((u) => !lowOutliers.includes(u));
+        alerts.push(
+          `Se excluyó(eron) del promedio ${lowOutliers.length} mes(es) con líquido ANÓMALO-BAJO ` +
+          `(${lowOutliers.map((u) => `${u.key ?? '¿?'}: $${u.amount.toLocaleString('es-CL')}`).join(', ')}) ` +
+          `— muy por debajo de la mediana ($${Math.round(median).toLocaleString('es-CL')}), probable clawback de ` +
+          `anticipo/liquidación anterior o ausencia. El abogado puede reconsiderarlos.`
+        );
+      }
+      // Mes ALTO-anómalo (> 2× mediana): probable bono/aguinaldo/reliquidación de PAGO ÚNICO.
+      // NO se excluye (es ingreso real que el abogado puede querer promediar), pero se ALERTA
+      // para que decida si lo normaliza. L32.
+      const highOutliers = pool.filter((u) => u.amount > 2 * median);
+      if (highOutliers.length > 0) {
+        alerts.push(
+          `Mes(es) con líquido ANÓMALO-ALTO (${highOutliers.map((u) => `${u.key ?? '¿?'}: $${u.amount.toLocaleString('es-CL')}`).join(', ')}) ` +
+          `muy por encima de la mediana — posible bono/aguinaldo/reliquidación de pago único. Se INCLUYE en el ` +
+          `promedio (ingreso real); el abogado puede excluirlo si no es recurrente.`
+        );
+      }
     }
     // Ordenar meses de más reciente a más antiguo (clave null al final) y tomar la ventana.
     pool.sort((a, b) => (b.key ?? -Infinity) - (a.key ?? -Infinity));
@@ -771,6 +826,42 @@ export function computeIncomes(
     byGroup.set(key, arr);
   }
 
+  // L30 — SECUENCIAL vs CONCURRENTE (refina L9). Dos fuentes de la MISMA categoría cuyos
+  // rangos de MESES son DISJUNTOS = cambio de trabajo (secuencial) → se declara SOLO la fuente
+  // vigente (la de meses más recientes), NO se suman. Si los rangos SE SOLAPAN = empleadores
+  // concurrentes → se suman (comportamiento L9). Solo aplica a fuentes con meses conocidos.
+  const groupMonths = new Map<string, number[]>();
+  for (const [key, gdocs] of byGroup) {
+    groupMonths.set(
+      key,
+      gdocs.flatMap((g) => (g.periods ?? []).map((p) => parsePeriodKey(p.period_label)).filter((k): k is number => k != null))
+    );
+  }
+  const keysByCat = new Map<string, string[]>();
+  for (const key of byGroup.keys()) {
+    const cat = key.split('::')[0];
+    const arr = keysByCat.get(cat) ?? [];
+    arr.push(key);
+    keysByCat.set(cat, arr);
+  }
+  for (const [cat, keys] of keysByCat) {
+    const withMonths = keys.filter((k) => (groupMonths.get(k) ?? []).length > 0);
+    if (withMonths.length < 2) continue;
+    const disjoint = withMonths.every((a, i) =>
+      withMonths.every((b, j) => i >= j || !groupMonths.get(a)!.some((m) => groupMonths.get(b)!.includes(m)))
+    );
+    if (!disjoint) continue; // se solapan → concurrentes → se suman (L9), no tocar
+    const latest = withMonths.reduce((best, k) =>
+      Math.max(...groupMonths.get(k)!) > Math.max(...groupMonths.get(best)!) ? k : best
+    );
+    for (const k of withMonths) if (k !== latest) byGroup.delete(k);
+    globalAlerts.push(
+      `Se detectaron ${withMonths.length} fuentes de "${cat}" con períodos DISJUNTOS (cambio de trabajo ` +
+      `secuencial) → se declara solo la fuente VIGENTE (más reciente). Si en realidad son CONCURRENTES ` +
+      `(dos empleos en paralelo), el abogado debe declararlas y sumarlas.`
+    );
+  }
+
   const incomes: DeclaredIncome[] = [];
   for (const group of byGroup.values()) {
     // P1.3: SUMAR los montos mensuales declarados de los docs de la MISMA fuente (no tomar
@@ -796,6 +887,17 @@ export function computeIncomes(
         );
       }
       incomes.push(income);
+    }
+  }
+
+  // NUNCA declarar un ingreso de $0. Un monto ≤ 0 = documento NO-ingreso mal clasificado (cédula,
+  // captura del SII, hoja de crédito de un tercero) o lectura ilegible → se DESCARTA de la
+  // declaración (no genera una fila fantasma en el portal) pero se conservan sus alertas (G2: la
+  // duda se alerta, no se declara $0). General para cualquier documento ruidoso de la carpeta.
+  for (let i = incomes.length - 1; i >= 0; i--) {
+    if (incomes[i].monto <= 0) {
+      for (const a of incomes[i].alerts) globalAlerts.push(`[ingreso descartado (monto 0): ${incomes[i].tipoIngresoLabel}] ${a}`);
+      incomes.splice(i, 1);
     }
   }
 

@@ -1,0 +1,72 @@
+{
+  "name": "Natalia Viviana Vega Bello",
+  "rut": "16182530-1",
+  "docs": [
+    {
+      "filename": "DICIEMBRE_.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "70016330-K",
+      "periods": [
+        { "period_label": "Diciembre 2025", "liquido_a_pagar": 1736955, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Cotiz. Prev. Voluntaria (Habitat AFP N)", "amount": 39728 },
+            { "label": "Crédito Caja Compensacion (cuota 3 de 3)", "amount": 20052 },
+            { "label": "Fundación Alp", "amount": 8800 },
+            { "label": "Sobregiro Mes Anterior (por asignaciones, menos dias habiles trabajados)", "amount": 14270 },
+            { "label": "Seguro Ch. Consolidada", "amount": 16263 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "LÍQUIDO A RECIBIR: $ 1.736.955", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "NOVIEMBRE.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "70016330-K",
+      "periods": [
+        { "period_label": "Noviembre 2025", "liquido_a_pagar": 1751254, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Cotiz. Prev. Voluntaria (Habitat AFP N)", "amount": 39644 },
+            { "label": "Crédito Caja Compensacion (Ct: 2 de 3)", "amount": 20053 },
+            { "label": "Fundación Alp", "amount": 8800 },
+            { "label": "Seguro Ch. Consolidada", "amount": 16263 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "LÍQUIDO A RECIBIR: $ 1.751.254", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "OCTUBRE.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "70016330-K",
+      "periods": [
+        { "period_label": "Octubre 2025", "liquido_a_pagar": 1765389, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Cotiz. Prev. Voluntaria (Habitat AFP N)", "amount": 39598 },
+            { "label": "Crédito Caja Compensacion (Ct: 1 de 3)", "amount": 20053 },
+            { "label": "Fundación Alp", "amount": 8800 },
+            { "label": "Seguro Ch. Consolidada", "amount": 16263 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "LÍQUIDO A RECIBIR: $ 1.765.389", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "SEPTIEMBRE.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "70016330-K",
+      "periods": [
+        { "period_label": "Septiembre 2025", "liquido_a_pagar": 1971160, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Cotiz. Prev. Voluntaria (Habitat AFP N)", "amount": 39486 },
+            { "label": "Fundación Alp", "amount": 8800 },
+            { "label": "Seguro Ch. Consolidada", "amount": 16266 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "LÍQUIDO A RECIBIR: $ 1.971.160", "confidence": 0.95 } }
+      ]
+    }
+  ],
+  "cotizaciones": { "filename": "COTIZACIONES PREVISIONALES.pdf", "fecha_emision": "2025-12-22", "rut_entidad_pagadora": "70016330-K" },
+  "expectedIncomes": [
+    { "tipoIngreso": 1, "label": "Remuneración", "montoMin": 1795000, "montoMax": 1830000 }
+  ],
+  "expectAlertSubstrings": ["Cotiz. Prev. Voluntaria", "Crédito Caja Compensacion"],
+  "notes": "Un solo empleador (CCAF Los Héroes, RUT 70.016.330-K). Sueldo permanente → promedio últimos 3 meses (Oct/Nov/Dic; Septiembre está más alto por Bono Beneficio A Tu Medida $272.898 y queda fuera del promedio de 3m). Líquido promedio = (1.765.389+1.751.254+1.736.955)/3 = 1.751.199. A esto se suman los descuentos VOLUNTARIOS redirigibles: APV/Cotiz. Prev. Voluntaria (~39.657/mes) + Crédito Caja Compensación (préstamo, ~20.053/mes) → ingreso real ≈ 1.810.900. Rango 1.795.000–1.830.000. NO se suman los legales (AFP/salud/cesantía/impuesto) ni los ambiguos (Fundación Alp, Sobregiro, Seguro Ch. Consolidada). SIN honorarios: la carpeta tributaria SII muestra 'Boletas de honorarios emitidas: No registra información' en los últimos 12 meses. Cotizaciones: cert AFP Habitat 12 meses, emitido 22/12/2025, entidad pagadora CCAF Los Héroes 70.016.330-K."
+}

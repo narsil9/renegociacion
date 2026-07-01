@@ -315,6 +315,117 @@ contraseña** (Susana — el RUT del afiliado no abrió) → no se puede verific
 
 ---
 
+## Lecciones del lote real `casos_constanza_mulchi` (30 clientes, 2026-07-01)
+
+> Lectura nativa actuando como el LLM sobre los PDF de ingreso de 30 clientes reales (arnés
+> `casos/paso5_pruebas/{run_constanza,fixtures_constanza}`). Cada hallazgo se blindó con un fix
+> **general** en `income_extractor.ts` + prueba en el arnés. Resultado: **13/30 → 27/30** sin romper
+> regresión (106 unit + 5 + 11 verdes). Los 3 restantes son **juicio del abogado** (ver Pendientes).
+> Regla madre intacta: el LLM extrae hechos; TS blinda la estructura (G3).
+
+### L27 — "Cotización (Previsional) Voluntaria" / APVC es VOLUNTARIO, no legal
+Refina L17. El keyword legal `cotiz`/`prevision` **sombreaba** una línea "Cotiz. Prev. Voluntaria",
+tratándola como cotización obligatoria → NO se sumaba → subdeclaraba. El APVC (cuenta de ahorro
+previsional voluntario) es **redirigible → se suma de vuelta** (como el APV, L17). Fix: `isApvVoluntary`
+detecta `voluntari` + `(cotiz|prevision|ahorro)` con prioridad sobre lo legal. *(Testigo: Natalia Vega —
+"Cotiz. Prev. Voluntaria (Habitat AFP N)" $39.7k/mes; sin el fix el ingreso quedaba ~$40k bajo.)* · **validada + fix**.
+
+### L28 — "Préstamo de Contrato/Negociación COLECTIVA" es AMBIGUO, no préstamo personal
+Refina L20. No todo lo que dice "Préstamo" es un crédito personal redirigible. Un "Préstamo Contrato
+Colectivo"/"Préstamo Negociación Colectiva" es un aporte ligado a la negociación colectiva/sindicato,
+NO un crédito personal → **ambiguo (se alerta, no se suma)** por el solo keyword `prestamo`. Fix:
+carve-out `negociaci[oó]n colectiv|contrato colectiv` → ambiguous antes del match voluntario. *(Testigo:
+Gabriel Soto — "Prestamo Contrato Colectivo" + "Prestamo Negociacion Colectiva" ~$138k/mes; el abogado
+decide si son redirigibles.)* · **validada + fix**.
+
+### L29 — Mes con líquido ANÓMALO-BAJO (clawback de anticipo) se EXCLUYE (simétrico a L16)
+Un mes cuyo líquido es **< 50% de la mediana** del pool es anómalo aunque tenga `dias_trabajados`=30:
+típicamente un **clawback** ("Anticipo Liquidación anterior", "Anticipo Gratificación") que aplasta el
+neto de ese mes y NO representa el ingreso normal. Se excluye del promedio (si queda ≥1 mes normal) +
+alerta — mismo criterio que el mes parcial (L16), pero por MONTO, no por días. Fix en la selección del
+pool antes de promediar. *(Testigo: Fernando González — Sep líquido $90.681 (clawback $1.124.587) vs
+~$1.14M los otros meses; sin el fix el promedio caía a $898k en vez de ~$1.23M.)* · **validada + fix**.
+
+### L30 — Fuentes SECUENCIALES (cambio de trabajo) vs CONCURRENTES (refina L9)
+L9 (multi-empleador se suma) asume empleadores **concurrentes**. Si dos fuentes de la misma categoría
+tienen **rangos de meses DISJUNTOS** = cambio de trabajo (secuencial) → se declara **solo la fuente
+vigente** (la de meses más recientes), NO se suman. Si los rangos **se solapan** = concurrentes → se
+suman (L9). Fix: se comparan los month-keys por fuente; disjuntos → drop de las no-vigentes + alerta.
+*(Testigo: Paulina Zapata — empleador A jun-ago + empleador B sep-nov = cambió de trabajo → declarar solo
+B; antes sumaba ambos = 2 ingresos inflados. Contra-testigo: Alex Llanquitruf — Siges+Nutrekall mismos
+meses = concurrentes, se siguen sumando.)* · **validada + fix**.
+
+### L31 — "Ahorro AFP/Previsional" a secas → AMBIGUO; "Ahorro CCAF/Caja" → VOLUNTARIO
+Un "Ahorro AFP"/"Ahorro Previsional" (sin decir "voluntario") es ahorro que puede ser redirigible o
+forzoso → **ambiguo (se alerta, no se suma)**; va **antes** del match legal para que el keyword `afp` no
+lo trague como cotización obligatoria. Pero acotado a `afp/previsión`: un "Ahorro Caja Los Andes"/"Ahorro
+CCAF" SÍ es préstamo/ahorro redirigible → **voluntario** (no pisarlo). *(Testigos: Eileen Valdivia
+"AHORRO AFP" → alerta; Claudia Silva "Ahorro Caja Los Andes" $37.945 → voluntario, se suma.)* · **validada + fix**.
+
+### L32 — Mes ANÓMALO-ALTO (bono/aguinaldo) se INCLUYE + alerta (no se excluye)
+Asimétrico a L29: un mes **> 2× la mediana** (aguinaldo, bono, reliquidación de pago único) es **ingreso
+real** — se **incluye** en el promedio pero se **alerta** para que el abogado decida si lo normaliza (no
+se auto-excluye, a diferencia del mes bajo anómalo). *(Testigo: Guillermo Cartes — Dic con Bono Aguinaldo
+$1.085.687; el abogado decide si promedia o excluye.)* · **validada + fix**.
+
+### Add-back voluntario ahora se ALERTA (no se suma en silencio) — G2/L10
+Cuando TS **suma de vuelta** descuentos voluntarios (L2/L10), ahora emite una **alerta por período**
+listando qué líneas re-sumó y por cuánto. Sumar +$400k a un líquido sin avisar es exactamente la
+decisión silenciosa que G2 prohíbe: el abogado debe poder verificar/conciliar (L10). Varios lectores
+del lote esperaban justamente ese aviso. · **validada + fix**.
+
+### Hallazgos de lectura del lote (para el LLM, no cambian TS)
+- **Multi-empleador público sin RUT en la liquidación** (Patricio Jara: 2 hospitales + 2 contratos Ley
+  15.076/19.664): el RUT pagador suele venir SOLO en el certificado de cotizaciones, no en la liquidación
+  → tomar el `source_key` de ahí. Concurrente vs secuencial es genuinamente ambiguo → declarar + alertar.
+- **"Alcance Líquido" confirmado format-dependent** (L19) en decenas de casos: Buk simple (William, Guillermo,
+  Matías Garrido) → "Alcance Líquido" ES el neto; formatos con "Líq. a Pago"/"Líquido:" menor (Carlos Uribe,
+  Irene, Juan Pablo G.) → usar el menor.
+- **Documentos traspapelados de OTRA persona** en la carpeta de Ingresos (Jaime Cartes: cotizaciones de
+  Nicolás Bascuñán; hoja hipotecaria de un tercero) → identificar por RUT y descartar, NO declarar.
+- **Certificado de cotizaciones encriptado/errores de fuente** (cajitas XXXX): re-leer con capa de texto;
+  si ilegible, alerta (no bloquea el cálculo del ingreso). L21.
+
+## Caso con VERDAD-TERRENO REAL del abogado — Alfonso Martínez (2026-07-01)
+
+> **Primer caso de Paso 5 validado contra los screenshots del portal del propio abogado** (no
+> consistencia interna: el número que la abogada tecleó). El motor determinista dio **$2.033.410**,
+> **idéntico al peso** a lo declarado. Confirma que el camino feliz (3 liquidaciones, empleador único,
+> promedio de líquido) es correcto.
+
+### L33 — Liquidación (LÍQUIDO) manda sobre el resumen SII / Agente Retenedor (IMPONIBLE)
+La carpeta traía DOS cosas de ingreso: (a) las **3 liquidaciones** Buk (líquido ~$2.033.410) y (b) un
+**"agente_retenedor_2026.pdf"** = resumen **F22 / Agentes Retenedores del SII** (cuadro 1887, renta
+**imponible** mensual ~$2.5M, sin desglose de líquido). La abogada declaró con las **liquidaciones**
+(líquido), NO con el resumen SII. Regla general: **si coexisten liquidaciones y el resumen SII/agente
+retenedor, el ingreso sale de las liquidaciones (líquido a pagar); el resumen SII es respaldo cruzado, no
+la fuente del monto** (su renta imponible SOBRE-declara ~20-25%). El prompt de `ingresos_agent.ts` ya lo
+codifica (paso "0)": las capturas del SII / agente retenedor → `category:"otro"`, se descartan). Validado.
+
+### L34 — "LÍQUIDO A RECIBIR" es sinónimo válido de líquido (Buk)
+El formato Buk de la U. Autónoma rotula el neto final **"LÍQUIDO A RECIBIR"** (no "Líquido a Pagar").
+Ya está en la lista de sinónimos del prompt (L1). Este formato Buk trae además "Alcance Líquido"
+implícito vía Total Haberes − Total Descuentos, pero el rótulo explícito del neto es "LÍQUIDO A RECIBIR"
+→ usar ese (coincide con L19: cuando hay un neto final explícito, es ese).
+
+### L35 [PROD] — El PRE-FILTRO por keyword de filename dejaba fuera docs de ingreso reales — ✅ RESUELTO
+**Síntoma:** `gatherStep5Input` (worker) separaba docs de ingreso por **keyword en el filename**
+(`INCOME_FILENAME_KEYWORDS`: liquidacion/sueldo/remuneracion/…). El doc real que usó la abogada se
+llamaba **`ilovepdf_merged (11).pdf`** — sin ninguna keyword → **el Paso 5 se habría OMITIDO en silencio**
+(falso negativo, peor que mandar un doc de más que el LLM igual descarta). Hazard general: los abogados
+suben PDFs con nombres de herramientas (ilovepdf, merged, scan, doc1).
+**Fix (2026-07-01, general, sin depender del filename):** `client_documents` es compartida entre Paso 3
+(certs de acreedor) y Paso 5 (ingresos + cotizaciones); CMF/CT/retenedores viven en `clients.*_path`, NO
+acá. Un **cert de acreedor** se reconoce por su METADATA (`institucion_cmf` poblado, `acreditacion_tipo`
+∈ {monto,vencimiento}, o `document_type` ∈ {22,23}); los docs de ingreso quedan con la metadata genérica
+del dashboard (`institucion_cmf=''`, `acreditacion_tipo='general'`, `document_type=24`). Nueva regla:
+**candidato a ingreso = TODO lo que NO es cert de acreedor** (`!isAcreedorCert`) — más los positivos por
+keyword como refuerzo. Un cert mal-resuelto (institucion_cmf vacío) que se cuele lo descarta el LLM
+(paso "0)" → `category:'otro'`); nunca declara un ingreso falso. **Además:** si tras el filtro NO hay
+ningún doc de ingreso, el flujo completo (step:0) ahora emite una `automation_alert` (step 5,
+`needs_review`) para que el abogado cargue el respaldo y declare manual (antes se omitía sin avisar).
+Type-check `tsconfig.build.json` limpio; regresión Paso 5 intacta (132 unit · 5/5 · 11/11 · 28/31).
+
 ## Pendientes / decisiones abiertas (requieren verdad-terreno del abogado)
 
 > Lo mecánico/estructural quedó en L8–L13 (validado por análisis del lote `casos-paso5`). Acá quedan

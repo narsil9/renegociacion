@@ -444,6 +444,107 @@ eq('B10 "COOPEUCH" a secas = ambiguous', classifyDeduction('COOPEUCH'), 'ambiguo
   ok('B10 L14 coexistencia honorarios↔sueldo [L14]', hasAlert(c.alerts, 'Honorarios') && hasAlert(c.alerts, 'CONCURRENTES'));
 }
 
+// =========================================================================== B11 fixes lote Constanza
+section('B11 fixes Constanza (L27–L32)');
+
+// L27 — "Cotización (Previsional) Voluntaria" / APVC = voluntary (no legal por 'cotiz')
+eq('B11 L27 Cotiz Prev Voluntaria=voluntary', classifyDeduction('Cotiz. Prev. Voluntaria (Habitat AFP N)'), 'voluntary');
+eq('B11 L27 Cotización obligatoria sigue legal', classifyDeduction('Cotización Obligatoria AFP'), 'legal');
+{
+  const d = doc('liquidacion_sueldo', [
+    per('Octubre 2025', 1765389, [ded('Cotiz. Prev. Voluntaria (Habitat AFP N)', 39598)]),
+    per('Noviembre 2025', 1751254, [ded('Cotiz. Prev. Voluntaria (Habitat AFP N)', 39644)]),
+    per('Diciembre 2025', 1736955, [ded('Cotiz. Prev. Voluntaria (Habitat AFP N)', 39728)]),
+  ]);
+  // (1765389+39598 + 1751254+39644 + 1736955+39728)/3 — solo la Cotiz Voluntaria sumada
+  near('B11 L27 APVC se suma de vuelta (Natalia)', computeDeclaredIncomeForDoc(d)!.monto, 1790856, 5);
+}
+
+// L28 — "Préstamo Contrato/Negociación Colectiva" = ambiguo (no personal)
+eq('B11 L28 Prestamo Contrato Colectivo=ambiguous', classifyDeduction('Prestamo Contrato Colectivo 2 de 24'), 'ambiguous');
+eq('B11 L28 Prestamo Negociacion Colectiva=ambiguous', classifyDeduction('Prestamo Negociacion Colectiva 12 de 24'), 'ambiguous');
+eq('B11 L28 Prestamo personal normal sigue voluntary', classifyDeduction('Prestamo Caja Los Andes'), 'voluntary');
+
+// L31 — "Ahorro AFP/Previsional"=ambiguo; "Ahorro Caja/CCAF"=voluntary
+eq('B11 L31 Ahorro AFP=ambiguous', classifyDeduction('AHORRO AFP'), 'ambiguous');
+eq('B11 L31 Ahorro Previsional=ambiguous', classifyDeduction('Ahorro Previsional'), 'ambiguous');
+eq('B11 L31 Ahorro Caja Los Andes=voluntary (no pisar)', classifyDeduction('Ahorro Caja Los Andes'), 'voluntary');
+eq('B11 L31 Ahorro Voluntario sigue voluntary', classifyDeduction('Ahorro Voluntario'), 'voluntary');
+
+// 'caja compensacion' (sin "de") y 'credito social' = voluntary (CCAF redirigible)
+eq('B11 Credito Caja Compensacion=voluntary', classifyDeduction('Credito Caja Compensacion'), 'voluntary');
+eq('B11 Credito Social CCAF=voluntary', classifyDeduction('Credito Social'), 'voluntary');
+
+// Add-back voluntario ahora se ALERTA (no silencioso, G2/L10)
+{
+  const d = doc('liquidacion_sueldo', [per('Mayo 2026', 1000000, [ded('Prestamo Caja Los Andes', 200000)])]);
+  const r = computeDeclaredIncomeForDoc(d)!;
+  near('B11 add-back suma', r.monto, 1200000);
+  ok('B11 add-back se ALERTA', hasAlert(r.alerts, 'VOLUNTARIO') && hasAlert(r.alerts, 'Prestamo Caja Los Andes'));
+}
+
+// L29 — mes anómalo-BAJO (<50% mediana) se excluye del promedio (Fernando)
+{
+  const d = doc('liquidacion_sueldo', [
+    per('Junio 2025', 1140806, [], { dias_trabajados: 30 }),
+    per('Julio 2025', 1103817, [], { dias_trabajados: 30 }),
+    per('Agosto 2025', 1179128, [], { dias_trabajados: 30 }),
+    per('Septiembre 2025', 90681, [], { dias_trabajados: 30 }), // clawback → excluir
+  ]);
+  const r = computeDeclaredIncomeForDoc(d)!;
+  near('B11 L29 excluye mes anómalo-bajo', r.monto, 1141250, 2);
+  ok('B11 L29 alerta mes anómalo-bajo', hasAlert(r.alerts, 'ANÓMALO-BAJO'));
+}
+// L29 guard: sin outlier severo, promedia normal
+{
+  const d = doc('liquidacion_sueldo', [per('Mayo 2026', 1000000), per('Junio 2026', 900000), per('Julio 2026', 950000)]);
+  near('B11 L29 sin outlier promedia los 3', computeDeclaredIncomeForDoc(d)!.monto, 950000);
+}
+
+// L32 — mes anómalo-ALTO (>2× mediana) se INCLUYE + alerta (no excluye)
+{
+  const d = doc('liquidacion_sueldo', [
+    per('Octubre 2025', 1000000, [], { dias_trabajados: 30 }),
+    per('Noviembre 2025', 1000000, [], { dias_trabajados: 30 }),
+    per('Diciembre 2025', 3000000, [], { dias_trabajados: 30 }), // aguinaldo alto
+  ]);
+  const r = computeDeclaredIncomeForDoc(d)!;
+  near('B11 L32 incluye mes alto', r.monto, 1666667, 3);
+  ok('B11 L32 alerta mes anómalo-alto', hasAlert(r.alerts, 'ANÓMALO-ALTO'));
+}
+
+// L30 — fuentes SECUENCIALES (meses disjuntos) → solo la vigente; CONCURRENTES → suman
+{
+  const seq = computeIncomes([
+    doc('liquidacion_sueldo', [per('Junio 2025', 1500000), per('Julio 2025', 1500000)], { source_key: 'EMP_A', filename: 'a.pdf' }),
+    doc('liquidacion_sueldo', [per('Octubre 2025', 2000000), per('Noviembre 2025', 2000000)], { source_key: 'EMP_B', filename: 'b.pdf' }),
+  ], COT);
+  eq('B11 L30 secuencial → 1 ingreso', seq.incomes.length, 1);
+  near('B11 L30 secuencial usa la fuente vigente (B)', seq.incomes[0]?.monto ?? 0, 2000000);
+  ok('B11 L30 alerta cambio de trabajo', hasAlert(seq.alerts, 'DISJUNTOS'));
+}
+{
+  const conc = computeIncomes([
+    doc('liquidacion_sueldo', [per('Octubre 2025', 1500000), per('Noviembre 2025', 1500000)], { source_key: 'EMP_A', filename: 'a.pdf' }),
+    doc('liquidacion_sueldo', [per('Octubre 2025', 400000), per('Noviembre 2025', 400000)], { source_key: 'EMP_B', filename: 'b.pdf' }),
+  ], COT);
+  eq('B11 L30 concurrente (meses solapan) → 2 ingresos', conc.incomes.length, 2);
+}
+
+// NUNCA declarar ingreso $0 (doc no-ingreso mal clasificado / lectura ilegible) → se descarta + alerta
+{
+  const c = computeIncomes([
+    doc('liquidacion_sueldo', [per('Mayo 2026', 1500000)], { source_key: 'A', filename: 'liq.pdf' }),
+    doc('otro', [], { source_key: 'Z', filename: 'cedula.pdf' }), // no-ingreso → monto 0 → descartar
+  ], COT);
+  eq('B11 $0 no se declara (cédula/otro sin datos)', c.incomes.length, 1);
+  near('B11 el ingreso real se mantiene', c.incomes[0]?.monto ?? 0, 1500000);
+}
+{
+  const c = computeIncomes([doc('otro', [], { filename: 'captura_sii.pdf' })], COT);
+  eq('B11 doc no-ingreso solo → 0 ingresos declarados', c.incomes.length, 0);
+}
+
 // =========================================================================== resumen
 console.log(`\n━━━ RESUMEN UNIT ━━━`);
 console.log(`  ${pass} OK, ${fails.length} FAIL`);

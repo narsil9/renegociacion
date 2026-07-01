@@ -127,6 +127,13 @@ Renegociación de la Persona Deudora (Superir). Analiza el ÚNICO documento adju
 dice (NO decidas la estructura: no promedies, no sumes, no clasifiques descuentos — eso lo hace otro
 sistema). Hoy es ${today}.
 
+**0) ¿Es un documento de ingreso?** Si el documento NO acredita un ingreso del deudor, clasifícalo
+"category":"otro" con "periods" vacío (otro sistema lo descarta). NO son ingreso: la **cédula de
+identidad**, las **capturas del SII / agente retenedor** (respaldo cruzado, no es el cert de cotizaciones),
+la **hoja resumen / contrato de un crédito** (es una DEUDA, no un ingreso — ¡y ojo si el titular es OTRA
+persona!, en ese caso descártalo), el **padrón de vehículos**, un **contrato de trabajo** (solo respalda si
+no hay liquidaciones). ⚠️ Verifica que el documento sea del deudor (RUT) y no de un tercero traspapelado.
+
 **1) Clasifica el documento:**
 - "doc_type": "liquidacion_mensual" | "comprobante_subsidio" | "boleta_honorarios" |
   "certificado_anual_resumen" | "comprobante_pago" | "cartola" | "declaracion_jurada" |
@@ -136,14 +143,26 @@ sistema). Hoy es ${today}.
   "honorarios" | "esporadico" | "otro" | "certificado_cotizaciones" (este último NO es un ingreso).
 
 **2) Extrae según el tipo:**
-- Liquidación de sueldo/pensión/arriendo: por cada período (mes), "liquido_a_pagar" = el líquido que la
-  persona RECIBE. El rótulo varía: "Líquido a Pagar", "Líquido a Cobrar", "Líquido a Recibir",
-  "Rem. Neta", "Monto Líquido". NUNCA uses "Alcance Líquido" ni "Imponible". Lista TODAS las líneas de
-  descuento (etiqueta textual + monto), sin clasificarlas. "rut_pagador" = RUT del empleador/pagador.
+- Liquidación de sueldo/pensión/arriendo: por cada período (mes), "liquido_a_pagar" = el NETO FINAL que la
+  persona RECIBE (tras TODOS los descuentos). Rótulos: "Líquido a Pagar", "Líquido a Cobrar", "Líquido a
+  Recibir", "Rem. Neta", "Monto Líquido", "Líq. a Pago". REGLAS para elegir bien:
+    · Si coexisten "Alcance Líquido" y un "Líquido a Pagar"/"Líq. a Pago" MENOR → usa el MENOR.
+    · Si la ÚNICA cifra de neto final es "Alcance Líquido" (formatos Buk simples: = Total Haberes − Total
+      Descuentos) → USA "Alcance Líquido". (No lo descartes: es el líquido en esos formatos.)
+    · NUNCA uses "Imponible", "Tributable", "Total Haberes" ni "Sueldo Base".
+  Lista TODAS las líneas de descuento (etiqueta textual EXACTA + monto), sin clasificarlas — otro sistema
+  las clasifica; tú solo transcribe el rótulo tal cual (ej. "A.P.V.I. EN AFP", "PRESTAMO CAJA LOS ANDES",
+  "Cotiz. Prev. Voluntaria", "Ahorro Caja Los Andes", "Anticipo Aguinaldo"). "rut_pagador" = RUT del
+  empleador/pagador (búscalo; a veces solo está en el cert de cotizaciones, no en la liquidación).
+  "dias_trabajados" = días trabajados del mes si aparecen ("Días Trab. 30", "(-) Días Licencia 18",
+  ingreso/egreso a mitad de mes) — es CLAVE para detectar un mes parcial (líquido anormalmente bajo).
+  MULTI-PAGO: si un mes trae VARIAS liquidaciones (sueldo + aguinaldo/retroactivo/planilla accesoria en
+  planilla aparte), reporta CADA una como un período con el MISMO "period_label" del mes (no las sumes tú).
 - Comprobante de subsidio (licencia médica): un período por pago, "period_label" = el MES cubierto
   (YYYY-MM), "liquido_a_pagar" = el "Monto Líquido" del pago. NO uses el "Promedio mensual" impreso (es
   la base de cálculo, no lo percibido). "rut_pagador" = RUT del pagador (ISAPRE/Compin/Caja).
-- Boleta de honorarios: un período por boleta, "period_label" = mes de emisión, "monto_bruto" + "retencion".
+- Boleta de honorarios (Informe Anual de Boletas SII): un período por boleta con emisión, "period_label" =
+  mes de emisión, "monto_bruto" + "retencion". IGNORA meses en $0 y las boletas ANULADAS (la tabla las separa).
 - Aporte de terceros / retiro de sociedades / esporádico: "monto_mensual_declarado".
 - Certificado de cotizaciones: "cotizaciones" = { "fecha_emision":"YYYY-MM-DD", "rut_entidad_pagadora" }.
 - **Resumen global** (solo totales anuales/semestrales, sin desglose mensual): NO inventes períodos
@@ -158,7 +177,7 @@ sistema). Hoy es ${today}.
 **RESPONDE SOLO con este JSON entre <json>:**
 <json>
 { "doc_type":"liquidacion_mensual", "category":"liquidacion_sueldo", "rut_pagador":"77612410-9",
-  "periods":[ {"period_label":"Mayo 2026","liquido_a_pagar":1990721,"moneda":"CLP",
+  "periods":[ {"period_label":"Mayo 2026","liquido_a_pagar":1990721,"moneda":"CLP","dias_trabajados":30,
     "deductions":[{"label":"Cotizacion AFP","amount":236674},{"label":"Seguro Vida","amount":4743}],
     "evidence":{"cita_monto":"Liquido a Pagar 1.990.721","confidence":0.97}} ],
   "monto_mensual_declarado":null, "cotizaciones":null, "notes":"" }
@@ -182,6 +201,8 @@ function coerceSingleDoc(parsed: any, doc: IncomeDocInput): {
         liquido_a_pagar: num(p?.liquido_a_pagar),
         monto_bruto: num(p?.monto_bruto),
         retencion: num(p?.retencion),
+        dias_trabajados: num(p?.dias_trabajados), // L16/L29: días para detectar mes parcial
+
         deductions: Array.isArray(p?.deductions)
           ? p.deductions
               .filter((x: any) => x && typeof x.amount === 'number')

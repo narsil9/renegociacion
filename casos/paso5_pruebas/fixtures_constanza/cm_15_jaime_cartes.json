@@ -1,0 +1,62 @@
+{
+  "name": "Jaime Cartes Fuentes",
+  "rut": "17596599-8",
+  "docs": [
+    {
+      "filename": "Liquidación 08.2025 Jaime Cartes.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "79943150-5",
+      "periods": [
+        { "period_label": "Agosto 2025", "liquido_a_pagar": 1253170, "dias_trabajados": 29,
+          "deductions": [ { "label": "A.P.V.I. EN AFP", "amount": 70000 } ],
+          "moneda": "CLP", "evidence": { "cita_monto": "L I Q U I D O $ 1.253.170", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "Liquidación 09.2025 Jaime Cartes.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "79943150-5",
+      "periods": [
+        { "period_label": "Septiembre 2025", "liquido_a_pagar": 1210767, "dias_trabajados": 30,
+          "deductions": [ { "label": "A.P.V.I. EN AFP", "amount": 70000 }, { "label": "ANTICIPO 1", "amount": 40480 } ],
+          "moneda": "CLP", "evidence": { "cita_monto": "L I Q U I D O $ 1.210.767", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "Liquidación 10.2025 JAIME CARTES.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "79943150-5",
+      "periods": [
+        { "period_label": "Octubre 2025", "liquido_a_pagar": 491120, "dias_trabajados": 12,
+          "deductions": [ { "label": "A.P.V.I. EN AFP", "amount": 70000 } ],
+          "moneda": "CLP", "evidence": { "cita_monto": "L I Q U I D O $ 491.120 (18 DIAS LICENCIA, solo 12 trabajados)", "confidence": 0.9 } }
+      ]
+    },
+    {
+      "filename": "INFORME ANUAL DE BOLETAS DE HONORARIOS ELECTRONICAS.pdf",
+      "category": "honorarios",
+      "source_key": "SII-honorarios-2025",
+      "periods": [
+        { "period_label": "Abril 2025", "liquido_a_pagar": 547367, "monto_bruto": 640195, "retencion": 92828,
+          "dias_trabajados": 30, "deductions": [],
+          "moneda": "CLP", "evidence": { "cita_monto": "ABRIL 640.195 92.828 547.367", "confidence": 0.95 } },
+        { "period_label": "Mayo 2025", "liquido_a_pagar": 547367, "monto_bruto": 640195, "retencion": 92828,
+          "dias_trabajados": 30, "deductions": [],
+          "moneda": "CLP", "evidence": { "cita_monto": "MAYO 640.195 92.828 547.367", "confidence": 0.95 } },
+        { "period_label": "Junio 2025", "liquido_a_pagar": 547368, "monto_bruto": 640196, "retencion": 92828,
+          "dias_trabajados": 30, "deductions": [],
+          "moneda": "CLP", "evidence": { "cita_monto": "JUNIO 640.196 92.828 547.368", "confidence": 0.95 } },
+        { "period_label": "Julio 2025", "liquido_a_pagar": 547368, "monto_bruto": 640196, "retencion": 92828,
+          "dias_trabajados": 30, "deductions": [],
+          "moneda": "CLP", "evidence": { "cita_monto": "JULIO 640.196 92.828 547.368", "confidence": 0.95 } }
+      ]
+    }
+  ],
+  "cotizaciones": { "filename": "cotizaciones.pdf", "fecha_emision": "2025-11-19", "rut_entidad_pagadora": "79943150-5" },
+  "expectedIncomes": [
+    { "tipoIngreso": 1, "label": "Remuneración", "montoMin": 1250000, "montoMax": 1350000 },
+    { "tipoIngreso": 10, "label": "Honorarios", "montoMin": 200000, "montoMax": 230000 }
+  ],
+  "expectAlertSubstrings": ["A.P.V.I. EN AFP"],
+  "notes": "Sueldo (empleador Laboratorio Clinico del Norte, RUT 79.943.150-5): permanente -> promedio ultimos 3 meses, pero OCTUBRE es mes PARCIAL (18 dias de licencia medica, solo 12 dias trabajados < 28) -> se EXCLUYE (L16). Quedan Ago y Sep completos. Ingreso real = liquido + descuento voluntario redirigible APV ('A.P.V.I. EN AFP', L17): Ago 1.253.170+70.000=1.323.170; Sep 1.210.767+70.000=1.280.767 (ANTICIPO 1 NO se suma). Promedio (1.323.170+1.280.767)/2 = 1.301.968 -> rango 1.25M-1.35M. Honorarios (SII 2025): 4 boletas Abr-Jul, bruto total $2.560.782; honorarios = Sigma bruto/12 = 213.398 -> rango 200k-230k (declara bruto + alerta). L18: honorarios (Abr-Jul) y sueldo (empleado desde 2016) coexisten -> declarar ambos + alerta de coexistencia (abogado decide concurrente vs secuencial; parecen secuenciales: honorarios cesan justo cuando aparecen las liquidaciones Ago-Oct). Certificado de cotizaciones = AFP Capital (cotizaciones.pdf), Jaime RUT 17.596.599-8, emitido 19-nov-2025, RUT pagador empleador 79.943.150-5."
+}
