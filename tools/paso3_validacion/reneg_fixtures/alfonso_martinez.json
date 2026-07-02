@@ -1,0 +1,155 @@
+{
+  "case": "alfonso_martinez",
+  "rut": "16.554.875-2",
+  "cmf_cut_date": "2026-06-12",
+  "cmf_rows": [
+    { "institucion": "Banco de Crédito e Inversiones", "tipoCredito": "Consumo", "totalCredito": 6637431, "overdue90Days": 196591 },
+    { "institucion": "Banco de Crédito e Inversiones", "tipoCredito": "Consumo", "totalCredito": 6542443, "overdue90Days": 207489 },
+    { "institucion": "Banco de Chile", "tipoCredito": "Consumo", "totalCredito": 18386124, "overdue90Days": 460272 },
+    { "institucion": "Banco de Crédito e Inversiones", "tipoCredito": "Tarjeta de crédito", "totalCredito": 3631797, "overdue90Days": 3631797 },
+    { "institucion": "Banco de Chile", "tipoCredito": "Tarjeta de crédito", "totalCredito": 7385844, "overdue90Days": 7385844 },
+    { "institucion": "Banco de Chile", "tipoCredito": "Tarjeta de crédito", "totalCredito": 5357817, "overdue90Days": 5357817 },
+    { "institucion": "Banco de Crédito e Inversiones", "tipoCredito": "Linea de Crédito", "totalCredito": 100834, "overdue90Days": 0 },
+    { "institucion": "Banco de Crédito e Inversiones", "tipoCredito": "Linea de Crédito", "totalCredito": 2938656, "overdue90Days": 0 },
+    { "institucion": "Banco de Chile", "tipoCredito": "Linea de Crédito", "totalCredito": 1000, "overdue90Days": 0 }
+  ],
+  "doc_facts": [
+    {
+      "filename": "EEDD_socofin.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile / Área Normalización Banca Personas (Socofin)",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 32315084, "cita": "DEUDA TOTAL (A+B) $ 32.315.084" }
+      ],
+      "productos": [
+        {
+          "operacion": "14960",
+          "monto": 1149,
+          "etiqueta_monto": "Total deuda prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2026-04-27",
+          "cita_monto": "LINEA DE CREDITO CTA.CTE.REZAG.CONSUMO ... 1.149",
+          "cita_fecha": "Fecha de vencimiento 27 abril 2026",
+          "confidence": 0.95,
+          "_descripcion": "LINEA DE CREDITO CTA.CTE.REZAG.CONSUMO — Deuda Capital 1.000"
+        },
+        {
+          "operacion": "45819",
+          "monto": 18613834,
+          "etiqueta_monto": "Total deuda prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2026-03-05",
+          "cita_monto": "CRÉDITO EN CUOTAS CONSUMO ... 18.613.834",
+          "cita_fecha": "Fecha de vencimiento 5 marzo 2026",
+          "confidence": 0.95,
+          "_descripcion": "CRÉDITO EN CUOTAS CONSUMO — Deuda Capital 18.404.257"
+        },
+        {
+          "operacion": "00160",
+          "monto": 7896713,
+          "etiqueta_monto": "Total deuda prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2026-03-12",
+          "cita_monto": "CRÉDITO TARJETAS VENCIDAS CONSUMO ... 7.896.713",
+          "cita_fecha": "Fecha de vencimiento 12 marzo 2026",
+          "confidence": 0.95,
+          "_descripcion": "CRÉDITO TARJETAS VENCIDAS CONSUMO — Deuda Capital 7.385.844"
+        },
+        {
+          "operacion": "01279",
+          "monto": 5803388,
+          "etiqueta_monto": "Total deuda prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2026-03-05",
+          "cita_monto": "CRÉDITO TARJETAS VENCIDAS CONSUMO ... 5.803.388",
+          "cita_fecha": "Fecha de vencimiento 5 marzo 2026",
+          "confidence": 0.95,
+          "_descripcion": "CRÉDITO TARJETAS VENCIDAS CONSUMO — Deuda Capital 5.357.817"
+        }
+      ]
+    },
+    {
+      "filename": "BCI-43969068-certificado-prepago_unlocked.pdf",
+      "institucion_asignada": "Banco de Crédito e Inversiones",
+      "doc_type": "certificado_liquidacion",
+      "rut_emisor": "97006000-6",
+      "emisor_nombre": "Banco de Crédito e Inversiones (BCI)",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 20254651, "cita": "Monto total a Pagar al 17-06-2026 para poner término a todos los productos $ 20.254.651" }
+      ],
+      "productos": [
+        {
+          "operacion": "89772016",
+          "monto": 3047485,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "cita_monto": "CTACTE CUENTA CORRIENTE 89772016 22-04-2024 $ 3.047.485",
+          "cita_fecha": "22-04-2024 (otorgamiento)",
+          "confidence": 0.95,
+          "_descripcion": "CTACTE CUENTA CORRIENTE. Cert de portabilidad/prepago: NO trae fecha de mora."
+        },
+        {
+          "operacion": "D26400005756",
+          "monto": 6506053,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "cita_monto": "CRECON CONSUMO ON-LINE D26400005756 04-08-2025 $ 6.506.053",
+          "cita_fecha": "04-08-2025 (otorgamiento)",
+          "confidence": 0.95,
+          "_descripcion": "CONSUMO ON-LINE. Sin fecha de mora en el cert."
+        },
+        {
+          "operacion": "D26400007038",
+          "monto": 6581491,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "cita_monto": "CRECON CONSUMO ON-LINE D26400007038 30-09-2025 $ 6.581.491",
+          "cita_fecha": "30-09-2025 (otorgamiento)",
+          "confidence": 0.95,
+          "_descripcion": "CONSUMO ON-LINE. Sin fecha de mora en el cert."
+        },
+        {
+          "operacion": "D26400014394",
+          "monto": 199293,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "cita_monto": "CREOTR SOBREGIRO NO D26400014394 02-03-2026 $ 199.293",
+          "cita_fecha": "02-03-2026 (otorgamiento)",
+          "confidence": 0.95,
+          "_descripcion": "SOBREGIRO. Sin fecha de mora en el cert."
+        },
+        {
+          "operacion": "D26400014351",
+          "monto": 3920329,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "cita_monto": "CREOTR D26400014351 11-03-2026 $ 3.920.329",
+          "cita_fecha": "11-03-2026 (otorgamiento)",
+          "confidence": 0.95,
+          "_descripcion": "CREOTR (tarjeta/otro). Sin fecha de mora en el cert."
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    { "institucion": "Banco de Chile", "monto": 7896713, "art": 260, "cmf": true, "doc": "EEDD_socofin.pdf (Op 00160)", "nota": "Tarjeta vencida, venc 12/03/2026. Abogada: 260." },
+    { "institucion": "Banco de Chile", "monto": 5803388, "art": 260, "cmf": true, "doc": "EEDD_socofin.pdf (Op 01279)", "nota": "Tarjeta vencida, venc 05/03/2026. Abogada: 260." },
+    { "institucion": "Banco de Chile", "monto": 1149, "art": 261, "cmf": true, "doc": "EEDD_socofin.pdf (Op 14960)", "nota": "Línea de crédito, al día. Abogada: 261." },
+    { "institucion": "Banco de Chile", "monto": 18613834, "art": 260, "cmf": true, "doc": "EEDD_socofin.pdf (Op 45819)", "nota": "Crédito en cuotas consumo con 90+d y fecha de vencimiento EXPLÍCITA en el cert Socofin (05/03/2026) → Art.260 con el payoff (regla del abogado 2026-07-01: consumo va a 260 con fecha explícita; no requiere estar todo vencido). ⚠️ La abogada en su solicitud lo dejó en 261 — divergencia ACEPTADA (robot más completo, aplica la regla confirmada)." },
+    { "institucion": "Banco de Crédito e Inversiones", "monto": 3047485, "art": 261, "cmf": true, "doc": "BCI cert (Op 89772016)", "nota": "CTA CTE. Abogada: 261." },
+    { "institucion": "Banco de Crédito e Inversiones", "monto": 6506053, "art": 261, "cmf": true, "doc": "BCI cert (Op D26400005756)", "nota": "Consumo. Abogada: 261 (cert de prepago no acredita vencimiento)." },
+    { "institucion": "Banco de Crédito e Inversiones", "monto": 6581491, "art": 261, "cmf": true, "doc": "BCI cert (Op D26400007038)", "nota": "Consumo. Abogada: 261." },
+    { "institucion": "Banco de Crédito e Inversiones", "monto": 199293, "art": 261, "cmf": true, "doc": "BCI cert (Op D26400014394)", "nota": "Sobregiro. Abogada: 261." },
+    { "institucion": "Banco de Crédito e Inversiones", "monto": 3920329, "art": 261, "cmf": true, "doc": "BCI cert (Op D26400014351)", "nota": "Tarjeta/otro: FULL 90+d en CMF ($3.631.797) pero el cert de prepago NO acredita vencimiento → 261 (regla decisiva). Abogada: 261." }
+  ],
+  "ground_truth_source": "screenshots del portal de la abogada (Solicitud precargada, CMF 12/06/2026)",
+  "reading_notes": [
+    "CMF nuevo (info 12/06/2026): 6 productos con 90+d. Elegibilidad OK.",
+    "Banco de Chile: un solo cert (EEDD_socofin, 'Estado de Deuda Directa Proyectado', 18/06/2026) con 4 operaciones. Cada producto trae 'Fecha de vencimiento' → sí acredita vencimiento.",
+    "BCI: un solo cert de portabilidad/prepago (idéntico x5 copias) con 5 productos. Trae 'Monto total a Pagar' por producto pero NO fecha de mora/vencimiento → los 90+d BCI NO pueden ir a 260 (regla decisiva 260 vs 261) → 261.",
+    "DIVERGENCIA CLAVE: la abogada declaró SOLO 2 en 260 (las 2 tarjetas BdCh) y mandó al 261 el resto, incluido el Consumo BdCh $18.6M que tiene vencimiento pero cuyo 90+d en CMF es solo $460k (cuotas futuras vigentes). El robot lo pondría en 260. Es la diferencia de criterio 'robot más completo' vs 'atajo del abogado' + la sutileza del crédito en cuotas (payoff vs porción vencida).",
+    "Tenpo Payments $2.660.000 = crédito disponible (cupo no utilizado) en el CMF → NO es deuda, no se declara. La abogada tampoco lo declaró."
+  ]
+}

@@ -1,0 +1,416 @@
+{
+  "case": "ingrid_urzua",
+  "rut": "15.401.469-1",
+  "cmf_cut_date": "2025-10-17",
+  "cmf_rows": [
+    {
+      "institucion": "Banco Estado",
+      "tipoCredito": "Consumo",
+      "totalCredito": 28512391,
+      "overdue90Days": 2501594
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 6346276,
+      "overdue90Days": 1670435
+    },
+    {
+      "institucion": "COFISA (ABCDIN-ADRetail)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 42236,
+      "overdue90Days": 42236
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1086048,
+      "overdue90Days": 78356
+    },
+    {
+      "institucion": "Hites Inversiones y Tarjetas S.A.",
+      "tipoCredito": "Consumo",
+      "totalCredito": 83909,
+      "overdue90Days": 83909
+    },
+    {
+      "institucion": "MATIC KARD (MKSA)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 845206,
+      "overdue90Days": 845206
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "REINGRESO/BIENES/BANCO ESTADO.pdf (cert: Acreedores CMF/Banco Estado/Deuda banco estado 10_07_2025.pdf)",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "BancoEstado",
+      "productos": [
+        {
+          "operacion": "CRE 00037607722",
+          "monto": 24864952,
+          "etiqueta_monto": "Monto Deuda (Pesos) / Total Pactado (P/P SALDO CRED COMISION)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-03-20",
+          "cita_monto": "CRE 00037607722 Deuda $24.864.952 ... Monto Deuda (Pesos): 24.864.952 ... Total Pactado 24.864.952",
+          "cita_fecha": "ultimo pago registrado, Vencimiento 20/03/2025, cuota 006 - pagada 16-04-2025",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "CRE 00037884152",
+          "monto": 3947754,
+          "etiqueta_monto": "Monto Deuda (Pesos) / Total Pactado (P/P SALDO CRED COMISION, CASTIGO)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-04-21",
+          "cita_monto": "CRE 00037884152 Deuda 3.947.754 ... Monto Deuda (Pesos): 3.947.754 ... Total Pactado 3.947.754",
+          "cita_fecha": "ultimo pago registrado, vencimiento 21/04/2025, cuota 006 - pagada 16-04-2025",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "REINGRESO/ACREEDORES/ BANCO SCOTIABANK.pdf",
+      "institucion_asignada": "Scotiabank Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Scotiabank Chile",
+      "productos": [
+        {
+          "operacion": "Renegociacion Consumo 710151495460",
+          "monto": 4492536,
+          "etiqueta_monto": "Saldo Actual $",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "RENEGOCIACION CONSUMO 710151495460 ... Saldo Actual $ 4.492.536",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Tarjeta de Credito 600220136817",
+          "monto": 2010312,
+          "etiqueta_monto": "Saldo Actual $",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "TARJETA DE CREDITO 600220136817 ... Saldo Actual $ 2.010.312",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Reposición /acreedores morosos al primero ingreso /certificadoDeuda - ABCDIN.pdf",
+      "institucion_asignada": "COFISA (ABCDIN-ADRetail)",
+      "doc_type": "resumen_global",
+      "rut_emisor": "96.522.900-0",
+      "emisor_nombre": "Créditos, Organización y Finanzas S.A.",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 42236, "cita": "MONTO TOTAL DEUDA CASTIGADA $ 42236" }
+      ],
+      "productos": [
+        {
+          "operacion": "Deuda castigada",
+          "monto": 42236,
+          "etiqueta_monto": "MONTO TOTAL DEUDA CASTIGADA",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "MONTO TOTAL DEUDA CASTIGADA $ 42236",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Acreedores CMF/Banco Falabella/julio.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Falabella (Banco Falabella)",
+      "productos": [
+        {
+          "operacion": "Tarjeta CMR 548742*******7796",
+          "monto": 1011387,
+          "etiqueta_monto": "Costo Monetario Prepago al 04/07/2025",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-20",
+          "cita_monto": "Costo Monetario Prepago al 04/07/2025 **** 1.011.387",
+          "cita_fecha": "AVISO DE COBRANZA Cancelar cuota atrasada del 20-junio de $ 78.367",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "Reposición /acreedores morosos al primero ingreso /CERTIFICADO DE DEUDA_15401469 HItes.pdf",
+      "institucion_asignada": "Hites Inversiones y Tarjetas S.A.",
+      "doc_type": "resumen_global",
+      "rut_emisor": "85.325.100-3",
+      "emisor_nombre": "Inversiones y Tarjetas S.A (Hites) / Administradora Plaza S.A.",
+      "productos": [
+        {
+          "operacion": "Deuda tarjeta Hites",
+          "monto": 114150,
+          "etiqueta_monto": "Total a pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2024-09-01",
+          "cita_monto": "Total a pagar : $ 114.150 (Capital Adeudado: $ 83.909)",
+          "cita_fecha": "Días Mora : 316 (emitido 14/07/2025 -> ~01/09/2024)",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Acreedores CMF/MATIC KARD (MKSA)/junio .pdf",
+      "institucion_asignada": "MATIC KARD (MKSA)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "SBPAY VISA (Matic Kard S.A.)",
+      "productos": [
+        {
+          "operacion": "Tarjeta SBPAY VISA XXXX-XXXX-XXXX-3134",
+          "monto": 868891,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-07",
+          "cita_monto": "Costo Monetario Prepago * $ 868.891",
+          "cita_fecha": "Fecha de Vencimiento 07/07/2025 (CUOTA PLAN DE PAGO PROGRA 19/02/2025)",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "REINGRESO/ACREEDORES/CAJA LOS ANDES/Caja los andes 5.pdf (208.208COS100344494-4)",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "61.808.000-5",
+      "emisor_nombre": "Caja Los Andes",
+      "productos": [
+        {
+          "operacion": "208.208COS100344494-4",
+          "monto": 12927105,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Código del Crédito 208.208COS100344494-4 ... Saldo Prepago $ 12.927.105 ... Cuotas Morosas 0",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "REINGRESO/ACREEDORES/CAJA LOS ANDES/Caja lo Andes 6.pdf (208.208COS100409688-8)",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "61.808.000-5",
+      "emisor_nombre": "Caja Los Andes",
+      "productos": [
+        {
+          "operacion": "208.208COS100409688-8",
+          "monto": 1264735,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Código del Crédito 208.208COS100409688-8 ... Saldo Prepago $ 1.264.735 ... Cuotas Morosas 0",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "REINGRESO/ACREEDORES/CAJA LOS ANDES/Caja los andes 1.pdf (34.034CON104249120-0)",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "61.808.000-5",
+      "emisor_nombre": "Caja Los Andes",
+      "productos": [
+        {
+          "operacion": "34.034CON104249120-0",
+          "monto": 368660,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Código del Crédito 34.034CON104249120-0 ... Saldo Prepago $ 368.660 ... Cuotas Morosas 0",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "REINGRESO/ACREEDORES/CAJA LOS ANDES/CAJA LOS ANDES 2.pdf (34.034CON104431231-1)",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "61.808.000-5",
+      "emisor_nombre": "Caja Los Andes",
+      "productos": [
+        {
+          "operacion": "34.034CON104431231-1",
+          "monto": 184145,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Código del Crédito 34.034CON104431231-1 ... Saldo Prepago $ 184.145 ... Cuotas Morosas 0",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "REINGRESO/ACREEDORES/CAJA LOS ANDES/Caja los andes 4.pdf (208.208DIG100365967-7)",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "61.808.000-5",
+      "emisor_nombre": "Caja Los Andes",
+      "productos": [
+        {
+          "operacion": "208.208DIG100365967-7",
+          "monto": 342506,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Código del Crédito 208.208DIG100365967-7 ... Saldo Prepago $ 342.506 ... Cuotas Morosas 0",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "REINGRESO/ACREEDORES/CAJA LOS ANDES/Caja los andes 3.pdf (34.034EME104701415-5)",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "61.808.000-5",
+      "emisor_nombre": "Caja Los Andes",
+      "productos": [
+        {
+          "operacion": "34.034EME104701415-5",
+          "monto": 0,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Código del Crédito 34.034EME104701415-5 ... Saldo Prepago $ 0 ... Cuotas Morosas 0",
+          "cita_fecha": "",
+          "confidence": 0.95
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco Estado",
+      "monto": 24864952,
+      "art": 260,
+      "cmf": true,
+      "doc": "REINGRESO/BIENES/BANCO ESTADO.pdf (Acreedores CMF/Banco Estado/Deuda banco estado 10_07_2025.pdf)",
+      "nota": "CMF overdue90=$2.501.594 (90+d). Cert Deudas Vigentes + liquidacion acredita monto CRE 00037607722 $24.864.952 (Total Pactado P/P) + vencimiento 20/03/2025 -> Art.260. Producto 1 de 2 (CMF consolida BancoEstado en 1 fila Consumo). Multiproducto: split por operacion."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 3947754,
+      "art": 260,
+      "cmf": true,
+      "doc": "REINGRESO/BIENES/BANCO ESTADO.pdf (Acreedores CMF/Banco Estado/Deuda banco estado 10_07_2025.pdf)",
+      "nota": "CMF overdue90=$2.501.594 (banco 90+d). Cert liquidacion CRE 00037884152 $3.947.754 (CASTIGO) + vencimiento 21/04/2025 -> Art.260. Producto 2 de 2. Suma 2 prods = $28.812.706 vs CMF total $28.512.391 (dif $300.315, cert manda)."
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "monto": 4492536,
+      "art": 260,
+      "cmf": true,
+      "doc": "REINGRESO/ACREEDORES/ BANCO SCOTIABANK.pdf",
+      "nota": "CMF overdue90=$1.670.435 (90+d). Reporte de Deuda al 30-09-2025: Renegociacion Consumo 710151495460 Saldo Actual $4.492.536. Producto 1 de 2 (CMF consolida en 1 fila Consumo). El reporte NO indica fecha de mora explicita; se declara con monto (posible degrade a 261 si no se acredita vencimiento)."
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "monto": 2010312,
+      "art": 260,
+      "cmf": true,
+      "doc": "REINGRESO/ACREEDORES/ BANCO SCOTIABANK.pdf",
+      "nota": "CMF overdue90=$1.670.435 (banco 90+d). Tarjeta de Credito 600220136817 Saldo Actual $2.010.312. Producto 2 de 2. Suma 2 prods = $6.502.848 vs CMF total $6.346.276 (dif $156.572, cert manda). Sin fecha de mora explicita en el reporte."
+    },
+    {
+      "institucion": "COFISA (ABCDIN-ADRetail)",
+      "monto": 42236,
+      "art": 261,
+      "cmf": true,
+      "doc": "Reposición /acreedores morosos al primero ingreso /certificadoDeuda - ABCDIN.pdf",
+      "nota": "CMF overdue90=$42.236 (todo 90+d). Cert Creditos Organizacion y Finanzas (RUT 96.522.900-0) deuda CASTIGADA $42.236 sin fecha de vencimiento acreditada -> Art.261 (solo monto). Monto ~1,07 UF, sobre el minimo trivial de 1 UF, se declara."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1011387,
+      "art": 260,
+      "cmf": true,
+      "doc": "Acreedores CMF/Banco Falabella/julio.pdf",
+      "nota": "CMF overdue90=$78.356 (90+d). EECC CMR 04/07/2025 Costo Monetario Prepago $1.011.387 (payoff de la tarjeta) + aviso de cobranza cuota 20-junio impaga -> vencimiento acreditable -> Art.260. Monto cert $1.011.387 vs CMF total $1.086.048 (dif $74.661, cert manda)."
+    },
+    {
+      "institucion": "Hites Inversiones y Tarjetas S.A.",
+      "monto": 114150,
+      "art": 260,
+      "cmf": true,
+      "doc": "Reposición /acreedores morosos al primero ingreso /CERTIFICADO DE DEUDA_15401469 HItes.pdf",
+      "nota": "CMF overdue90=$83.909 (todo 90+d). Cert Inversiones y Tarjetas S.A (Hites, RUT 85.325.100-3) Total a pagar $114.150, Dias Mora 316 -> monto + vencimiento acreditados -> Art.260. Se declara el Total a pagar del cert (payoff), > CMF capital $83.909."
+    },
+    {
+      "institucion": "MATIC KARD (MKSA)",
+      "monto": 868891,
+      "art": 260,
+      "cmf": true,
+      "doc": "Acreedores CMF/MATIC KARD (MKSA)/junio .pdf",
+      "nota": "CMF overdue90=$845.206 (todo 90+d). EECC SBPAY VISA (tarjeta ...3134) Costo Monetario Prepago $868.891 (payoff) + venc 07/07/2025 / cuota plan de pago desde 19/02/2025 -> Art.260. Monto cert $868.891 vs CMF total $845.206 (dif $23.685, cert manda)."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 12927105,
+      "art": 261,
+      "cmf": false,
+      "doc": "REINGRESO/ACREEDORES/CAJA LOS ANDES/Caja los andes 5.pdf (208.208COS100344494-4)",
+      "nota": "NO-CMF (Caja Los Andes no figura en el Informe CMF). Credito 208.208COS100344494-4 Saldo Prepago $12.927.105, Cuotas Morosas 0 (VIGENTE, sin mora) -> Art.261 (solo monto). RUT emisor 61.808.000-5."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 1264735,
+      "art": 261,
+      "cmf": false,
+      "doc": "REINGRESO/ACREEDORES/CAJA LOS ANDES/Caja lo Andes 6.pdf (208.208COS100409688-8)",
+      "nota": "NO-CMF. Credito 208.208COS100409688-8 Saldo Prepago $1.264.735, Cuotas Morosas 0 -> Art.261."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 368660,
+      "art": 261,
+      "cmf": false,
+      "doc": "REINGRESO/ACREEDORES/CAJA LOS ANDES/Caja los andes 1.pdf (34.034CON104249120-0)",
+      "nota": "NO-CMF. Credito 34.034CON104249120-0 Saldo Prepago $368.660, Cuotas Morosas 0 -> Art.261."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 184145,
+      "art": 261,
+      "cmf": false,
+      "doc": "REINGRESO/ACREEDORES/CAJA LOS ANDES/CAJA LOS ANDES 2.pdf (34.034CON104431231-1)",
+      "nota": "NO-CMF. Credito 34.034CON104431231-1 Saldo Prepago $184.145, Cuotas Morosas 0 -> Art.261."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 342506,
+      "art": 261,
+      "cmf": false,
+      "doc": "REINGRESO/ACREEDORES/CAJA LOS ANDES/Caja los andes 4.pdf (208.208DIG100365967-7)",
+      "nota": "NO-CMF. Credito 208.208DIG100365967-7 Saldo Prepago $342.506, Cuotas Morosas 0 -> Art.261."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF corte 17/10/2025, emitido 27/10/2025. 6 acreedores directos, todos Consumo. Sin deuda indirecta.",
+    "Elegibilidad Art.260: 6 productos CMF con overdue90>0 (Banco Estado $2.501.594, Scotiabank $1.670.435, COFISA $42.236, CMR Falabella $78.356, Hites $83.909, MATIC KARD $845.206) => cumple minimo 2. Suma totalCredito de los 90+d = $36.916.066 (todos) >> 80 UF (~$3,25M).",
+    "Banco Estado multiproducto: cert de Deudas Vigentes 10/07/2025 muestra 2 operaciones (CRE 00037607722 $24.864.952 venc 20/03/2025 y CRE 00037884152 $3.947.754 venc 21/04/2025, castigado). Ambas con liquidacion P/P Saldo. Se declaran como 2 filas 260. CMF consolida en 1 fila Consumo $28.512.391.",
+    "Scotiabank multiproducto: Reporte de Deuda al 30-09-2025 (mas reciente que el de 30-06) muestra 2 productos: Renegociacion Consumo 710151495460 $4.492.536 y Tarjeta 600220136817 $2.010.312. Se declaran 2 filas. El reporte NO indica fecha de mora explicita ('no tiene caracter de certificado para prepago'); el CMF marca banco 90+d. Si el portal exige vencimiento acreditado y el reporte no lo trae, estas filas podrian degradarse a 261 (posible ALERTA needs_review).",
+    "CMR Falabella: EECC julio.pdf (facturacion 04/07/2025, el mas reciente de los 4) Costo Monetario Prepago $1.011.387 = payoff de la tarjeta (NO el Monto Total Facturado a Pagar $157.910, que es la cuota del mes). Aviso de cobranza cuota 20-junio impaga -> mora -> Art.260.",
+    "MATIC KARD (MKSA) = SBPAY VISA tarjeta ...3134. El doc mas reciente es junio.pdf (emision 21/06/2025) con Costo Monetario Prepago $868.891; mayo(3).pdf (emision 22/05) tiene $870.445 (mismo producto, dedup -> se usa junio). No hay EECC de julio para Matic. CMF marca todo 90+d ($845.206). Costo Monetario Prepago es el payoff (NO 'CUOTA PLAN DE PAGO PROGRA' $943.222/$1.176.192 que es la operacion original refinanciada).",
+    "COFISA (ABCDIN-ADRetail): el cert 'certificadoDeuda - ABCDIN.pdf' lo emite Creditos, Organizacion y Finanzas S.A. RUT 96.522.900-0 (servicer de ABCDIN/ADRetail). Deuda castigada $42.236 sin fecha de vencimiento -> Art.261. Monto ~1,07 UF, apenas sobre el minimo trivial (1 UF ~$40.661), se declara.",
+    "Hites: cert de Administradora Plaza S.A. a nombre de Inversiones y Tarjetas S.A (Hites) RUT 85.325.100-3. Total a pagar $114.150 (capital $83.909 + interes mora $25.414 + cobranza $4.827), Dias Mora 316. Se declara el Total a pagar (payoff). Nota del cert: pago nominativo a HITES S.A. RUT 81.675.600-6.",
+    "CAJA LOS ANDES (CCAF, RUT empresa 61.808.000-5) NO figura en el Informe CMF -> son acreedores NO-CMF. Hay 6 creditos (docs REINGRESO/ACREEDORES/CAJA LOS ANDES): 5 con saldo>0 (Saldo Prepago $12.927.105, $1.264.735, $368.660, $184.145, $342.506) y 1 con Saldo Prepago $0 (34.034EME104701415-5) que NO se declara. TODOS con Cuotas Morosas 0 / Estado Vigente -> sin mora -> Art.261 (solo monto). Se declaran 5 filas 261 NO-CMF. ⚠️ DUDA: al no tener mora, un criterio estricto de 'declarar solo deuda que se acredite morosa' podria excluirlas; pero Art.261 obliga a declarar todos los pasivos vigentes y el abogado las incluyo en la carpeta -> se declaran.",
+    "Docs ignorados: BANCO ESTADO.pdf en BIENES (pantallazo portal, cuentas de ahorro $1/$8, no acredita deuda; el cert de deuda real es 'Deuda banco estado 10_07_2025.pdf'); LC CMR $0.pdf y 'SUBIR AL FINAL/LC no utilizada.jpeg' (lineas de credito no utilizadas, $0); Permiso de Circulacion / VEH_* (bienes); Certificado_UNO / Agente Retenedores / Carpeta_Tributaria / informe_deudas (ingresos/SII); DECLARACION JURADA; cmf ingreso.jpeg / primer envio.pdf / Inadmisibilidad (tramites del expediente).",
+    "El monto declarado en cada fila proviene del certificado/documento (payoff), NO del CMF, respetando 'el certificado manda sobre el CMF'."
+  ]
+}

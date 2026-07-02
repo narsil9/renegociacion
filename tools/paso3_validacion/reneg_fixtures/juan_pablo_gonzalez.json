@@ -1,0 +1,177 @@
+{
+  "case": "juan_pablo_gonzalez",
+  "rut": "17.010.050-6",
+  "cmf_cut_date": "2025-12-19",
+  "cmf_rows": [
+    {
+      "institucion": "De Credito e Inversiones",
+      "tipoCredito": "Consumo",
+      "totalCredito": 8344942,
+      "overdue90Days": 6712715
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1653002,
+      "overdue90Days": 47106
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 200235,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "BCI-41423808-certificado-prepago_unlocked.pdf",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97006000-6",
+      "emisor_nombre": "Banco de Crédito e Inversiones",
+      "productos": [
+        {
+          "operacion": "CRECON NUEVO MULTIUSO D01210277998",
+          "monto": 2661306,
+          "etiqueta_monto": "Monto total a pagar al 02-01-2026",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-17",
+          "dias_mora_doc": 0,
+          "cita_monto": "CRECON NUEVO MULTIUSO D01210277998 17-07-2024 $ 2.661.306",
+          "confidence": 0.95
+        },
+        {
+          "operacion": "CREOTR LINEA SOBREGIRO CONSUMO IMPAGA D01210308688",
+          "monto": 1667854,
+          "etiqueta_monto": "Monto total a pagar al 02-01-2026",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "CREOTR LINEA SOBREGIRO CONSUMO IMPAGA D01210308688 17-12-2025 $ 1.667.854",
+          "confidence": 0.95
+        },
+        {
+          "operacion": "CREOTR DOCTO VCDO VISA PERSONA D01210304294",
+          "monto": 5232598,
+          "etiqueta_monto": "Monto total a pagar al 02-01-2026",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-03",
+          "dias_mora_doc": 0,
+          "cita_monto": "CREOTR DOCTO VCDO VISA PERSONA D01210304294 03-07-2025 $ 5.232.598",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Captura de pantalla (2531).pdf",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Crédito e Inversiones",
+      "productos": [
+        {
+          "operacion": "Crédito de Consumo Nº D01210277998 (cuotas vencidas)",
+          "monto": 0,
+          "etiqueta_monto": "Detalle de cuotas vencidas",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-17",
+          "dias_mora_doc": 0,
+          "cita_monto": "Nº de cuota 12 Vencimiento 17/07/2025 Vencida $112.731",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Diciembre_2025_EECC.pdf",
+      "institucion_asignada": "CAT (ex CENCOSUD)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CAT Administradora de Tarjetas S.A. (Tarjeta Cencosud Scotiabank)",
+      "productos": [
+        {
+          "operacion": "Tarjeta Cencosud Scotiabank Platinum *8124",
+          "monto": 1653002,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": "2025-11-15",
+          "dias_mora_doc": 0,
+          "cita_monto": "COSTO MONETARIO PREPAGO 1.653.002",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "dici falabella.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Falabella (Banco Falabella)",
+      "productos": [
+        {
+          "operacion": "Tarjeta CMR *5312",
+          "monto": 202004,
+          "etiqueta_monto": "Costo Monetario Prepago al 19/12/2025",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago al 19/12/2025 **** 202.004",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 2661306,
+      "art": 260,
+      "cmf": true,
+      "doc": "BCI-41423808-certificado-prepago_unlocked.pdf",
+      "nota": "BCI CMF 90+d=$6.712.715. Multiproducto: Certificado de Liquidación detalla 3 operaciones (CMF consolida en 1 fila Consumo). Producto 1 de 3: CRECON NUEVO MULTIUSO Op. D01210277998, payoff $2.661.306, en morosidad. Vencimiento acreditado (cuota 12 vence 17/07/2025 según captura BCI) → Art.260."
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 1667854,
+      "art": 260,
+      "cmf": true,
+      "doc": "BCI-41423808-certificado-prepago_unlocked.pdf",
+      "nota": "Producto 2 de 3: CREOTR LINEA SOBREGIRO CONSUMO IMPAGA Op. D01210308688, payoff $1.667.854, en morosidad ('Saldo de crédito $1.632.227' coincide con la columna Vigente del CMF — sobregiro impago). Art.260."
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 5232598,
+      "art": 260,
+      "cmf": true,
+      "doc": "BCI-41423808-certificado-prepago_unlocked.pdf",
+      "nota": "Producto 3 de 3: CREOTR DOCTO VCDO VISA PERSONA Op. D01210304294, payoff $5.232.598, en morosidad, vencido 03/07/2025. Art.260. Suma 3 productos = $9.561.758 (= 'Monto total a Pagar para poner término a todos los productos') vs CMF total $8.344.942 (cert > CMF, payoff incluye intereses/cobranza — el cert manda)."
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "monto": 1653002,
+      "art": 260,
+      "cmf": true,
+      "doc": "Diciembre_2025_EECC.pdf",
+      "nota": "CMF 90+d=$47.106 (>0). Tarjeta Cencosud Scotiabank *8124. EECC dic-2025 acredita monto (COSTO MONETARIO PREPAGO $1.653.002, = total CMF exacto) + morosidad (gasto de cobranza 15/11/2025, interés mora). Una tarjeta = un producto al costo monetario prepago. Art.260."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 202004,
+      "art": 261,
+      "cmf": true,
+      "doc": "dici falabella.pdf",
+      "nota": "CMF 90+d=$0 → Art.261 (solo monto). Tarjeta CMR *5312. EECC 19/12/2025 acredita Costo Monetario Prepago $202.004 (CMF total $200.235, diferencia $1.769 trivial). Sin interés por mora ni gasto de cobranza → no hay vencimiento acreditable. No existe línea de crédito CMR separada (confirmado en captura del portal)."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF emitido 02/01/2026, información actualizada al 19/12/2025. 3 acreedores Deuda Directa (Consumo): De Crédito e Inversiones (BCI), CAT (ex CENCOSUD), CMR Falabella. Sin Deuda Indirecta.",
+    "BCI multiproducto: Certificado de Liquidación (portabilidad ID 41423808, emisión 02-01-2026, vigencia 29-01-2026, RUT emisor 97006000-6) detalla 3 operaciones que el CMF consolida en 1 fila Consumo $8.344.942. Productos: CRECON D01210277998 $2.661.306 + CREOTR LINEA SOBREGIRO D01210308688 $1.667.854 + CREOTR DOCTO VCDO VISA D01210304294 $5.232.598. Los tres marcados 'en estado de morosidad'. Total payoff $9.561.758 al 02-01-2026.",
+    "BCI vencimiento: la captura del portal BCI (Captura de pantalla 2531) muestra cuotas vencidas del crédito D01210277998 desde la cuota 12 vence 17/07/2025 → mora >90 días al corte CMF 19/12/2025. Acredita el vencimiento de BCI → Art.260. Captura 2532 está vacía (pestaña de tarjetas sin contenido), no aporta.",
+    "El CRECON BCI fue contratado 17-07-2024 (no es fecha de mora); usé como fecha_mora la 1ª cuota impaga (17/07/2025) de la captura. La operación DOCTO VCDO VISA tiene fecha de contratación 03-07-2025 que coincide con un documento vencido — usada como referencia de mora.",
+    "CAT (ex Cencosud): el emisor es CAT Administradora de Tarjetas S.A. (tarjeta Cencosud Scotiabank), alias CMF 'CAT (ex CENCOSUD)'. COSTO MONETARIO PREPAGO $1.653.002 coincide exactamente con el total CMF. Una tarjeta = un producto a su costo monetario prepago; NO declarar las filas de operaciones individuales (EPARIS, FLOW, AUTOPLANET) ni el 'Monto Total Facturado a Pagar' ($847.505, cuota del mes). CMF 90+d $47.106 con escalonamiento 30-59d/60-89d → mora en curso; gasto de cobranza confirma morosidad → Art.260.",
+    "CMR Falabella: Costo Monetario Prepago al 19/12/2025 = $202.004 (no el Monto Total Facturado a Pagar $66.260, que es la cuota del mes). CMF 90+d=$0 y EECC sin interés por mora ni gasto de cobranza → no se acredita vencimiento → Art.261.",
+    "NO-CMF: revisados Mutual (póliza de seguro Capital Garantizado estado ANULADO = bien/inversión, NO deuda), Mercado Pago / Coopeuch / Banco Estado ahorro / Bice (carpeta Bienes/Inversiones = activos), vehículos, SII, ingresos, poder, cédula. Ninguno es un acreedor adicional. No hay deudas NO-CMF.",
+    "Elegibilidad: 2+ productos con mora 90+d (BCI multiproducto morosos + CAT $47.106) y suma totalCredito >> 80 UF (~$3.25M): BCI $8.344.942 solo ya supera. Cumple.",
+    "Documentos no leídos / sin contenido útil: 'Captura de pantalla (2532).pdf' (vacía); las 5 EECC mensuales de CAT (sep-dic) son redundantes — usé diciembre (más reciente, COSTO MONETARIO PREPAGO mayor); 'nov falabella.pdf' redundante con diciembre. .docx no convertidos (cmr credito.docx, mutual.docx, prints) son fuentes de las capturas/inversiones, no aportan acreedores nuevos."
+  ]
+}

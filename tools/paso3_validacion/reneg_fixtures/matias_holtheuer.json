@@ -1,0 +1,180 @@
+{
+  "case": "matias_holtheuer",
+  "rut": "16.100.752-8",
+  "cmf_cut_date": "2025-11-07",
+  "cmf_rows": [
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 46353501,
+      "overdue90Days": 24545364
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 7675441,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "certificado de deuda Matias.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Santander",
+      "productos": [
+        {
+          "operacion": "480052093904",
+          "monto": 196709,
+          "etiqueta_monto": "Sdo.Total",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-22",
+          "dias_mora_doc": 0,
+          "cita_monto": "Otros préstamos de consumo 480052093904 ... Fecha Venc: 22/08/2025 ... Sdo. Mora $196.709 ... Sdo. Total $196.709",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "650046641668",
+          "monto": 25926800,
+          "etiqueta_monto": "Sdo.Total",
+          "moneda": "CLP",
+          "fecha_mora": "2027-02-01",
+          "dias_mora_doc": 0,
+          "cita_monto": "Préstamos de consumo 650046641668 ... Fecha Venc 01/02/2027 ... Sdo.Mora $3.149.155 ... Sdo. Total $25.926.800",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "650053060875",
+          "monto": 1000000,
+          "etiqueta_monto": "Sdo.Total",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-22",
+          "dias_mora_doc": 0,
+          "cita_monto": "Otros préstamos de consumo 650053060875 ... Fecha Venc 22/08/2025 ... Sdo.Mora $1.000.000 ... Sdo. Total $1.000.000",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "650052979735",
+          "monto": 11763007,
+          "etiqueta_monto": "Sdo.Total",
+          "moneda": "CLP",
+          "fecha_mora": "2025-04-10",
+          "dias_mora_doc": 0,
+          "cita_monto": "Tarjetas de crédito 650052979735 ... Fecha Venc 10/04/2025 ... Sdo.Vencido $11.763.007 ... Sdo. Total $11.763.007",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "650052979956",
+          "monto": 6961647,
+          "etiqueta_monto": "Sdo.Total",
+          "moneda": "CLP",
+          "fecha_mora": "2025-04-10",
+          "dias_mora_doc": 0,
+          "cita_monto": "Tarjetas de crédito 650052979956 ... Fecha Venc 10/04/2025 ... Sdo.Vencido $6.961.647 ... Sdo. Total $6.961.647",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "ITAU.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Itaú Chile",
+      "productos": [
+        {
+          "operacion": "TC MasterCard 5549046501147730",
+          "monto": 2493651,
+          "etiqueta_monto": "Monto Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Tarjeta de Crédito MasterCard 5549046501147730 $ Utilizado 2.493.651 Vigente",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "Línea Preferencial 221248199",
+          "monto": 772988,
+          "etiqueta_monto": "Monto Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Saldo de Linea Preferencial 221248199 Monto Utilizado 772.988 Vigente",
+          "confidence": 0.85
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Santander-Chile",
+      "monto": 25926800,
+      "art": 260,
+      "cmf": true,
+      "doc": "certificado de deuda Matias.pdf",
+      "nota": "CMF Santander overdue90=$24.545.364 (califica 90+d). Préstamo de consumo Op.650046641668, cert acredita monto $25.926.800 (Sdo.Total) + Sdo.Mora $3.149.155 → 260. Producto 1 de 5 de Santander (CMF consolida en 1 fila Consumo)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 11763007,
+      "art": 260,
+      "cmf": true,
+      "doc": "certificado de deuda Matias.pdf",
+      "nota": "Tarjeta de crédito Op.650052979735, Sdo.Vencido $11.763.007 (todo en mora), Fecha Venc 10/04/2025 → 260. Producto 2 de 5."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 6961647,
+      "art": 260,
+      "cmf": true,
+      "doc": "certificado de deuda Matias.pdf",
+      "nota": "Tarjeta de crédito Op.650052979956, Sdo.Vencido $6.961.647 (todo en mora), Fecha Venc 10/04/2025 → 260. Producto 3 de 5."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 1000000,
+      "art": 260,
+      "cmf": true,
+      "doc": "certificado de deuda Matias.pdf",
+      "nota": "Otros préstamos de consumo Op.650053060875, Sdo.Mora $1.000.000 (todo en mora), Fecha Venc 22/08/2025 → 260. Producto 4 de 5."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 196709,
+      "art": 260,
+      "cmf": true,
+      "doc": "certificado de deuda Matias.pdf",
+      "nota": "Otros préstamos de consumo Op.480052093904, Sdo.Mora $196.709 (todo en mora), Fecha Venc 22/08/2025 → 260. Producto 5 de 5. Suma 5 productos = $45.848.163 vs CMF total $46.353.501 (diferencia ~$505k, dentro de tolerancia)."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 2493651,
+      "art": 261,
+      "cmf": true,
+      "doc": "ITAU.pdf",
+      "nota": "CMF Itaú overdue90=$0 → Art.261 (solo monto). TC MasterCard 5549046501147730, Monto Utilizado $2.493.651 (Vigente). Producto 1 de 2 (CMF consolida Itaú en 1 fila Consumo)."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 772988,
+      "art": 261,
+      "cmf": true,
+      "doc": "ITAU.pdf",
+      "nota": "Línea Preferencial 221248199, Monto Utilizado $772.988 (Vigente) → Art.261. Producto 2 de 2. Suma 2 productos = $3.266.639 vs CMF $7.675.441 (brecha ~$4.4M; el resto puede ser cupo no detallado en la constancia). Cta cte $0 trivial, NO declarar."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF emitido 14/11/2025, información actualizada al 07/11/2025. Solo 2 acreedores: Santander-Chile (Consumo, total $46.353.501, overdue90 $24.545.364) y Banco Itaú Chile (Consumo, total $7.675.441, overdue90 $0). Deuda indirecta: ninguna.",
+    "Doc Santander autoritativo = RECTIFICACION/'certificado de deuda Matias.pdf' (N°58737, cierre 21/10/2025), MÁS reciente que 'CERTIFICADO DEUDA SANTANDER.pdf' (N°46579, cierre 19/08/2025). Se usa la versión nueva. Multiproducto: CMF consolida Santander en 1 fila pero el cert detalla 5 productos significativos.",
+    "Santander overdue90 $24.545.364 (CMF): los productos en mora del cert son la TC 650052979735 ($11.763.007 todo vencido) + TC 650052979956 ($6.961.647 todo vencido) + parte del préstamo 650046641668 (Sdo.Mora $3.149.155) + 650053060875 ($1.000.000) + 480052093904 ($196.709). Suma de moras ≈ $23.070.518, cercano a CMF $24.545.364. Todos los 5 acreditan monto + vencimiento → 260.",
+    "Préstamo 650046641668: Fecha Venc 01/02/2027 pero Sdo.Mora $3.149.155 (ya en mora). Se declara el Sdo.Total $25.926.800 (payoff completo) en 260; la porción vigente no se declara aparte (sería doble conteo).",
+    "Triviales Santander NO declarados: Op.480052093920 $111; Op.480052515671/680/698 Préstamos comerciales $1.500 c/u. Todos <1 UF.",
+    "Itaú constancia (20/08/2025): doc autoritativo. TC MasterCard $2.493.651 (Monto Utilizado, Vigente) + Línea Preferencial 221248199 $772.988 (Vigente). Cuenta corriente 221248189 saldo $0 → trivial, NO declarar. La TC también tiene US$81,11 internacional (~$77k) que NO se suma (irrelevante).",
+    "El estado de cuenta Itaú Master (Master_EECCvirtual, cierre 25/07/2025) muestra COSTO MONETARIO PREPAGO $2.225.507 — es el MISMO producto que la TC de la constancia (mismos 4 últimos 7730). Se reporta UNA vez desde la constancia (más reciente, 20/08). El monto difiere ($2.225.507 vs $2.493.651) por la fecha de corte; se usa la constancia.",
+    "Brecha Itaú: suma de docs $3.266.639 vs CMF total $7.675.441 (~$4.4M sin acreditar). Posible producto Itaú no cubierto por la constancia; revisar si falta un cert de la línea/avance. No bloqueante (overdue90=$0), pero anotado.",
+    "Elegibilidad: 1 acreedor CMF con overdue90>0 (Santander). El requisito de ≥2 productos 90+d se cumple porque Santander tiene VARIOS productos en mora (>=2 líneas distintas: las 2 tarjetas + préstamo). Suma totalCredito califica >> 80 UF.",
+    "Todos los docs eran PDFs legibles con capa de texto. Ningún documento ilegible."
+  ]
+}

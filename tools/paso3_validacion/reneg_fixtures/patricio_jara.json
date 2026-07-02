@@ -1,0 +1,364 @@
+{
+  "case": "patricio_jara",
+  "rut": "17.346.122-4",
+  "cmf_cut_date": "2025-12-12",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 10124087,
+      "overdue90Days": 7124087
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 69373868,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 209138445,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 73175711,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 106259724,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Certificado de deuda actualizado BC.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "emisor_nombre": "Banco de Chile (SOCOFIN — Área Normalización Banca Personas)",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "01401 CRÉDITO TARJETAS VENCIDAS CONSUMO",
+          "monto": 8152942,
+          "etiqueta_monto": "Total deuda Prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-08",
+          "cita_monto": "01401 CRÉDITO TARJETAS VENCIDAS CONSUMO ... 8.152.942",
+          "cita_fecha": "Fecha de vencimiento 8 julio 2025",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "17172 LINEA DE CREDITO CTA.CTE.REZAG.CONSUMO",
+          "monto": 3323327,
+          "etiqueta_monto": "Total deuda Prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-09",
+          "cita_monto": "17172 LINEA DE CREDITO CTA.CTE.REZAG.CONSUMO ... 3.323.327",
+          "cita_fecha": "Fecha de vencimiento 9 octubre 2025",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "18263 VARIOS DEUDORES CTA CTE CONSUMO",
+          "monto": 119532,
+          "etiqueta_monto": "Total deuda Prejudicial",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-09",
+          "cita_monto": "18263 VARIOS DEUDORES CTA CTE CONSUMO ... 119.532",
+          "cita_fecha": "Fecha de vencimiento 9 octubre 2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "1401 MONTO_.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Banco de Chile",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "225173461224001401 (op 01401)",
+          "monto": 7124087,
+          "etiqueta_monto": "Monto de la Cuota ($)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-08",
+          "cita_monto": "Monto de la Cuota ($) 7.124.087",
+          "cita_fecha": "Fecha de Vencimiento 08/07/2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "TC 5702 Septiembre.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Banco de Chile (VISA)",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta VISA XXXX XXX1 0095 5702",
+          "monto": 7165935,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 7.165.935",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "CartolaCuentaCorrienteNacional_unlocked.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "cartola",
+      "emisor_nombre": "Banco de Chile (Banca Preferencial)",
+      "rut_emisor": "",
+      "productos": []
+    },
+    {
+      "filename": "Certificado deuda ITAU.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "emisor_nombre": "BANCO ITAU CHILE",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Crédito en cuotas 60481906 (Consumo)",
+          "monto": 62387112,
+          "etiqueta_monto": "Sldo.Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "60481906 06/01/2025 25/02/2030 Pesos 66.737.740,00 62.387.112,00 60 Consumo Mora 1",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Línea Preferencial 214143094",
+          "monto": 2000000,
+          "etiqueta_monto": "Monto Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "214143094 2.000.000,00 2.000.000,00 Vigente",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Itau CONSUMO /Certificado de deudas vigentes.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "emisor_nombre": "BANCO ITAU CHILE",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Mutuo Hipotecario 02144340 (Vivienda)",
+          "monto": 2696,
+          "etiqueta_monto": "Saldo Insoluto (UF)",
+          "moneda": "UF",
+          "fecha_mora": null,
+          "cita_monto": "02144340 22/05/2024 25 2.659,00 2.696,77 UF Vigente",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "MORAA.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Itaú Soluciones de Pago (portal)",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta Crédito 5598001100902704 (2704)",
+          "monto": 6792353,
+          "etiqueta_monto": "Monto a pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-26",
+          "cita_monto": "2704 Tarjeta Crédito 95 $6.792.353",
+          "cita_fecha": "Dias mora 95 (captura 30/12/2025)",
+          "confidence": 0.6
+        }
+      ]
+    },
+    {
+      "filename": "Scotiabank CONSUMO /Reporte de deuda.pdf",
+      "institucion_asignada": "Scotiabank Chile",
+      "doc_type": "desglose_por_producto",
+      "emisor_nombre": "Scotiabank Chile",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Línea de Crédito Personas 710146191700",
+          "monto": 1310591,
+          "etiqueta_monto": "Saldo Actual $",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "LINEA DE CREDITO PERSONAS 710146191700 ... 1.310.591",
+          "cita_fecha": "",
+          "confidence": 0.88
+        },
+        {
+          "operacion": "Mutuo Scotiahouse 710146726345 (Vivienda)",
+          "monto": 208675081,
+          "etiqueta_monto": "Saldo Actual $",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "MUTUOS SCOTIAHOUSE 710146726345 ... 208.675.081",
+          "cita_fecha": "",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "Scotiabank CONSUMO /PRE PAGO PATRICIO JARA.pdf",
+      "institucion_asignada": "Scotiabank Chile",
+      "doc_type": "liquidacion_payoff",
+      "emisor_nombre": "Scotiabank Chile",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Consumo Libre Disponibilidad 710146209766",
+          "monto": 59268340,
+          "etiqueta_monto": "Total a Cancelar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "No Credito : 710146209766 ... Total a Cancelar : 59,268,340.00",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Scotiabank CONSUMO /Scotiabank_ CreditCart.pdf",
+      "institucion_asignada": "Scotiabank Chile",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Scotiabank Chile",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta VISA 4260 4000 0106 0952 (op 600221449309)",
+          "monto": 8731113,
+          "etiqueta_monto": "Deuda Pesos",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Tarjeta de Crédito 4260 4000 0106 0952 ... Deuda Pesos : 8.731.113",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 8152942,
+      "art": 260,
+      "cmf": true,
+      "doc": "Certificado de deuda actualizado BC.pdf",
+      "nota": "op 01401 CRÉDITO TARJETAS VENCIDAS. BdCh Consumo tiene 90+d $7.124.087 (=capital de esta op). Cert acredita monto (Total deuda prejudicial $8.152.942) + vencimiento 08/07/2025 -> Art.260. MISMO producto que la TC 5702 ($7.165.935 traspasada a cartera vencida) y que '1401 MONTO_' ($7.124.087): se declara UNA vez al payoff del cert ($8.152.942). NO usar $7.124.087 (esa es la Deuda Capital = cifra 90+d del CMF, no el payoff)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 3323327,
+      "art": 260,
+      "cmf": true,
+      "doc": "Certificado de deuda actualizado BC.pdf",
+      "nota": "op 17172 LINEA DE CREDITO CTA.CTE. Producto 2 de BdCh (multiproducto: CMF consolida en 1 fila Consumo). Cert acredita monto $3.323.327 + venc 09/10/2025. BdCh tiene 90+d en la fila -> se declara 260 (aunque esta op esté en 60-89d, acredita venc)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 119532,
+      "art": 260,
+      "cmf": true,
+      "doc": "Certificado de deuda actualizado BC.pdf",
+      "nota": "op 18263 VARIOS DEUDORES CTA CTE. Deuda directa como titular (VARIOS DEUDORES se declara). Monto $119.532 (> 1 UF), venc 09/10/2025 -> 260. Producto menor de la cta cte de BdCh."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 62387112,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado deuda ITAU.pdf",
+      "nota": "Crédito consumo 60481906. CMF Itaú Consumo 90+d = $0 (a la fecha de corte 12/12; 60-89d $8.250.052). Constancia acredita Saldo Insoluto $62.387.112 -> Art.261 (monto). NO usar el 'Monto a pagar $4.685.375' del portal (es solo la mora a poner al día, no el payoff)."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 2000000,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado deuda ITAU.pdf",
+      "nota": "Línea Preferencial 214143094, Monto Utilizado $2.000.000, Vigente. Producto 2 de Itaú Consumo (multiproducto). Art.261."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 6792353,
+      "art": 261,
+      "cmf": true,
+      "doc": "MORAA.pdf",
+      "nota": "Tarjeta MasterCard 2704. La constancia (07/11) la mostraba en $0 pero la captura del portal (30/12) muestra Monto a pagar $6.792.353 con 95 días de mora -> deuda real. Captura del portal con monto acredita saldo (no es chat). CMF 90+d=$0 -> Art.261. Confidence baja (0.6): único monto es 'Monto a pagar' del portal, sin estado de cuenta formal; posible que sea el payoff completo de la tarjeta. Alertar al abogado."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 2696,
+      "art": 261,
+      "cmf": true,
+      "doc": "Itau CONSUMO /Certificado de deudas vigentes.pdf",
+      "nota": "Mutuo Hipotecario 02144340, Saldo Insoluto 2.696,77 UF, Vigente (= CMF Itaú Vivienda $106.259.724). Monto en UF. CMF 90+d=$0 -> Art.261."
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "monto": 59268340,
+      "art": 261,
+      "cmf": true,
+      "doc": "Scotiabank CONSUMO /PRE PAGO PATRICIO JARA.pdf",
+      "nota": "Consumo Libre Disponibilidad 710146209766. Cupón de pago/prepago (30/12/2025) Total a Cancelar $59.268.340 (más autoritativo que el Saldo Actual $59.780.452 del Reporte de Deuda). Producto 1 de 4 de Scotiabank Consumo. CMF 90+d=$0 -> Art.261."
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "monto": 8731113,
+      "art": 261,
+      "cmf": true,
+      "doc": "Scotiabank CONSUMO /Scotiabank_ CreditCart.pdf",
+      "nota": "Tarjeta VISA 0952 (op 600221449309). Saldo más reciente (30/12): Deuda Pesos $8.731.113 (el Reporte de Deuda 30/11 mostraba $7.414.167; el EECC 21/11 Costo Monetario Prepago $8.304.562). Tarjeta = 1 producto. Producto 2 de 4. Art.261."
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "monto": 1310591,
+      "art": 261,
+      "cmf": true,
+      "doc": "Scotiabank CONSUMO /Reporte de deuda.pdf",
+      "nota": "Línea de Crédito Personas 710146191700, Saldo Actual $1.310.591 (Reporte de Deuda 30/11, columna en pesos). Producto 3 de 4 de Scotiabank Consumo. Art.261."
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "monto": 208675081,
+      "art": 261,
+      "cmf": true,
+      "doc": "Scotiabank CONSUMO /Reporte de deuda.pdf",
+      "nota": "Mutuo Scotiahouse 710146726345 (Vivienda), Saldo Actual $208.675.081 (columna en pesos del Reporte de Deuda; = CMF Scotiabank Vivienda $209.138.445). CMF 90+d=$0 -> Art.261."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF emitido 19/12/2025, información al 12/12/2025. Solo Banco de Chile Consumo tiene mora 90+d ($7.124.087). Itaú Consumo tiene 60-89d ($8.250.052) pero 90+d=$0.",
+    "ERROR CORREGIDO (op 01401 Banco de Chile): $7.124.087 es la 'Deuda Capital' de op 01401 y coincide EXACTAMENTE con la columna 90+d del CMF. NO es el payoff. El payoff real es la 'Total deuda Prejudicial' $8.152.942 (Certificado de deuda actualizado BC.pdf). op 01401 aparece en 3 docs (Certificado de deuda $8.152.942 = autoritativo; '1401 MONTO_' cuota $7.124.087; TC 5702 Costo Monetario Prepago $7.165.935 = misma tarjeta traspasada a cartera vencida) -> se declara UNA sola vez al payoff del cert.",
+    "Banco de Chile es multiproducto: CMF consolida en 1 fila Consumo $10.124.087, pero el certificado de deuda lista 3 operaciones prejudiciales (01401 $8.152.942 + 17172 $3.323.327 + 18263 $119.532 = $11.595.801). La suma de certs > CMF: el certificado incluye intereses/recargos de cobranza (más actual). Se declara el monto del documento, no el del CMF.",
+    "TC 5702 (Costo Monetario Prepago $7.165.935, EECC 23/09) NO se declara aparte: es la misma tarjeta que quedó como op 01401 'CRÉDITO TARJETAS VENCIDAS' en el certificado de deuda (mismo saldo ~$7.1M, mismo vencimiento 08/07/2025). Un producto por operación.",
+    "Itaú: 'Certificado deuda ITAU.pdf' y 'Certificado de deudas vigentes.pdf' son EL MISMO documento (constancia BANCO ITAU CHILE, 07/11/2025). Consumo 60481906 Saldo Insoluto $62.387.112 + Línea Preferencial 214143094 $2.000.000 + Mutuo Hipotecario 02144340 2.696,77 UF (Vivienda). Las 2 tarjetas MasterCard figuraban en $0 en la constancia.",
+    "Itaú MasterCard 2704: la constancia (07/11) la mostraba en $0, pero la captura del portal Itaú Soluciones de Pago (MORAA.pdf, 30/12/2025) muestra Monto a pagar $6.792.353 con 95 días de mora -> deuda real que surgió después de la constancia. Se declara con confidence baja (0.6): el único monto disponible es 'Monto a pagar' del portal, no un estado de cuenta formal; conviene pedir estado de cuenta de la tarjeta.",
+    "Itaú portal 'download (3).pdf'/'MORAA.pdf' (30/12/2025): 60481906 Consumo Dias mora 96 Monto a pagar $4.685.375; 2704 Tarjeta 95 días $6.792.353. El '$4.685.375' de 60481906 es la mora a poner al día (NO el payoff); para 60481906 se usa el Saldo Insoluto $62.387.112 de la constancia. Estos días de mora (96/95) son posteriores al corte CMF (12/12), donde Itaú aún figuraba con 90+d=$0.",
+    "Scotiabank es multiproducto. Consumo (CMF $69.373.868): Libre Disponibilidad 710146209766 payoff $59.268.340 (cupón de prepago 30/12) + Tarjeta 0952 $8.731.113 (saldo 30/12) + Línea de Crédito 710146191700 $1.310.591 (Reporte 30/11). Vivienda (CMF $209.138.445): Mutuo Scotiahouse 710146726345 $208.675.081.",
+    "Scotiabank Reporte de Deuda (30/11/2025) trae columna 'Saldo Actual $' YA en pesos: se usa esa cifra directamente, sin re-convertir desde UF (el mutuo hipotecario aparece como $208.675.081, no re-convertir los 5.263,7786 UF).",
+    "Tarjeta Scotiabank 0952 (op 600221449309): un solo producto. Aparece con distintos saldos por doc (Reporte 30/11 $7.414.167 en pesos + $33.383 en dólar; EECC 21/11 Costo Monetario Prepago $8.304.562; CreditCart 30/12 Deuda Pesos $8.731.113). Se declara UNA vez al saldo más reciente ($8.731.113).",
+    "Elegibilidad: al corte CMF (12/12) solo Banco de Chile tiene 90+d (op 01401 + eventualmente 17172/18263 acreditan venc). Cumple el umbral de 80 UF holgadamente. NOTA: solo 1 acreedor CMF con 90+d a la fecha de corte -> el mínimo de '2 productos 90+d' se cumple porque BdCh tiene 3 operaciones con vencimiento acreditado (2 de ellas van a 260); revisar con el abogado si el portal exige que sean de instituciones distintas.",
+    "Documentos ignorados (no acreditan deuda del Paso 3): CartolaCuentaCorrienteNacional (solo movimientos, saldo $0), pagos de dividendo Itaú/Scotia (Bienes/Ingresos), avalúos/dominios/permisos de circulación (Bienes), liquidaciones/contrato/boletas (Ingresos Paso 5), APV MetLife (Bienes/Inversiones), poder, CI, carpeta tributaria (SII). MORA ITAU.png / image001.png / 1401 MORA / 7172 MORA son capturas de mora (solo aportan fecha, ya cubiertas).",
+    "consultaCreditos (2).pdf: repite el crédito 60481906 (Saldo de deuda $62.387.112), ya cubierto por la constancia."
+  ]
+}

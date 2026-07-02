@@ -1,0 +1,192 @@
+{
+  "case": "javiera_ramirez",
+  "rut": "16.555.070-6",
+  "cmf_cut_date": "2025-09-19",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1689443,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 15666804,
+      "overdue90Days": 223198
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 436061,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1193878,
+      "overdue90Days": 43913
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "eecc cmr agosto 25.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Banco Falabella",
+      "productos": [
+        {
+          "operacion": "Tarjeta 548742*******7543",
+          "monto": 1194745,
+          "etiqueta_monto": "Costo Monetario Prepago al 24/08/2025",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-10",
+          "cita_monto": "Costo Monetario Prepago al 24/08/2025 **** 1.194.745",
+          "cita_fecha": "AVISO DE COBRANZA Cancelar cuotas atrasadas del 10-junio de $ 43.913, 10-julio de $ 95.146, 10-agosto de $ 14.812",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "EECC Tarjeta Cencosud Scotiabank agosto 25.pdf",
+      "institucion_asignada": "CAT (ex CENCOSUD)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CAT Administradora de Tarjetas S.A. (Tarjeta Cencosud Scotiabank)",
+      "productos": [
+        {
+          "operacion": "Tarjeta ************8509",
+          "monto": 655685,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "COSTO MONETARIO PREPAGO 655.685",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "1655507061.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Itaú Chile",
+      "productos": [
+        {
+          "operacion": "Consumo 60439590",
+          "monto": 9075807,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-25",
+          "cita_monto": "60439590 27/09/2024 08/10/2029 Pesos 9.799.292 9.075.807 60 Consumo Cart.Vcida",
+          "cita_fecha": "Estado Cart.Vcida (cartera vencida al 17/09/2025); intereses de mora en EECC desde 25/06/2025",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Línea Preferencial 225199269",
+          "monto": 2000000,
+          "etiqueta_monto": "Monto Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-25",
+          "cita_monto": "225199269 2.000.000 2.000.000 Cart.Vcida",
+          "cita_fecha": "Estado Cart.Vcida (cartera vencida al 17/09/2025)",
+          "confidence": 0.88
+        },
+        {
+          "operacion": "Tarjeta MasterCard 5549046502441603",
+          "monto": 4249857,
+          "etiqueta_monto": "$ Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "5549046502441603 5.500.000 4.249.857 5.900,00 0,00 Vigente",
+          "cita_fecha": "Estado 'Vigente' en Constancia al 17/09/2025 (aunque EECC agosto muestra intereses de mora, la Constancia autoritativa la reporta Vigente)",
+          "confidence": 0.82
+        }
+      ]
+    },
+    {
+      "filename": "eecc BCO CHILE ago 2025.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Tarjeta Visa XXXX XXX2 0394 6680",
+          "monto": 1429212,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 1.429.212",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1194745,
+      "art": 260,
+      "cmf": true,
+      "doc": "eecc cmr agosto 25.pdf",
+      "nota": "CMF overdue90=$43.913. EECC ago-2025 acredita monto (Costo Monetario Prepago $1.194.745) + vencimiento (aviso de cobranza cuotas impagas 10-jun/10-jul/10-ago 2025). Monto cert $1.194.745 vs CMF $1.193.878 (dif $867, dentro tolerancia). Art.260."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 9075807,
+      "art": 260,
+      "cmf": true,
+      "doc": "1655507061.pdf",
+      "nota": "CMF Itaú overdue90=$223.198 (banco 90+d). Constancia 22/09/2025 (al 17/09): Consumo op 60439590 Saldo Insoluto $9.075.807, estado Cart.Vcida → acredita monto+vencimiento → Art.260. Producto 1 de 3 (multiproducto, CMF consolida en 1 fila)."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 2000000,
+      "art": 260,
+      "cmf": true,
+      "doc": "1655507061.pdf",
+      "nota": "Línea Preferencial op 225199269, Monto Utilizado $2.000.000, estado Cart.Vcida → Art.260. Producto 2 de 3."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 4249857,
+      "art": 261,
+      "cmf": true,
+      "doc": "1655507061.pdf",
+      "nota": "TC MasterCard 5549046502441603, $Utilizado $4.249.857, estado 'Vigente' en la Constancia autoritativa al 17/09/2025 → sin vencimiento acreditado → Art.261. Producto 3 de 3. Suma 3 prods = $15.325.664 vs CMF $15.666.804 (dif $341.140, dentro tolerancia)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 1429212,
+      "art": 261,
+      "cmf": true,
+      "doc": "eecc BCO CHILE ago 2025.pdf",
+      "nota": "CMF overdue90=$0. TC Visa *6680, Costo Monetario Prepago $1.429.212 → Art.261 (solo monto). Monto cert $1.429.212 vs CMF $1.689.443 (dif $260.231; el cert es más reciente y payoff real)."
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "monto": 655685,
+      "art": 261,
+      "cmf": true,
+      "doc": "EECC Tarjeta Cencosud Scotiabank agosto 25.pdf",
+      "nota": "CMF overdue90=$0. Tarjeta Cencosud Scotiabank *8509, Costo Monetario Prepago $655.685 → Art.261. Monto cert $655.685 vs CMF $436.061 (dif $219.624; cert ago-2025 más reciente que corte CMF 19/09; sin mora)."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "Hay 2 informes CMF: CMF/cmf_16.555.070-6.pdf (corte 19/09/2025, emitido 26/09/2025) y SII/CMF_.pdf (corte 12/09/2025, emitido 23/09/2025). Se usó el MÁS RECIENTE (19/09/2025). El SII/ también contiene la Carpeta Tributaria y Agente Retenedores (ingresos, no acreedores).",
+    "CMF corte 19/09/2025: 4 acreedores directos (Banco de Chile, Banco Itaú Chile, CAT ex CENCOSUD, CMR Falabella). Sin deuda indirecta. Elegibilidad: 2 acreedores con overdue90>0 = Banco Itaú ($223.198) + CMR Falabella ($43.913) → cumple mínimo 2 productos 90+d. Suma totalCredito de esos = $15.666.804 + $1.193.878 = $16.860.682 >> 80 UF.",
+    "Banco Itaú multiproducto: CMF consolida en 1 fila Consumo $15.666.804 pero la Constancia (doc autoritativo, 22/09/2025 al 17/09/2025) muestra 3 productos: Consumo 60439590 Saldo Insoluto $9.075.807 (Cart.Vcida), Línea Preferencial 225199269 $2.000.000 (Cart.Vcida) y TC MasterCard 5549046502441603 $4.249.857 (Vigente). Split en 3 filas; los 2 Cart.Vcida → Art.260, TC Vigente → Art.261. Suma $15.325.664 vs CMF $15.666.804 (dif $341.140, ok).",
+    "TC MasterCard Itaú: la Constancia la reporta 'Vigente' al 17/09/2025, pero el EECCvirtualAGOSTO2025 (protegido, pw 16555070) muestra 'INTERESES DE MORA' desde junio y Costo Monetario Prepago $4.202.630. Ambiguo: se optó por seguir la Constancia (más autoritativa y reciente) → Art.261. Si el abogado confirma mora del TC, subiría a Art.260. Se usó el monto de la Constancia ($4.249.857, más reciente que EECC ago $4.202.630).",
+    "Itaú tiene también TC internacional en USD (US$36,34 ≈ trivial) y traspasos — no se declara (trivial).",
+    "CMR Falabella EECC ago-2025: Costo Monetario Prepago al 24/08/2025 = $1.194.745 (payoff de la tarjeta = UN producto; no las filas de compras Mercado Libre). Mora acreditada por AVISO DE COBRANZA (jun/jul/ago). CMF overdue90 $43.913 = cuota 10-junio.",
+    "CAT/Cencosud EECC ago-2025: Costo Monetario Prepago $655.685 (= Cupo Utilizado). Sin mora (min al día, saldo período anterior negativo). CMF overdue90 $0 → Art.261.",
+    "Banco de Chile EECC ago-2025: TC Visa *6680, Costo Monetario Prepago $1.429.212 (no el Monto Total Facturado $558.929 = cuota del mes). CMF overdue90 $0 → Art.261.",
+    "Docs de ingreso (liquidaciones, cotizaciones, agente retenedores, carnet), poder, cuadro de audiencias, y PRESTAMO SOLIDARIO.png (SII préstamo solidario $219.176, deuda con Tesorería/SII no financiera) NO son acreedores CMF del Paso 3. PRESTAMO SOLIDARIO podría ser un acreedor NO-CMF (TGR/fisco) a evaluar por el abogado — no incluido aquí por no ser deuda del sistema financiero; monto $219.176 (Préstamo 2021, saldo al 23/09/2025).",
+    "EECC virtuales mensuales de Itaú (mayo/junio/julio/agosto) están protegidos con contraseña 16555070; solo aportan fechas de mora. El producto se declara UNA vez desde la Constancia (doc autoritativo)."
+  ]
+}

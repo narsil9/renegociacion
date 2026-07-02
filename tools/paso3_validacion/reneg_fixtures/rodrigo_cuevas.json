@@ -1,0 +1,302 @@
+{
+  "case": "rodrigo_cuevas",
+  "rut": "15.810.825-9",
+  "cmf_cut_date": "2026-01-02",
+  "cmf_rows": [
+    {
+      "institucion": "Banco Estado",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1365734,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 11201318,
+      "overdue90Days": 673474
+    },
+    {
+      "institucion": "Coopeuch",
+      "tipoCredito": "Consumo",
+      "totalCredito": 4335943,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 278733,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander Consumer",
+      "tipoCredito": "Consumo",
+      "totalCredito": 11865205,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "3299 CONSUMO.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "BancoEstado",
+      "productos": [
+        {
+          "operacion": "Credito Consumo 00039933299",
+          "monto": 1356915,
+          "etiqueta_monto": "Saldo credito",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo credito $1.356.915",
+          "cita_fecha": "Proximo pago: 30/12/2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "CONSUMO Banco Estado.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "BancoEstado",
+      "productos": [],
+      "nota_doc": "Liquidacion op 00039878008 [1540] VISA por $4.038.416 (fecha 30/12/2025). Producto SUPERADO por el CMF mas reciente (02/01/2026) que baja Banco Estado a $1.365.734 sin mora. NO se emite: pagado/refinanciado entre cortes."
+    },
+    {
+      "filename": "LC banco Estado.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "otro",
+      "rut_emisor": "",
+      "emisor_nombre": "BancoEstado",
+      "productos": [],
+      "nota_doc": "Certificado Deuda Credito op 39878008 / N55100058749 por $4.038.416 / $1.200.000 (30/12/2025). Mismo op 39878008 SUPERADO por el CMF 02/01/2026. NO se emite."
+    },
+    {
+      "filename": "8008 CONSUMO MORA 25_9.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "BancoEstado",
+      "productos": [],
+      "nota_doc": "Captura portal op 00039878008, Saldo credito $3.572.818, cuota vencida 25/09/2025. Mismo op 39878008 SUPERADO por el CMF 02/01/2026 (Banco Estado bajo a $1.365.734 sin mora). NO se emite."
+    },
+    {
+      "filename": "5678 Tarjeta de Credito.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "BancoEstado",
+      "productos": [],
+      "nota_doc": "EECC VISA TC *5678, Fecha Estado 12/12/2025, Cupo Utilizado $3.595.305. El CMF mas reciente (02/01/2026) muestra Banco Estado en solo $1.365.734 total sin mora, por lo que este saldo de TC no esta reflejado en el CMF vigente. NO se emite (superado por el CMF nuevo)."
+    },
+    {
+      "filename": "Certificado de deuda.pdf",
+      "institucion_asignada": "Scotiabank Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Scotiabank Chile",
+      "productos": [
+        {
+          "operacion": "CONSUMO LIBRE DISPONIBILIDAD 710147916369",
+          "monto": 10237435,
+          "etiqueta_monto": "Saldo Actual $",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-04",
+          "cita_monto": "CONSUMO LIBRE DISPONIBILIDAD 710147916369 ... Saldo Actual $ 10.237.435",
+          "cita_fecha": "Saldo Deuda al: 30-11-2025; mora consumo 04/09/2025 (screen Mis Deudas: prox venc 04/09/2025)",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "LINEA DE CREDITO PERSONAS 700520088509",
+          "monto": 507183,
+          "etiqueta_monto": "Saldo Actual $",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "LINEA DE CREDITO PERSONAS 700520088509 ... Saldo Actual $ 507.183",
+          "cita_fecha": "Saldo Deuda al: 30-11-2025",
+          "confidence": 0.8
+        },
+        {
+          "operacion": "TARJETA DE CREDITO 6002194977938",
+          "monto": 354148,
+          "etiqueta_monto": "Saldo Actual $",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-08",
+          "cita_monto": "TARJETA DE CREDITO 6002194977938 ... Saldo Actual $ 354.148",
+          "cita_fecha": "Saldo Deuda al: 30-11-2025; doc 'TC MORA 8-8-2025' (form en blanco, ilegible) sugiere mora 08/08/2025",
+          "confidence": 0.7
+        },
+        {
+          "operacion": "EDUCACION AVAL DEL ESTADO 20027 710045989825",
+          "monto": 4439090,
+          "etiqueta_monto": "Saldo Actual $",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "EDUCACION AVAL DEL ESTADO 20027 710045989825 ... Saldo Actual $ 4.439.090",
+          "cita_fecha": "Saldo Deuda al: 30-11-2025",
+          "confidence": 0.6
+        },
+        {
+          "operacion": "EDUCACION AVAL DEL ESTADO 20027 710045989817",
+          "monto": 180649,
+          "etiqueta_monto": "Saldo Actual $",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "EDUCACION AVAL DEL ESTADO 20027 710045989817 ... Saldo Actual $ 180.649",
+          "cita_fecha": "Saldo Deuda al: 30-11-2025",
+          "confidence": 0.6
+        }
+      ]
+    },
+    {
+      "filename": "WhatsApp Image 2026-01-20 at 10.52.56 AM.pdf",
+      "institucion_asignada": "Scotiabank Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Scotiabank Chile",
+      "productos": [],
+      "nota_doc": "Reporte de Deuda Scotiabank al 31-12-2025 (mismo set de operaciones que 'Certificado de deuda.pdf', mas reciente). Saldos actualizados aprox: consumo op 710147916369 ~$10.228.637, LC 700520088509 ~$516.290, TC 6002194977938 ~$284.386, CAE 710045989825 ~$4.465.676, CAE ...817 ~$181.779, sobregiro op 000520090175 $155 (trivial). Foto inclinada, cifras aprox. Se dedup contra 'Certificado de deuda.pdf' (mismo op) -> no se emiten productos nuevos aqui; solo aporta actualizacion."
+    },
+    {
+      "filename": "Certificado Coopeuch.pdf",
+      "institucion_asignada": "Coopeuch",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Coopeuch",
+      "productos": [
+        {
+          "operacion": "Credito Consumo 202472183434",
+          "monto": 4291871,
+          "etiqueta_monto": "Saldo Deuda",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "202472183434 12/12/2024 Directa Vigente 37 10 5.270.127 4.291.871 199.220",
+          "cita_fecha": "LOS ANGELES, 30 de Diciembre de 2025",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "2112 12_25.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella / CMR",
+      "productos": [
+        {
+          "operacion": "Tarjeta CMR 047210******2112",
+          "monto": 267632,
+          "etiqueta_monto": "Costo Monetario Prepago al 19/12/2025",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Monetario Prepago al 19/12/2025 **** 267.632",
+          "cita_fecha": "Fecha Facturacion Estado de Cuenta: 19/12/2025",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "LC no utilizada_.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "otro",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella / CMR",
+      "productos": [],
+      "nota_doc": "Captura portal BancoFalabella (07/01/2026): Linea de Credito saldo utilizado $0 (no utilizada), CMR Mastercard *6450 cupo utilizado $678.747, Cuenta Corriente saldo $563.804 (activo, no deuda). Solo documenta que la LC esta sin uso. No aporta producto declarable nuevo; el payoff de la tarjeta CMR se toma del EECC (Costo Monetario Prepago $267.632, consistente con CMF $278.733)."
+    },
+    {
+      "filename": "LEY 20.130 OP 650070168787.pdf",
+      "institucion_asignada": "Santander Consumer",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "SANTANDER CONSUMER FINANCE LIMITADA",
+      "productos": [
+        {
+          "operacion": "650070168787",
+          "monto": 11934182,
+          "etiqueta_monto": "Total Valor Prepago Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Total Valor Prepago Total : $11.934.182.-",
+          "cita_fecha": "prepago total al 13 de enero de 2026, vigencia hasta 27 de enero de 2026",
+          "confidence": 0.95
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Scotiabank Chile",
+      "monto": 10237435,
+      "art": 260,
+      "cmf": true,
+      "doc": "Certificado de deuda.pdf",
+      "nota": "CMF Scotiabank overdue90=$673.474 (mora escalonada 30-59/60-89/90+). El producto que arrastra la mora es el CONSUMO LIBRE DISPONIBILIDAD op 710147916369, prox venc 04/09/2025 (screen 'MORA 4-9 CONSUMO'), >90d al 02/01/2026. Acredita monto ($10.237.435; saldo 31-12 ~$10.228.637) + vencimiento -> Art.260."
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "monto": 354148,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado de deuda.pdf",
+      "nota": "TC Scotiabank op 6002194977938 payoff $354.148 (30-11; ~$284.386 al 31-12). El doc de vencimiento 'TC MORA 8-8-2025' es un formulario en blanco/ilegible -> vencimiento NO acreditable con fiabilidad -> Art.261 (solo monto). Producto del multiproducto Scotiabank."
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "monto": 507183,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado de deuda.pdf",
+      "nota": "Linea de Credito Personas op 700520088509 utilizada, saldo actual $507.183 ($516.290 al 31-12). Sin mora acreditada -> Art.261. Producto del multiproducto Scotiabank."
+    },
+    {
+      "institucion": "Coopeuch",
+      "monto": 4291871,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado Coopeuch.pdf",
+      "nota": "CMF Coopeuch overdue90=$0. Credito consumo op 202472183434 Vigente, Saldo Deuda $4.291.871 (CMF $4.335.943, diferencia $44k dentro tolerancia) -> Art.261."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 267632,
+      "art": 261,
+      "cmf": true,
+      "doc": "2112 12_25.pdf",
+      "nota": "CMF CMR Falabella overdue90=$0. Tarjeta CMR 047210******2112, Costo Monetario Prepago $267.632 (CMF $278.733, diferencia $11k) -> Art.261. Payoff de la tarjeta (no la cuota del mes $379.690)."
+    },
+    {
+      "institucion": "Santander Consumer",
+      "monto": 11934182,
+      "art": 261,
+      "cmf": true,
+      "doc": "LEY 20.130 OP 650070168787.pdf",
+      "nota": "CMF Santander Consumer overdue90=$0. Cert Ley 20.130 op 650070168787, Total Valor Prepago Total $11.934.182 (CMF $11.865.205, diferencia $69k) -> Art.261."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 1356915,
+      "art": 261,
+      "cmf": true,
+      "doc": "3299 CONSUMO.pdf",
+      "nota": "CMF Banco Estado overdue90=$0, total $1.365.734. Unico producto declarable HOY: credito consumo op 00039933299, Saldo credito $1.356.915 (matchea CMF $1.365.734, diferencia $8.819). Los otros productos Banco Estado de los docs 30/12/2025 (op 39878008 $3.5-4M, TC *5678 $3.6M) fueron SUPERADOS por el CMF mas reciente (pagados/refinanciados entre cortes) -> NO se declaran."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "DOS PDFs en CMF/. Se usa el MAS RECIENTE: 'informe-deudas-pdf - 2026-01-13T101704.085.pdf' (emitido 13/01/2026, INFORMACION ACTUALIZADA AL 02/01/2026). El otro ('informe_deudas_15810825-9.pdf', emitido 02/01/2026, info al 19/12/2025) es ANTERIOR y se descarta.",
+    "ERROR ORIGINAL DETECTADO Y CORREGIDO: los certs de Banco Estado (30/12/2025) mostraban ~$8-9M en varios productos (consumo op 39878008 $4.038.416, mismo op mora $3.572.818, TC *5678 $3.595.305). El CMF mas reciente (02/01/2026) baja Banco Estado a $1.365.734 SIN mora -> pago/refinanciamiento entre cortes. Se emite SOLO el producto que refleja el CMF vigente (op 3299 = $1.356.915); los demas quedan como notas de doc, NO como productos.",
+    "CMF vigente (02/01/2026): Banco Estado $1.365.734 (0 mora); Scotiabank Chile $11.201.318 (mora 30-59=$319.088, 60-89=$638.176, 90+=$673.474); Coopeuch $4.335.943 (0 mora); CMR Falabella $278.733 (0 mora); Santander Consumer $11.865.205 (0 mora). Sin deuda indirecta.",
+    "Scotiabank multiproducto: CMF consolida en 1 fila Consumo $11.201.318. Certs (Certificado de deuda 30-11-2025 + Reporte de Deuda 31-12-2025) muestran: CONSUMO LIBRE DISPONIBILIDAD op 710147916369 (~$10.2M, mora 04/09/2025) + TC op 6002194977938 (~$354k/$284k) + LC Personas op 700520088509 (~$507k/$516k). Suma de estos 3 ~$11.0M ~ CMF $11.2M.",
+    "Scotiabank CAE / Educacion Aval del Estado (op 710045989825 ~$4.44M y op 710045989817 ~$181k) aparecen en los certs de Scotiabank como deuda DIRECTA, pero NO caben en el total CMF de Scotiabank ($11.2M ya cubierto por consumo+TC+LC). Probablemente el CAE se reporta bajo otro codigo o no computa en esta fila. NO se declaran para evitar sobre-declarar contra el CMF -> REVISAR CON EL ABOGADO si corresponde declararlos como acreedor adicional.",
+    "Scotiabank consumo -> Art.260: mora 04/09/2025 (screen 'MORA 4-9 CONSUMO_.jpg': LIBRE DISP op 7-1014-79163-69 prox venc 04/09/2025, saldo $9.873.623 al 27/10/2025). Al 02/01/2026 son >90 dias. Vencimiento acreditado.",
+    "Scotiabank TC -> Art.261: existe mora (CMF y filename 'TC MORA 8-8-2025') pero el PDF de vencimiento es un formulario VISA en BLANCO/ilegible -> vencimiento no acreditable con fiabilidad -> se declara solo monto (261). Si el abogado consigue el vencimiento de la TC, sube a 260.",
+    "Monto Scotiabank: se usa la columna 'Saldo Actual $' (pesos) del Certificado de deuda, NO se re-convierte desde UF. Los CAE estan en UF pero el cert ya trae la columna en pesos.",
+    "Falabella: la carpeta se llama 'Banco Falabella' pero la fila CMF es 'CMR Falabella'. El unico producto declarable es la tarjeta CMR (payoff $267.632). Las capturas 'LC no utilizada' documentan Linea de Credito en $0 (no deuda) y la cuenta corriente con saldo positivo (activo). Sobregiro/creditos no utilizados no se declaran.",
+    "Sobregiro ordinario Scotiabank op 000520090175 $155: trivial (<1 UF), NO se declara.",
+    "ELEGIBILIDAD (ALERTA): con el CMF vigente (02/01/2026) hay 1 solo producto CMF con overdue90 (Scotiabank $673.474). El requisito de sesion exige MINIMO 2 productos con mora 90+d. Banco Estado tenia mora en el CMF anterior (19/12/2025) pero se pago. Posible bloqueo de elegibilidad por conteo determinista -> revisar con el abogado. (Suma totalCredito con mora >> 80 UF: esa condicion si se cumple.)",
+    "Docs ignorados (no acreditan deuda): Bienes/ (inmuebles, avaluo, dominio, hipotecas, inversiones plazo), Ingresos/ (liquidaciones Lnor + cert cotizaciones), SII/ (carpeta tributaria + agentes retenedores), PODER, cedulas/fotos, cuadro de audiencias xlsx, 'NO HAY INVERSIONES.jpg'.",
+    "EECC Falabella mensuales antiguos (2112 9_25, 10_25, 11_25) y EECC Banco Estado 5678 9_25: mismos productos que los ya considerados, solo periodos anteriores -> dedup, no aportan producto nuevo."
+  ]
+}

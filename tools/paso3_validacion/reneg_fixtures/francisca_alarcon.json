@@ -1,0 +1,464 @@
+{
+  "case": "francisca_alarcon",
+  "rut": "16.073.096-k",
+  "cmf_cut_date": "2025-10-17",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 5531478,
+      "overdue90Days": 4001478
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "tipoCredito": "Consumo",
+      "totalCredito": 4173215,
+      "overdue90Days": 551620
+    },
+    {
+      "institucion": "Coopeuch",
+      "tipoCredito": "Consumo",
+      "totalCredito": 21651738,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "PRESTO LIDER",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2004128,
+      "overdue90Days": 523098
+    },
+    {
+      "institucion": "COFISA (ABCDIN-ADRetail)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 512777,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 4660768,
+      "overdue90Days": 326649
+    },
+    {
+      "institucion": "INVERSIONES LP",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2134233,
+      "overdue90Days": 239425
+    },
+    {
+      "institucion": "Solventa Tarjetas",
+      "tipoCredito": "Consumo",
+      "totalCredito": 341109,
+      "overdue90Days": 39943
+    },
+    {
+      "institucion": "Hites Inversiones y Tarjetas S.A.",
+      "tipoCredito": "Consumo",
+      "totalCredito": 742093,
+      "overdue90Days": 742093
+    },
+    {
+      "institucion": "Tenpo Payments S.A.",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2179017,
+      "overdue90Days": 2179017
+    },
+    {
+      "institucion": "MATIC KARD (MKSA)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 613782,
+      "overdue90Days": 613782
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Banco de Chile.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "resumen_global",
+      "emisor_nombre": "Banco de Chile",
+      "rut_emisor": "",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 5639111, "cita": "Total deudas en PESO CHILENO ($CH) 5.639.111,00" }
+      ],
+      "productos": [
+        {
+          "operacion": "Deuda total Banco de Chile (Constancia)",
+          "monto": 5639111,
+          "etiqueta_monto": "Total deudas en PESO CHILENO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Total deudas en PESO CHILENO ($CH) 5.639.111,00",
+          "cita_fecha": "registra en esta institución los siguientes montos adeudados al día 28 de agosto de 2025",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Banco de Chile 3.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "emisor_nombre": "Banco de Chile",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Linea de Credito 1-164-28227-01",
+          "monto": 1533170,
+          "etiqueta_monto": "Total deuda a liquidar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Total deuda a liquidar: $1.533.170",
+          "cita_fecha": "29/08/2025 - 10:31",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO_LIQUIDACION_1757332359613.pdf",
+      "institucion_asignada": "Coopeuch",
+      "doc_type": "liquidacion_payoff",
+      "emisor_nombre": "COOPERATIVA DE AHORRO Y CREDITO COOPEUCH",
+      "rut_emisor": "82.878.900-7",
+      "productos": [
+        {
+          "operacion": "CRECON 202570317596",
+          "monto": 22439494,
+          "etiqueta_monto": "Costo total de deuda por pagar (pesos)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo total de deuda por pagar (pesos) 22.439.494",
+          "cita_fecha": "Fecha emisión: 08-09-2025",
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "filename": "falabella agosto.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Banco Falabella (CMR)",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta CMR 858810******9597",
+          "monto": 4666412,
+          "etiqueta_monto": "Costo Monetario Prepago al 19/08/2025",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-05",
+          "cita_monto": "Costo Monetario Prepago al 19/08/2025 **** 4.666.412",
+          "cita_fecha": "AVISO DE COBRANZA Cancelar cuotas atrasadas del 05-junio de $ 162.316, 05-julio de $ 164.339, 05-agosto de $ 182.687",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "ripley agosto.pdf",
+      "institucion_asignada": "CAR - Ripley",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Banco Ripley (Tarjeta Banco Ripley Mastercard)",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta Ripley Mastercard XXXX1170",
+          "monto": 4074699,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-01-11",
+          "cita_monto": "Costo Monetario Prepago 4.074.699",
+          "cita_fecha": "VALPARAISO 11/ENE/25 RIPLEY CALL CENTER O CUOTA REPROG.; cuota reprogramada 06/18",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "abc agosto.pdf",
+      "institucion_asignada": "COFISA (ABCDIN-ADRetail)",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Tarjeta Abcvisa (Inversiones LP S.A. / abc Administradora / Cofisa)",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta Abcvisa 4946XXXXXXXX6003",
+          "monto": 484080,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Monetario Prepago $484.080",
+          "cita_fecha": "Fecha Estado de Cuenta 20/08/2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "la polar agosto.pdf",
+      "institucion_asignada": "INVERSIONES LP",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Tarjeta La Polar (INVERSIONES LP S.A.)",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta La Polar 4786XXXXXXXX4347",
+          "monto": 2144827,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-20",
+          "cita_monto": "Costo Monetario Prepago $2.144.827",
+          "cita_fecha": "Saldo Adeudado Inicio Período Anterior $239.425 (mora arrastrada); Gasto De Cobranza 26/07/2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Hites agosto.pdf",
+      "institucion_asignada": "Hites Inversiones y Tarjetas S.A.",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Tarjeta Hites",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta Hites 16073096K",
+          "monto": 732263,
+          "etiqueta_monto": "Costo Monetario de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-04-05",
+          "cita_monto": "Costo Monetario de Prepago 732.263",
+          "cita_fecha": "Saldo en mora 314.572; primer vencimiento 05/04/25",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Estado de cuenta - Agosto 2025 Tenpo.pdf",
+      "institucion_asignada": "Tenpo Payments S.A.",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Tenpo Payments S.A.",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta Tenpo 5155********0282",
+          "monto": 2174761,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-03-04",
+          "cita_monto": "Costo Monetario Prepago $2.174.761",
+          "cita_fecha": "REFINANCIAMIENTO DE DEUDA 04/03/2025; INTERÉS MORA 12.262; GASTOS DE COBRANZA 28/07/2025",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "salcobrand agosto.pdf",
+      "institucion_asignada": "MATIC KARD (MKSA)",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "SBPAY VISA (Salcobrand / Matic Kard)",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta SBPAY VISA XXXX-XXXX-XXXX-2198",
+          "monto": 613141,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2024-11-30",
+          "cita_monto": "Costo Monetario Prepago * $ 613.141",
+          "cita_fecha": "30/11/2024 MAS PLAZO DEUDA TOTAL 09/10; INTERES DE MORA 3.323",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "EECC agosto 2025.pdf",
+      "institucion_asignada": "PRESTO LIDER",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Lider Bci (Presto Lider)",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta Presto Lider XXXXXXXXXXXX2028",
+          "monto": 1997016,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-01-22",
+          "cita_monto": "Costo Monetario Prepago $ 1.997.016",
+          "cita_fecha": "22/01/2025 PAGO LIVIANO 06/12; INT. DE ATRASO O MORA 24.224; CARGO COBRANZA 23/07/2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Solventa Septiembre.pdf",
+      "institucion_asignada": "Solventa Tarjetas",
+      "doc_type": "estado_cuenta",
+      "emisor_nombre": "Tarjeta de Crédito SPIN (Solventa)",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Tarjeta SPIN 000-9 (id 16073096)",
+          "monto": 320430,
+          "etiqueta_monto": "Costo Monetario del Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-02-16",
+          "cita_monto": "Costo Monetario del Prepago 320.430",
+          "cita_fecha": "AVANCE LOCAL WEB SOL 16/02/2025 05/09; INTERES MORA 1.984",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "Credito_Nro_433174_detalle_cuotas_1757387095.pdf",
+      "institucion_asignada": "Crediautos (Automotriz Portillo / NO-CMF)",
+      "doc_type": "desglose_por_producto",
+      "emisor_nombre": "Crediautos",
+      "rut_emisor": "",
+      "productos": [
+        {
+          "operacion": "Credito Automotriz 433174",
+          "monto": 4429253,
+          "etiqueta_monto": "Saldo insoluto (tras última cuota pagada Nº20)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-05",
+          "cita_monto": "20 05-07-2025 ... 4.429.253 PAGADA; 21 05-08-2025 ... 4.142.125 COBRANZA; 22 05-09-2025 ... 3.850.844 COBRANZA",
+          "cita_fecha": "Cuota 21 vence 05-08-2025 Estado COBRANZA; Cuota 22 vence 05-09-2025 Estado COBRANZA",
+          "confidence": 0.75
+        }
+      ]
+    },
+    {
+      "filename": "5880d552-346d-4a72-ac6b-4f48c417fbb3.pdf",
+      "institucion_asignada": "Caja Los Andes (NO-CMF)",
+      "doc_type": "desglose_por_producto",
+      "emisor_nombre": "CAJA LOS ANDES (CCAF)",
+      "rut_emisor": "61.981.080-5",
+      "productos": [
+        {
+          "operacion": "Credito 32.032CON205285534-4",
+          "monto": 4374216,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Prepago $ 4.374.216",
+          "cita_fecha": "Estado Vigente; Cuotas Morosas 0",
+          "confidence": 0.85
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 5639111,
+      "art": 260,
+      "cmf": true,
+      "doc": "Banco de Chile.pdf",
+      "nota": "CMF overdue90=$4.001.478 (2 productos: LC 30-59d $1.530.000 + resto 90+d). Constancia certifica total $5.639.111 al 28/08/2025 (payoff global). 90+d en CMF acredita vencimiento -> Art.260. Existe además doc de preliquidación de la LC ($1.533.170); se usa el total de la Constancia por ser el resumen global del banco."
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "monto": 4074699,
+      "art": 260,
+      "cmf": true,
+      "doc": "ripley agosto.pdf",
+      "nota": "CMF overdue90=$551.620 -> Art.260. Payoff = Costo Monetario Prepago $4.074.699 (20/08/2025). Folder 'Banco Ripley' mapea a fila CMF 'CAR - Ripley'. Cuota reprog. desde 11/01/2025."
+    },
+    {
+      "institucion": "PRESTO LIDER",
+      "monto": 1997016,
+      "art": 260,
+      "cmf": true,
+      "doc": "EECC agosto 2025.pdf",
+      "nota": "CMF overdue90=$523.098 -> Art.260. Payoff = Costo Monetario Prepago $1.997.016 (21/08/2025). Tarjeta Lider Bci; PAGO LIVIANO desde 22/01/2025 con mora."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 4666412,
+      "art": 260,
+      "cmf": true,
+      "doc": "falabella agosto.pdf",
+      "nota": "CMF overdue90=$326.649 -> Art.260. Payoff = Costo Monetario Prepago $4.666.412 (19/08/2025). Aviso cobranza cuotas 05-jun/jul/ago 2025 -> vencimiento acreditado."
+    },
+    {
+      "institucion": "INVERSIONES LP",
+      "monto": 2144827,
+      "art": 260,
+      "cmf": true,
+      "doc": "la polar agosto.pdf",
+      "nota": "CMF overdue90=$239.425 -> Art.260. Payoff = Costo Monetario Prepago $2.144.827 (20/08/2025). Tarjeta La Polar (emisor Inversiones LP S.A.); mora arrastrada + gasto de cobranza 26/07/2025."
+    },
+    {
+      "institucion": "Solventa Tarjetas",
+      "monto": 320430,
+      "art": 260,
+      "cmf": true,
+      "doc": "Solventa Septiembre.pdf",
+      "nota": "CMF overdue90=$39.943 -> Art.260. Payoff = Costo Monetario del Prepago $320.430 (01/09/2025). Tarjeta SPIN; interes de mora presente. >1 UF, se declara."
+    },
+    {
+      "institucion": "Hites Inversiones y Tarjetas S.A.",
+      "monto": 732263,
+      "art": 260,
+      "cmf": true,
+      "doc": "Hites agosto.pdf",
+      "nota": "CMF overdue90=$742.093 (deuda 100% morosa) -> Art.260. Payoff = Costo Monetario de Prepago $732.263 (20/08/2025). 'Saldo en mora 314.572', primer vencimiento 05/04/2025."
+    },
+    {
+      "institucion": "Tenpo Payments S.A.",
+      "monto": 2174761,
+      "art": 260,
+      "cmf": true,
+      "doc": "Estado de cuenta - Agosto 2025 Tenpo.pdf",
+      "nota": "CMF overdue90=$2.179.017 (deuda 100% morosa) -> Art.260. Payoff = Costo Monetario Prepago $2.174.761 (21/08/2025). Refinanciamiento 04/03/2025 con interes de mora + gastos de cobranza."
+    },
+    {
+      "institucion": "MATIC KARD (MKSA)",
+      "monto": 613141,
+      "art": 260,
+      "cmf": true,
+      "doc": "salcobrand agosto.pdf",
+      "nota": "CMF overdue90=$613.782 (deuda 100% morosa) -> Art.260. Payoff = Costo Monetario Prepago $613.141 (27/08/2025). Tarjeta SBPAY VISA (Salcobrand). MAS PLAZO DEUDA TOTAL 30/11/2024 + interes de mora."
+    },
+    {
+      "institucion": "Coopeuch",
+      "monto": 22439494,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO_LIQUIDACION_1757332359613.pdf",
+      "nota": "CMF overdue90=$0 (deuda 100% vigente). Certificado de Liquidacion: CRECON op 202570317596 payoff $22.439.494 (08/09/2025). Sin mora -> Art.261 (solo monto)."
+    },
+    {
+      "institucion": "COFISA (ABCDIN-ADRetail)",
+      "monto": 484080,
+      "art": 261,
+      "cmf": true,
+      "doc": "abc agosto.pdf",
+      "nota": "CMF overdue90=$0 -> Art.261. Payoff = Costo Monetario Prepago $484.080 (20/08/2025). Tarjeta Abcvisa (Cofisa). Sin mora 90+d en CMF."
+    },
+    {
+      "institucion": "Caja Los Andes (NO-CMF)",
+      "monto": 4374216,
+      "art": 261,
+      "cmf": false,
+      "doc": "5880d552-346d-4a72-ac6b-4f48c417fbb3.pdf",
+      "nota": "NO aparece en el Informe CMF. Credito Caja Los Andes (CCAF, RUT 61.981.080-5) Estado Vigente, Cuotas Morosas 0 -> Art.261 (solo monto). Saldo Prepago $4.374.216 (22/09/2025)."
+    },
+    {
+      "institucion": "Crediautos (Automotriz - NO-CMF)",
+      "monto": 4429253,
+      "art": 261,
+      "cmf": false,
+      "doc": "Credito_Nro_433174_detalle_cuotas_1757387095.pdf",
+      "nota": "NO aparece en el Informe CMF. Credito automotriz 433174. Cuotas 21 (05/08/2025) y 22 (05/09/2025) en COBRANZA; a la fecha de corte CMF (17/10/2025) la mora <91 dias -> Art.261 (solo monto). Payoff aprox = saldo insoluto tras ultima cuota pagada Nº20 = $4.429.253. Confidence 0.75: el doc no da un 'payoff' unico, es tabla de amortizacion."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF corte 17/10/2025, emitido 27/10/2025. Deuda total directa $44.544.338; sin deuda indirecta.",
+    "11 filas CMF, todas 'Consumo'. Con doc de acreditacion para las 11. Cada tarjeta = 1 producto (Costo Monetario Prepago), no se desglosan los avances/compras.",
+    "Mapeo folder->CMF: 'Banco Ripley' = 'CAR - Ripley'; 'MATIC KARD (MKSA)' = tarjeta SBPAY VISA (Salcobrand); 'PRESTO LIDER' = tarjeta Lider Bci; 'Solventa Tarjetas' = tarjeta SPIN; 'INVERSIONES LP' = tarjeta La Polar; 'COFISA (ABCDIN-ADRetail)' = tarjeta Abcvisa.",
+    "OJO cruce La Polar/Abcvisa: ambas mencionan 'Inversiones LP S.A.' y 'abc Administradora SpA RUT 77.555.730-3' en su texto legal, pero son DOS filas CMF distintas (INVERSIONES LP $2.134.233 = La Polar; COFISA $512.777 = Abcvisa/Abcdin). Se acreditan por separado con su propio Costo Monetario Prepago.",
+    "Elegibilidad: >=2 productos con overdue90 (hay 9: Banco de Chile, CAR-Ripley, Presto Lider, CMR Falabella, Inversiones LP, Solventa, Hites, Tenpo, Matic Kard). Suma totalCredito de esos 9 >> 80 UF. CUMPLE holgadamente.",
+    "Todas las tarjetas se leyeron por su 'Costo Monetario Prepago' del periodo mas reciente (agosto/septiembre 2025). Los EECC de meses previos (Abril-Julio) son el mismo producto -> se dedup a 1 por institucion.",
+    "Banco de Chile: hay 2 docs. 'Banco de Chile.pdf' (Constancia) da el total global $5.639.111 al 28/08; 'Banco de Chile 3.pdf' es preliquidacion de la LC 1-164-28227-01 ($1.533.170, que en CMF es el tramo 30-59d $1.530.000). Se declara el total de la Constancia (resumen del banco), evitando doble conteo del sub-producto LC.",
+    "NO-CMF detectados: (1) Credito automotriz Crediautos op 433174 (2 cuotas en cobranza, saldo ~$4.43M) -> Art.261; (2) Caja Los Andes CCAF credito consumo vigente (Saldo Prepago $4.374.216) -> Art.261. Ninguno aparece en el CMF.",
+    "EXCLUIDO: 'Cuenta de Ahorro a plazo con giro diferido Banco Falabella $0' (saldo $0, no es deuda).",
+    "Duda/confidence baja: Crediautos (0.75) no entrega un 'costo total de prepago' unico; su payoff se estima con el saldo insoluto post-cuota Nº20. El automotriz probablemente no acredita vencimiento 90+d a la fecha de corte -> clasificado 261 conservador; podria ser 260 si a la fecha real de presentacion supera 90d de mora (revisar con abogado).",
+    "Ningun documento resulto ilegible; todos con montos leidos con alta confianza salvo lo indicado."
+  ]
+}

@@ -1,0 +1,224 @@
+{
+  "case": "geraldine_jara",
+  "rut": "13.043.263-8",
+  "cmf_cut_date": "2025-10-31",
+  "cmf_rows": [
+    {
+      "institucion": "De Credito e Inversiones",
+      "tipoCredito": "Consumo",
+      "totalCredito": 76425408,
+      "overdue90Days": 1547309
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2403731,
+      "overdue90Days": 2403731
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 227731,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Solventa Tarjetas",
+      "tipoCredito": "Consumo",
+      "totalCredito": 321735,
+      "overdue90Days": 51294
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "BCI-40567938-certificado-prepago_unlocked.pdf",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97006000-6",
+      "emisor_nombre": "Banco de Crédito e Inversiones",
+      "productos": [
+        {
+          "operacion": "CRECON D14500053162",
+          "monto": 74337295,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-21",
+          "cita_monto": "CRECON RENEGOCIADO $ CUOTA/TASA FIJA D14500053162 31-01-2025 $ 74.337.295",
+          "cita_fecha": "Valor última cuota vencida: $ 1.547.348 (Detalle de cuotas vencidas: cuota 1 vencimiento 21/07/2025, Vencida)",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "Captura de pantalla (1104).png",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "chat",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Crédito e Inversiones",
+      "productos": [
+        {
+          "operacion": "Crédito D14500053162",
+          "monto": 0,
+          "etiqueta_monto": "Detalle de cuotas vencidas (portal BCI)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-21",
+          "cita_monto": "Nº de cuota 1 Vencimiento 21/07/2025 Tipo cuota Vencida Valor cuota $ 1.547.309",
+          "cita_fecha": "1 21/07/2025 Vencida; 2 20/08/2025 Vencida; 3 22/09/2025 Vencida",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Captura de pantalla (1091).png",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Itaú Chile (soluciones de pago)",
+      "productos": [
+        {
+          "operacion": "Tarjeta Crédito 8662",
+          "monto": 2535558,
+          "etiqueta_monto": "Total a Pagar / Monto a pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-08",
+          "cita_monto": "Total a Pagar $2.535.558 ... 8662 Tarjeta Crédito 121 $2.535.558",
+          "cita_fecha": "Días mora 121 (captura 06/11/2025)",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "13.043.263-8 CONSTANCIAS1.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Itaú Chile",
+      "productos": [
+        {
+          "operacion": "Tarjeta de Crédito MasterCard 4966246198158662",
+          "monto": 2571405,
+          "etiqueta_monto": "$ Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "4966246198158662  2.000.000 2.571.405   700,00   0,00  Vigente",
+          "cita_fecha": "mantuvo al 20 de Octubre de 2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Estado de cuenta (1).pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella (CMR)",
+      "productos": [
+        {
+          "operacion": "Tarjeta CMR 999920******8090",
+          "monto": 360028,
+          "etiqueta_monto": "Cupo Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Cupo Compras 350.000 360.028 0",
+          "cita_fecha": "Período Facturado 20/09/2025 19/10/2025",
+          "confidence": 0.82
+        }
+      ]
+    },
+    {
+      "filename": "Solventa.pdf",
+      "institucion_asignada": "Solventa Tarjetas",
+      "doc_type": "resumen_global",
+      "rut_emisor": "96776000-5",
+      "emisor_nombre": "Solventa Tarjetas S.A.",
+      "totales_por_moneda": [
+        { "moneda": "CLP", "monto": 326089, "cita": "adeuda a mi representada la suma de $326.089.- (trescientos veintiséis mil ochenta y nueve pesos), por concepto de Tarjeta Spin a la fecha" }
+      ],
+      "productos": [
+        {
+          "operacion": "Tarjeta Spin",
+          "monto": 326089,
+          "etiqueta_monto": "adeuda ... la suma de $326.089",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "adeuda a mi representada la suma de $326.089.- ... por concepto de Tarjeta Spin a la fecha",
+          "cita_fecha": "Santiago, 30 de octubre de 2025",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Caja los Andes.pdf",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "71540100-2",
+      "emisor_nombre": "Caja de Compensación de Asignación Familiar Los Andes",
+      "productos": [
+        {
+          "operacion": "41.041CON104400859-9",
+          "monto": 5196045,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Prepago $ 5.196.045",
+          "cita_fecha": "Cuotas Morosas 0 ; Estado Vigente",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 74337295,
+      "art": 260,
+      "cmf": true,
+      "doc": "BCI-40567938-certificado-prepago_unlocked.pdf",
+      "nota": "CMF overdue90=$1.547.309. Certificado de Liquidación acredita payoff $74.337.295 (op CRECON D14500053162). Captura del portal BCI acredita vencimiento: cuotas vencidas desde 21/07/2025 → mora >90d. Monto+venc acreditados → Art.260. Los otros productos BCI (cta cte $33, cta vista $0, tarjeta $0) son triviales/$0, NO se declaran."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 2535558,
+      "art": 260,
+      "cmf": true,
+      "doc": "Captura de pantalla (1091).png",
+      "nota": "CMF overdue90=$2.403.731 (100% morosa). Captura del portal soluciones de pago Itaú: Tarjeta Crédito ...8662, 121 días de mora, Total a Pagar $2.535.558 → acredita monto+vencimiento (mora inicio ~08/07/2025). Art.260. Constancia (op ...8662) confirma el producto; el resto del PDF de 14 págs son constancias de OTROS clientes (montos en miles de millones), NO de Geraldine → se ignoran."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 360028,
+      "art": 261,
+      "cmf": true,
+      "doc": "Estado de cuenta (1).pdf",
+      "nota": "CMF overdue90=$0 (todo Vigente, total $227.731). EECC 19/10/2025 acredita Cupo Utilizado $360.028. Sin mora 90+d ni fecha de mora → Art.261 (solo monto). Monto cert $360.028 > CMF total $227.731 (deuda creció post-corte, cert manda)."
+    },
+    {
+      "institucion": "Solventa Tarjetas",
+      "monto": 326089,
+      "art": 261,
+      "cmf": true,
+      "doc": "Solventa.pdf",
+      "nota": "CMF overdue90=$51.294 (Tarjeta Spin recién cruzó 90d). Certificado de Deuda acredita monto $326.089 pero NO indica fecha de vencimiento/mora → no se puede acreditar vencimiento → Art.261 (solo monto). Monto cert $326.089 ≈ CMF total $321.735."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 5196045,
+      "art": 261,
+      "cmf": false,
+      "doc": "Caja los Andes.pdf",
+      "nota": "NO-CMF (no aparece en el Informe CMF). Crédito social CCAF Los Andes (RUT 71.540.100-2), op 41.041CON104400859-9, Saldo Prepago $5.196.045, Cuotas Morosas 0 (Vigente) → sin mora → Art.261 (solo monto). Debe declararse igual (Art. 261 obliga a declarar todos los pasivos)."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF único PDF, corte 31/10/2025, emitido 10/11/2025. Deuda total directa $79.378.605. Sin deuda indirecta.",
+    "BCI cert de liquidación (17 págs, texto en capa digital; el render como imagen sale con celdas vacías, pdftotext -layout sí lee). Payoff único $74.337.295 op CRECON D14500053162; los productos CTACTE $33 / CTAVIS $0 / TARCRE $0 son triviales/$0 → no se declaran. Un solo producto de consumo, coincide con la fila CMF (multiproducto NO aplica).",
+    "Vencimiento BCI: la captura del portal BCI (1104) muestra cuotas vencidas desde 21/07/2025 (valor cuota $1.547.309 = exactamente el overdue90 del CMF) → acredita mora >90d para el Art.260.",
+    "Itaú: el PDF '...CONSTANCIAS1.pdf' (14 págs) es un bundle escaneado que mezcla constancias de MÚLTIPLES clientes (líneas preferenciales de $500M, depósitos a plazo de miles de millones, decenas de operaciones 60.4xx.xxx) — NADA de eso es de Geraldine. Solo la 1ª página (Tarjeta MasterCard op ...8662, RUT 13.043.263-8, $2.571.405 utilizado al 20/10/2025) le pertenece.",
+    "Itaú payoff: se usa la captura del portal soluciones de pago (1091): Tarjeta ...8662, 121 días mora, Total a Pagar $2.535.558 (más preciso que el 'utilizado' $2.571.405 de la constancia). CMF overdue90 $2.403.731 (100% morosa). Art.260.",
+    "CMR Falabella: CMF overdue90=$0. EECC muestra Cupo Utilizado $360.028 > CMF total $227.731 (mora aún no reportada al CMF). Sin fecha de mora en el doc → Art.261. Se ignoraron los otros EECC (2/3/4) por dedup (mismo producto tarjeta ...8090); la captura 'LC $0 CMR' y 'AL FINAL' confirman productos en $0 → no se declaran.",
+    "Solventa Tarjetas: certificado de deuda formal (RUT emisor 96.776.000-5, coincide con el catálogo). Monto $326.089. Sin fecha de mora → Art.261 aunque el CMF marque $51.294 en 90+d (regla decisiva 260 vs 261: sin vencimiento acreditable → 261).",
+    "Caja Los Andes: NO-CMF, crédito social, RUT empresa 71.540.100-2. Saldo Prepago $5.196.045, 0 cuotas morosas, todas las cuotas Vigente/En Proceso → Art.261.",
+    "Elegibilidad: ≥2 productos con mora 90+d acreditable con vencimiento = BCI ($1.547.309) + Itaú ($2.403.731) → cumple mínimo 2. Suma totalCredito de esos 2 = $76.425.408 + $2.403.731 = $78.829.139 >> 80 UF (~$3.25M). Califica.",
+    "Docs ignorados por no acreditar deuda: SII (carpeta tributaria, agentes retenedores), Ingresos (liquidaciones, boletas honorarios, cotizaciones), Bienes (inversiones), cuadro de audiencias xlsx, y las capturas 'NO HAY INVERSIONES' (bienes, no deuda)."
+  ]
+}

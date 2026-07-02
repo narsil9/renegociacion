@@ -1,0 +1,250 @@
+{
+  "case": "viviana_andrade",
+  "rut": "15.221.070-1",
+  "cmf_cut_date": "2026-01-09",
+  "cmf_rows": [
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Comercial",
+      "totalCredito": 267996,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 48500573,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 6320838,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2029032,
+      "overdue90Days": 67030
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 248234,
+      "overdue90Days": 50221
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1425933,
+      "overdue90Days": 315119
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "CMR Diciembre.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella / CMR",
+      "productos": [
+        {
+          "operacion": "Tarjeta CMR 999910******7514",
+          "monto": 1401811,
+          "etiqueta_monto": "Costo Monetario Prepago al 19/11/2025",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-05",
+          "cita_monto": "Costo Monetario Prepago al 19/11/2025 **** 1.401.811",
+          "cita_fecha": "AVISO DE COBRANZA Cancelar cuotas atrasadas del 05-septiembre de $ 208.804, 05-octubre de $ 106.322, 05-noviembre de $ 136.042",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "CENCOSUD DICIEMBRE_.pdf",
+      "institucion_asignada": "CAT (ex CENCOSUD)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CAT Administradora de Tarjetas S.A. (Tarjeta Cencosud Scotiabank)",
+      "productos": [
+        {
+          "operacion": "Tarjeta Cencosud Scotiabank ************0169",
+          "monto": 248234,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": "2025-11-05",
+          "cita_monto": "COSTO MONETARIO PREPAGO 248.234",
+          "cita_fecha": "GASTO DE COBRANZA 29/11/2025 ... SALDO ADEUDADO FINAL PERIODO ANTERIOR 235.307 (mora acumulada desde octubre 2025)",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "ripley diciembre.pdf",
+      "institucion_asignada": "CAR - Ripley",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CAR S.A. / Banco Ripley",
+      "productos": [
+        {
+          "operacion": "Tarjeta Banco Ripley Mastercard XXXX9633",
+          "monto": 2011281,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-25",
+          "cita_monto": "Costo Monetario Prepago 2.011.281",
+          "cita_fecha": "PAGAR HASTA 25/DIC/2025; Interes Moratorio 9.420; saldo rotativo con atraso desde sep-2025",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Documento Santander (2).pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Santander",
+      "productos": [
+        {
+          "operacion": "Prestamo de consumo 650050514719",
+          "monto": 34137175,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Prestamos de consumo 650050514719 ... PESOS $ 34.137.175",
+          "cita_fecha": "Sdo. Mora $ 0",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "Prestamo hipotecario para vivienda 500001858885",
+          "monto": 6565063,
+          "etiqueta_monto": "Sdo. Total (columna en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Prestamos hipotecarios para vivienda 500001858885 ... UF $ 6.565.063",
+          "cita_fecha": "Sdo. Mora $ 0",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "Prestamo comercial 500001858907",
+          "monto": 278341,
+          "etiqueta_monto": "Sdo. Total (columna en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Prestamos comerciales 500001858907 ... UF $ 278.341",
+          "cita_fecha": "Sdo. Mora $ 0",
+          "confidence": 0.8
+        },
+        {
+          "operacion": "Tarjeta de credito 800060552341",
+          "monto": 14825960,
+          "etiqueta_monto": "Suma Sdo. Total de las lineas de la tarjeta 800060552341",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Tarjetas de credito 800060552341 ... $ 11.868.871 / $ 411.195 / $ 1.847.478 / $ 663.806 / $ 34.610",
+          "cita_fecha": "Sdo. Mora $ 0 en todas las lineas",
+          "confidence": 0.75
+        }
+      ]
+    },
+    {
+      "filename": "FORUM_.pdf",
+      "institucion_asignada": "Forum Servicios Financieros",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "FORUM SERVICIOS FINANCIEROS (Grupo BBVA)",
+      "productos": [
+        {
+          "operacion": "Contrato 2794564",
+          "monto": 21694641,
+          "etiqueta_monto": "Monto a Financiar (saldo capital pendiente; sin payoff limpio en el doc)",
+          "moneda": "CLP",
+          "fecha_mora": "2026-01-02",
+          "cita_monto": "Monto a Financiar 21.694.641",
+          "cita_fecha": "13 02-01-2026 Impaga NA 614.715 (primera cuota impaga)",
+          "confidence": 0.6
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1401811,
+      "art": 260,
+      "cmf": true,
+      "doc": "CMR Diciembre.pdf",
+      "nota": "CMF overdue90=$315.119. Tarjeta CMR: UN producto = Costo Monetario Prepago $1.401.811 (NO las filas de operaciones/compras). Aviso de cobranza acredita cuotas impagas sep/oct/nov 2025 -> vencimiento acreditado -> Art.260. Monto cert $1.401.811 vs CMF $1.425.933 (dif $24.122, dentro tolerancia)."
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "monto": 2011281,
+      "art": 260,
+      "cmf": true,
+      "doc": "ripley diciembre.pdf",
+      "nota": "CMF overdue90=$67.030. Tarjeta Banco Ripley Mastercard: UN producto = Costo Monetario Prepago $2.011.281 (NO las filas de compras en cuotas). Saldo rotativo en mora desde sep-2025 -> vencimiento acreditado -> Art.260. Monto cert $2.011.281 vs CMF $2.029.032 (dif $17.751, dentro tolerancia)."
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "monto": 248234,
+      "art": 260,
+      "cmf": true,
+      "doc": "CENCOSUD DICIEMBRE_.pdf",
+      "nota": "CMF overdue90=$50.221. Tarjeta Cencosud Scotiabank *0169: UN producto = Costo Monetario Prepago $248.234. Gasto de cobranza + saldo adeudado arrastrado desde octubre -> vencimiento acreditado -> Art.260. Monto cert $248.234 = CMF $248.234 (exacto)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 34137175,
+      "art": 261,
+      "cmf": true,
+      "doc": "Documento Santander (2).pdf",
+      "nota": "CMF overdue90=$0 (Consumo). Prestamo de consumo op 650050514719, Sdo. Mora $0 -> Art.261 (solo monto). Producto 1 de 2 de la fila CMF Consumo $48.500.573 (multiproducto: consumo + tarjeta)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 14825960,
+      "art": 261,
+      "cmf": true,
+      "doc": "Documento Santander (2).pdf",
+      "nota": "CMF overdue90=$0. Tarjeta de credito op 800060552341: UN producto = suma de sus lineas $11.868.871+$411.195+$1.847.478+$663.806+$34.610=$14.825.960 (regla tarjeta: no una fila por sub-linea). Sdo. Mora $0 -> Art.261. Producto 2 de 2 de la fila CMF Consumo. Consumo+tarjeta = $48.963.135 vs CMF Consumo $48.500.573 (dif $462.562, dentro tolerancia multiproducto)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 6565063,
+      "art": 261,
+      "cmf": true,
+      "doc": "Documento Santander (2).pdf",
+      "nota": "CMF overdue90=$0 (Vivienda $6.320.838). Prestamo hipotecario op 500001858885, Sdo. Total en pesos $6.565.063 (columna en pesos, NO re-convertir UF). Sdo. Mora $0 -> Art.261. Dif vs CMF $244.225, dentro tolerancia."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 278341,
+      "art": 261,
+      "cmf": true,
+      "doc": "Documento Santander (2).pdf",
+      "nota": "CMF overdue90=$0 (Comercial $267.996). Prestamo comercial op 500001858907, Sdo. Total en pesos $278.341. Sdo. Mora $0 -> Art.261. Dif vs CMF $10.345, dentro tolerancia."
+    },
+    {
+      "institucion": "Forum Servicios Financieros",
+      "monto": 21694641,
+      "art": 260,
+      "cmf": false,
+      "doc": "FORUM_.pdf",
+      "nota": "NO-CMF. Credito automotriz contrato 2794564. Cuotas 1-12 pagadas; cuota 13 (02/01/2026) en adelante IMPAGA -> vencimiento acreditado (mora 02/01/2026) -> Art.260. Monto = capital financiado $21.694.641 (el doc NO trae un payoff limpio; la columna Saldo Capital tiene filas corruptas 41-43 = overflow). Confianza baja: conviene un certificado de liquidacion Forum con saldo insoluto real."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF corte 09/01/2026, emitido 20/01/2026. Deuda total directa $58.792.606. Sin deuda indirecta.",
+    "SOLO se declara deuda directa. La seccion 'Deuda Indirecta' del CMF no registra informacion.",
+    "CORRECCION vs lectura previa: la tarjeta Santander op 800060552341 es UN SOLO producto = suma de sus 5 sub-lineas ($11.868.871+$411.195+$1.847.478+$663.806+$34.610=$14.825.960), NO una fila por sub-linea. La 6a fila (op 800061231453) es una tarjeta distinta con Sdo. Total $0 -> NO se declara.",
+    "Santander multiproducto: CMF consolida en 3 filas (Comercial/Consumo/Vivienda) pero el cert lista 4 productos declarables: consumo $34.137.175 + tarjeta $14.825.960 (ambos van a la fila CMF Consumo $48.500.573), hipotecario $6.565.063 (fila Vivienda), comercial $278.341 (fila Comercial).",
+    "Todos los productos Santander tienen Sdo. Mora $0 en el cert (cierre 19/12/2025) y overdue90=$0 en CMF -> Art.261 (solo monto).",
+    "CMR/Ripley/Cencosud: cada una es UNA tarjeta = UN producto con su Costo Monetario Prepago (del estado de cuenta mas reciente: dic-2025). Las 3 tienen overdue90>0 en CMF y los estados acreditan mora (avisos de cobranza / gasto de cobranza / saldo rotativo arrastrado) -> Art.260.",
+    "Dedup por producto: se usaron solo los estados de cuenta mas recientes (dic-2025) de CMR, Ripley y Cencosud. Los estados de sep/oct/nov 2025 (CMR 5_9, RIPLEY 25_9, CENCOSUD 5_9, y los Bco. Falabella_/Bco. Ripley_/Cenco__ mensuales) son la MISMA tarjeta -> no aportan producto nuevo, solo confirman la fecha de mora. 'Documento Santander (1).pdf' y '(2).pdf' son el MISMO certificado (N70128) -> dedup, se usa (2).",
+    "'Cuota Hipotecario.pdf' es una captura del portal Santander del mismo credito hipotecario (Monto pendiente UF 165,00, cuota 217/0) -> NO aporta producto nuevo; el monto se toma del certificado formal (columna en pesos $6.565.063).",
+    "FORUM (NO-CMF): credito automotriz de Forum Servicios Financieros (Grupo BBVA), contrato 2794564. El doc es un desarrollo de contrato (tabla de amortizacion), NO un certificado de liquidacion: NO trae un 'saldo insoluto/total a pagar' limpio y la columna 'Saldo Capital' tiene 3 filas corruptas (rows 41-43 = 2.147.483.647 = overflow int32). Se declara con el capital financiado $21.694.641 y confianza 0.6; conviene pedir un certificado de saldo insoluto Forum. Primera cuota impaga: 02/01/2026.",
+    "Elegibilidad: 3 productos con overdue90 en CMF (CAR-Ripley, CAT/Cencosud, CMR Falabella) + Forum NO-CMF en mora = cumple minimo 2. Suma totalCredito muy superior a 80 UF.",
+    "rut_emisor no visible/legible en los certs escaneados (el Santander es un escaneo CamScanner); las tarjetas no imprimen su RUT emisor. Cross-check de RUT no aplicable por documento."
+  ]
+}

@@ -15,6 +15,7 @@ import {
 } from './acreedor_matcher';
 import { extractDatesFromText, extractEmissionDateFromText, ClientDocument } from './cognitive_orchestrator';
 import { runPerDocExtraction } from './sentinel_per_doc';
+import { loadReaderLessons } from './lessons_loader';
 import { applyDeterministicBackstops, isChatDocument, classifyNonAccreditingDoc } from './sentinel_backstops';
 // Re-export para compatibilidad (otros módulos/tests importan estos helpers desde sentinel.ts).
 export { isChatDocument, classifyNonAccreditingDoc } from './sentinel_backstops';
@@ -88,6 +89,9 @@ function pdfNativeReason(localPath: string, extractedTextLen: number): string | 
 export interface ExtractionEvidence {
   /** RUT del EMISOR del certificado tal como aparece impreso (XXXXXXXX-X). */
   rut_emisor?: string;
+  /** Nombre del EMISOR tal como lo leyó el LLM del cert (logo/encabezado). Se usa para resolver
+   *  el catálogo cuando el nombre del CMF llega mangleado/truncado (ej. CCAF "Caja Los Andes"). */
+  emisor_nombre?: string;
   /** Nº de operación/contrato/tarjeta del producto, para desambiguar multiproducto/dedup. */
   numero_operacion?: string;
   /** Moneda del monto leído: "UF" (probable vivienda) o "CLP". */
@@ -105,7 +109,7 @@ export interface ClaudeReadIssue {
   document_filename: string;
   institucion: string;
   monto_clp: number;
-  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado';
+  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada';
   detalle: string;
 }
 
@@ -408,25 +412,28 @@ export async function runSentinelCheck(
         const textLen = fullText.trim().length;
         let stat: fs.Stats | null = null;
         try { stat = fs.statSync(localPath); } catch { /* ignore */ }
-        const reason = pdfNativeReason(localPath, textLen);
+        const withinNativeCap = !!stat && stat.size <= NATIVE_PDF_MAX_BYTES;
 
-        if (reason && stat && stat.size <= NATIVE_PDF_MAX_BYTES) {
-          // Algo raro → Claude lee el PDF NATIVO. Si hay algo de texto, va como apoyo.
+        if (withinNativeCap) {
+          // Default ROBUSTO (2026-07-01): el LLM SIEMPRE lee el PDF NATIVO, con pdftotext como APOYO.
+          // pdftotext puede devolver muchos chars y aun así perder datos (imágenes/tablas rasterizadas,
+          // columnas mal extraídas, sellos/anotaciones) sin disparar ninguna señal → se nos pasaría el
+          // dato. Dándole SIEMPRE el documento nativo, el LLM ve el original y el texto solo lo apoya.
+          // `pdfNativeReason` queda solo para enriquecer el log (qué "duda" habría disparado antes).
+          const reason = pdfNativeReason(localPath, textLen);
           doc.nativePdfBase64 = fs.readFileSync(localPath).toString('base64');
           doc.textContent = textLen >= 50
             ? clampDocTextForClaude(fullText)
-            : '[PDF escaneado/poco legible por texto. Claude lo lee NATIVAMENTE desde el documento adjunto.]';
-          log(`🖼️ ${doc.filename} → Claude PDF nativo (${(stat.size / 1024).toFixed(0)} KB) — motivo: ${reason}.`);
-        } else if (!reason && textLen >= 50) {
-          // Capa de texto limpia y suficiente → se confía el texto (sin Claude nativo).
+            : '[PDF sin capa de texto útil. Claude lo lee NATIVAMENTE desde el documento adjunto.]';
+          log(`🖼️ ${doc.filename} → Claude PDF nativo (${(stat!.size / 1024).toFixed(0)} KB) + texto de apoyo (${textLen} chars)${reason ? ` — ${reason}` : ' — lectura nativa por defecto'}.`);
+        } else if (textLen >= 50) {
+          // PDF supera el tope de lectura nativa → fallback a SOLO TEXTO, con aviso (no se leyó nativo).
           doc.textContent = clampDocTextForClaude(fullText);
-          log(`📄 ${doc.filename} → texto confiable (pdftotext, ${textLen} chars).`);
+          log(`⚠️ ${doc.filename} → solo texto (pdftotext, ${textLen} chars): el PDF pesa ${(stat!.size / 1024 / 1024).toFixed(1)} MB > tope nativo ${(NATIVE_PDF_MAX_BYTES / 1024 / 1024)} MB, no se pudo leer nativo.`);
         } else {
-          // Necesitaba lectura nativa pero no se pudo (sin stat o supera el tope) → sin lector
-          // automático. Placeholder claro para que el LLM/abogado lo marque (no se pierde en silencio).
-          const tooBig = !!stat && stat.size > NATIVE_PDF_MAX_BYTES;
-          doc.textContent = `[PDF ILEGIBLE AUTOMÁTICAMENTE: sin capa de texto confiable${tooBig ? ' y demasiado grande para lectura nativa' : ''}. Requiere revisión/carga manual.]`;
-          log(`⚠️ ${doc.filename}: no legible automáticamente${tooBig ? ` (${(stat!.size / 1024 / 1024).toFixed(1)} MB > tope nativo ${(NATIVE_PDF_MAX_BYTES / 1024 / 1024)} MB)` : ` (motivo: ${reason ?? 'texto pobre'})`} → revisión manual.`);
+          // Ni texto útil ni lectura nativa posible → placeholder (no se pierde en silencio).
+          doc.textContent = `[PDF ILEGIBLE AUTOMÁTICAMENTE: sin capa de texto confiable${stat ? ' y demasiado grande para lectura nativa' : ''}. Requiere revisión/carga manual.]`;
+          log(`⚠️ ${doc.filename}: no legible automáticamente${stat ? ` (${(stat.size / 1024 / 1024).toFixed(1)} MB > tope nativo ${(NATIVE_PDF_MAX_BYTES / 1024 / 1024)} MB)` : ' (sin stat)'} → revisión manual.`);
         }
       }
     }
@@ -888,6 +895,7 @@ Esquema JSON esperado:
   }
 }
 \`\`\`
+${loadReaderLessons('paso3')}
 `;
 
     // --- Camino POR-DOCUMENTO (flag CENTINELA_PER_DOC) ---
@@ -990,12 +998,19 @@ Esquema JSON esperado:
 
     raw = JSON.parse(jsonMatch[1].trim());
     } // fin del camino mega-llamada (perDocMode === false)
+    // doc_type que el LLM clasificó por documento (solo en el camino per-doc). Las heurísticas
+    // deterministas de chat / no-acredita CONFÍAN en él (regex solo como fallback monolítico).
+    const docTypeByFilename = new Map<string, string | undefined>(
+      Object.entries((raw?.__docTypeByFilename ?? {}) as Record<string, string>)
+    );
+    // Estamparlo en los documentos para que los backstops (que reciben ctx.documents) lo vean.
+    for (const d of documents) d.llmDocType = docTypeByFilename.get(d.filename);
     const docTextByName = new Map<string, string | undefined>(
       documents.map((d) => [d.filename, d.textContent])
     );
     const additionalCreditors: AdditionalCreditor[] = (raw.additionalCreditors || [])
       .filter((a: any) => {
-        const isChat = isChatDocument(docTextByName.get(a.document_filename), a.document_filename);
+        const isChat = isChatDocument(docTextByName.get(a.document_filename), a.document_filename, docTypeByFilename.get(a.document_filename));
         if (isChat) {
           log(
             `⚠️ Ignorando acreedor NO-CMF "${a.bank}" ($${(a.total_credito_clp ?? a.monto_clp ?? 0).toLocaleString('es-CL')}) ` +

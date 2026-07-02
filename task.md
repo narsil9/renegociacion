@@ -154,6 +154,28 @@ regresión, batería 6/6 + `build:prod` limpio) **+ 4 reglas de lectura en `perD
       producto por operación/tarjeta aunque venga en varios docs (el de mora solo aporta fecha).
 - Lecciones nuevas **L16–L26** en `lecciones/paso3-acreedores.md`.
 
+## 🆕 Prueba del Paso 3 sobre 30 casos reales (Constanza Mulchi) — 2026-07-01 (branch paso-3)
+
+Actué como el LLM lector nativo de los 30 casos → 30 fixtures (`reneg_fixtures/*.json`) → capa determinista
+REAL + comparación fila-a-fila nueva (`deep_compare.ts`: art+monto+fuente). Reporte: `tools/paso3_validacion/REPORTE_30_CASOS.md`.
+- [x] **Fix TS (L32)**: overflow multiproducto con `fecha_mora`≥91 → Art.260 (antes forzado a 261). Golden en
+  `test_assembler_edge.ts`. ART 62→36, FUENTE 81→49. Batería 6/6, `build:prod` limpio, sin regresión (10 guía).
+- [x] **Evaluado y REVERTIDO (L30 rev)**: filtro <1 UF en TS rompía el golden TGR $18.000 (deuda real). Lo
+  trivial es semántico (del lector), no umbral de TS. TS solo descarta `monto ≤ 0`.
+- [x] **Prompt del lector reforzado** (`perDocSystemPrompt`, L27/L29): `doc_facts`=solo lo declarable; tarjeta=
+  suma de sub-líneas (L28); un producto por operación multi-doc; nunca usar el 90+d del CMF como monto.
+- [x] **5 casos con error de lectura re-leídos** con el prompt corregido (viviana→PORTAL-OK; patricio/paulina/
+  rodrigo/matias_garrido mejorados). Lecciones **L27–L34** en `lecciones/paso3-acreedores.md`.
+- [x] **Hardening producción (L35)**: 2 redes anti-error nuevas que convierten errores de lectura SILENCIOSOS
+  en alertas (→ `claudeReadIssues` → `automation_alert`): **`posible_subdivision_operacion`** (dedup del
+  ensamblador descartaba en silencio sub-líneas de la misma op con monto distinto — anti pérdida de deuda) y
+  **`monto_trivial`** (producto < 1 UF: se declara igual y se alerta; nunca se descarta — TGR/CCAF real).
+  Golden G5 + etiquetas en `read_issues_alert.ts`. Disparan en 3/30 y 3/30 respectivamente. Batería 6/6, build limpio.
+- [ ] **DECISIÓN DEL ABOGADO (L31)**: banco 90+d multiproducto → ¿todo a 260 o solo la porción con mora
+  acreditada por documento? Cierra la frontera ART (36 discrepancias residuales, no bugs).
+- [ ] **Validación EN VIVO** (scorecard.ts) cuando haya cuota API: confirmar que el prompt reforzado genera los
+  `doc_facts` correctos sin subagente.
+
 ## 📋 Backlog acotado (no bloqueante)
 - [ ] **Lectura (Centinela)**: UN doc autoritativo por producto (L20), sumar sub-cupos/Super-Avance (L21),
       convertir UTM/UF→CLP antes de reportar el monto de multas/fiscales (L17). Inyectar L16–L22 al prompt.

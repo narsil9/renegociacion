@@ -58,10 +58,16 @@ function getIdentified261ProductBucket(c: Identified261Creditor): keyof Omit<Ins
   return 'otro';
 }
 
-export function isChatDocument(textContent: string | null | undefined, filename: string): boolean {
+export function isChatDocument(textContent: string | null | undefined, filename: string, docType?: string): boolean {
+  // CONFIAR EN EL LLM: en el camino per-doc el LLM ya clasifica el tipo de documento. Su
+  // `doc_type` es más robusto que el regex (que sufre falsos positivos, ej. un timestamp de
+  // GENERACIÓN en el pie de un certificado legítimo). Si el LLM lo clasificó, su palabra manda;
+  // el regex de abajo queda SOLO como fallback del camino monolítico (sin doc_type por documento).
+  if (docType) return docType === 'chat';
   if (!textContent) return false;
   const textLower = textContent.toLowerCase();
   const nameLower = filename.toLowerCase();
+  // Señales FUERTES de conversación (filename o marcadores de mensajería) → chat.
   if (
     nameLower.includes('chat') ||
     nameLower.includes('whatsapp') ||
@@ -69,12 +75,15 @@ export function isChatDocument(textContent: string | null | undefined, filename:
     textLower.includes('[whatsapp]') ||
     textLower.includes('escribió:') ||
     textLower.includes('escribio:') ||
-    textLower.includes('mensajes de whatsapp') ||
-    /(\[?\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?\s*m\.?)?\]?)/i.test(textContent)
+    textLower.includes('mensajes de whatsapp')
   ) {
     return true;
   }
-  return false;
+  // Señal DÉBIL: marcas de tiempo "dd/mm/aaaa hh:mm". Un chat trae MUCHAS (una por mensaje);
+  // un certificado suele traer UNA de generación en el pie. Exigir ≥3 evita el falso positivo
+  // del timestamp de pie (testigo: cert CCAF con "01-07-2026 13:46:42" repetido por página).
+  const tsMatches = textContent.match(/\[?\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?\s*m\.?)?\]?/gi);
+  return !!tsMatches && tsMatches.length >= 3;
 }
 
 /**
@@ -93,8 +102,17 @@ export function isChatDocument(textContent: string | null | undefined, filename:
  */
 export function classifyNonAccreditingDoc(
   textContent: string | null | undefined,
-  _filename: string
+  _filename: string,
+  docType?: string
 ): { tipo: 'comprobante_pago' | 'cartola' | null; motivo: string } {
+  // CONFIAR EN EL LLM: si el LLM ya clasificó el documento (camino per-doc), su doc_type manda.
+  if (docType) {
+    if (docType === 'comprobante_pago')
+      return { tipo: 'comprobante_pago', motivo: 'el LLM lo clasificó como COMPROBANTE DE PAGO, no un certificado de deuda — verificar el monto con un certificado formal' };
+    if (docType === 'cartola')
+      return { tipo: 'cartola', motivo: 'el LLM lo clasificó como CARTOLA / detalle de movimientos, que no acredita por sí sola el saldo — verificar con estado de cuenta o certificado' };
+    return { tipo: null, motivo: '' };
+  }
   const text = (textContent || '').toLowerCase();
   if (text.length < 25 || text.trim().startsWith('[')) return { tipo: null, motivo: '' };
 
@@ -134,7 +152,7 @@ export function classifyNonAccreditingDoc(
 export function promoteOverflowIdentified261ToAdditional(
   result: SentinelResult,
   cmfCreditors: CmfCreditor[],
-  documents: Array<{ filename: string; textContent?: string | null }>,
+  documents: Array<{ filename: string; textContent?: string | null; llmDocType?: string }>,
   log: (msg: string) => void
 ): void {
   if (!result.identified261Creditors || result.identified261Creditors.length === 0) return;
@@ -166,7 +184,7 @@ export function promoteOverflowIdentified261ToAdditional(
     const usage = usageByInstitution.get(key) ?? emptyInstitutionSlots();
     const bucket = getIdentified261ProductBucket(creditor);
     const sourceDoc = docsByFilename.get(creditor.document_filename);
-    const comesFromChat = isChatDocument(sourceDoc?.textContent, creditor.document_filename);
+    const comesFromChat = isChatDocument(sourceDoc?.textContent, creditor.document_filename, sourceDoc?.llmDocType);
 
     const hasExactBucketSlot = !!slots && usage[bucket] < slots[bucket];
     const hasAnyInstitutionSlot = !!slots && usage.total < slots.total;
@@ -338,7 +356,7 @@ export async function applyDeterministicBackstops(
     };
     for (const doc of documents) {
       if (!doc.institucion_cmf) continue;
-      if (isChatDocument(doc.textContent, doc.filename)) continue;
+      if (isChatDocument(doc.textContent, doc.filename, doc.llmDocType)) continue;
       const key = canonicalInstitutionKey(doc.institucion_cmf);
       if (!key) continue;
       // El texto que ve Claude (doc.textContent) viene de pdftotext SIN -layout y clampeado:
@@ -442,7 +460,7 @@ export async function applyDeterministicBackstops(
         let chatFile = '';
         let chatRef: Date | null = null;
         for (const d of documents) {
-          if (!isChatDocument(d.textContent, d.filename)) continue;
+          if (!isChatDocument(d.textContent, d.filename, d.llmDocType)) continue;
           const ct = (d.textContent || '').toLowerCase();
           if (!distinctiveTokens.some((tok) => ct.includes(tok))) continue;
           const matches = [...ct.matchAll(/(\d{2,4})\s*d[ií]as?\s+(?:de\s+)?(?:mora|demora|atraso)/g)];
@@ -589,7 +607,8 @@ export async function applyDeterministicBackstops(
 
     // #4 — texto por filename para detectar documentos que no acreditan (comprobante de pago / cartola).
     const textByFilename = new Map<string, string>();
-    for (const d of documents) textByFilename.set(d.filename, d.textContent || '');
+    const docTypeByFilename = new Map<string, string | undefined>();
+    for (const d of documents) { textByFilename.set(d.filename, d.textContent || ''); docTypeByFilename.set(d.filename, d.llmDocType); }
 
     let withEvidence = 0;
     for (const e of emitted) {
@@ -646,7 +665,7 @@ export async function applyDeterministicBackstops(
       // #4 — el documento que respalda este monto NO acredita por sí solo (comprobante de pago /
       // cartola). No se descarta el acreedor ni se toca el monto; solo se marca para revisión.
       if (e.monto > 0) {
-        const naDoc = classifyNonAccreditingDoc(textByFilename.get(e.filename), e.filename);
+        const naDoc = classifyNonAccreditingDoc(textByFilename.get(e.filename), e.filename, docTypeByFilename.get(e.filename));
         if (naDoc.tipo) {
           issues.push({ document_filename: e.filename, institucion: e.institucion, monto_clp: e.monto, tipo: 'documento_no_acredita', detalle: `El documento que respalda $${e.monto.toLocaleString('es-CL')} ${naDoc.motivo}.` });
         }
@@ -688,6 +707,45 @@ export async function applyDeterministicBackstops(
           tipo: 'posible_duplicado',
           detalle: `El mismo producto (${g0.institucion}, Nº operación ${normalizeOperationId(emitted.find(e => e.filename === g0.filename)?.ev?.numero_operacion)}) aparece ${group.length} veces${montos.length > 1 ? ` con montos distintos (${montos.map(m => '$' + m.toLocaleString('es-CL')).join(', ')})` : ''}. Verificar que no se declare dos veces.`,
         });
+      }
+    }
+
+    // Sub-división de operación: el dedup del ensamblador descartó un producto de la MISMA operación
+    // con monto MATERIALMENTE distinto → posible sub-línea perdida (ej. una tarjeta leída como varias
+    // líneas con la misma operación → el dedup conserva 1 y tira el resto). No se toca el monto; se
+    // alerta para que el abogado verifique que no falte deuda (nunca en silencio — G2).
+    const dedupDrops = (result as unknown as { _dedupDrops?: Array<{ bank: string; op: string; kept: number; dropped: number; droppedFile: string }> })._dedupDrops ?? [];
+    for (const d of dedupDrops) {
+      issues.push({
+        document_filename: d.droppedFile,
+        institucion: d.bank,
+        monto_clp: d.dropped,
+        tipo: 'posible_subdivision_operacion',
+        detalle: `La operación ${d.op} de ${d.bank} aparece con montos distintos ($${d.kept.toLocaleString('es-CL')} y $${d.dropped.toLocaleString('es-CL')}); se declaró UNO solo. Si son sub-líneas de UNA tarjeta/crédito, el monto correcto es la SUMA — verificar que no falte deuda.`,
+      });
+    }
+
+    // Fecha de mora que el lector puso pero la cita NO corrobora como vencimiento (Capa 2): TS no la
+    // aceptó → el producto fue a Art. 261 (lado seguro). Se alerta para que el abogado verifique si
+    // había un vencimiento acreditable (que habilitaría Art. 260) — nunca se pierde ni se fuerza a 260.
+    const fechaNoAcred = (result as unknown as { _fechaNoAcreditada?: Array<{ bank: string; monto: number; fecha: string; cita: string; filename: string }> })._fechaNoAcreditada ?? [];
+    for (const f of fechaNoAcred) {
+      issues.push({
+        document_filename: f.filename,
+        institucion: f.bank,
+        monto_clp: f.monto,
+        tipo: 'fecha_no_acreditada',
+        detalle: `El robot leyó una fecha (${f.fecha}) pero la cita del documento no la acredita como vencimiento ("${(f.cita || '').slice(0, 80)}") — se declaró en Art. 261 (solo monto). Si el documento SÍ acredita un vencimiento, verificar para eventual Art. 260.`,
+      });
+    }
+
+    // Monto trivial (< 1 UF ≈ $39.000): NO se descarta (un monto chico puede ser deuda REAL — TGR,
+    // multa, cuota CCAF — ver lección L30) → se DECLARA y se alerta para que el abogado confirme si
+    // es un remanente/comisión trivial. Lo "trivial" es semántico, no un umbral que TS aplique a ciegas.
+    const UF_MIN_CLP = 39000;
+    for (const e of emitted) {
+      if (e.monto > 0 && e.monto < UF_MIN_CLP) {
+        issues.push({ document_filename: e.filename, institucion: e.institucion, monto_clp: e.monto, tipo: 'monto_trivial', detalle: `Monto declarado $${e.monto.toLocaleString('es-CL')} < 1 UF (~$${UF_MIN_CLP.toLocaleString('es-CL')}). Puede ser un remanente/comisión trivial (no declarar) o una deuda pequeña real (TGR/CCAF/multa). Verificar.` });
       }
     }
 

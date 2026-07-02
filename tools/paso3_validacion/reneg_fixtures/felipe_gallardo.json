@@ -1,0 +1,365 @@
+{
+  "case": "felipe_gallardo",
+  "rut": "16.369.172-8",
+  "cmf_cut_date": "2025-10-03",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 26866887,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Estado",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 78798386,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 6863568,
+      "overdue90Days": 6746183
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 73538,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "BESTADO Certificado Deuda Hipotecaria.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "BancoEstado",
+      "productos": [
+        {
+          "operacion": "110931450 (MUTUO TASA FIJA UF)",
+          "monto": 77313948,
+          "etiqueta_monto": "Total a pagar $",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Total a pagar $ ... 77.313.948 (fecha 29/10/2025); Total a pagar* 1952,989880 UF",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "BESTADO Certificado Deuda Hipotecaria Covid.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "BancoEstado",
+      "productos": [
+        {
+          "operacion": "110931451 (PANDEMIA COVID VIV SIN SUB)",
+          "monto": 2281303,
+          "etiqueta_monto": "Total a pagar $",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Total a pagar $ ... 2.281.303 (fecha 29/10/2025); Total a pagar* 57,626880 UF",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "LC BANCO ESTADO_.pdf",
+      "institucion_asignada": "Banco Estado",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "BancoEstado",
+      "productos": [
+        {
+          "operacion": "Línea Crédito 00008194939",
+          "monto": 336046,
+          "etiqueta_monto": "Has usado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Línea Crédito 00008194939 $463.954 Disponible Has usado: $336.046",
+          "cita_fecha": "",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "BITAU Certificado Deuda.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Itaú Chile",
+      "productos": [
+        {
+          "operacion": "Contrato 60425137 (Consumo)",
+          "monto": 4022452,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Contrato 60425137 ... Monto 4.173.623 Saldo Insoluto 4.022.452 ... Cart.Vcida",
+          "cita_fecha": "",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "Línea Preferencial Op 223951529",
+          "monto": 1000000,
+          "etiqueta_monto": "Monto Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo de Linea Preferencial ... Op 223951529 Monto Aprobado 1.000.000 Monto Utilizado 1.000.000 Cart.Vcida",
+          "cita_fecha": "",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "TC MasterCard Op 5549046501689327",
+          "monto": 1723731,
+          "etiqueta_monto": "$ Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Tarjeta de Crédito MasterCard ... 5549046501689327 $ Utilizado 1.723.731 Cart. Cast.",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Captura de pantalla (696).pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Itaú soluciones de pago",
+      "productos": [
+        {
+          "operacion": "60425137 (Consumo)",
+          "monto": 4293325,
+          "etiqueta_monto": "Monto a pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "60425137 Consumo Días mora 182 Monto a pagar $4.293.325",
+          "cita_fecha": "Días mora 182",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "1529 (Línea Crédito)",
+          "monto": 1211188,
+          "etiqueta_monto": "Monto a pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "1529 Línea Crédito Días mora 132 Monto a pagar $1.211.188",
+          "cita_fecha": "Días mora 132",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "BCHILE Certificado de deuda.jpg",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "resumen_global",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 27020682,
+          "cita": "Total deudas en PESO CHILENO ($CH) 27.020.682,00"
+        }
+      ],
+      "productos": []
+    },
+    {
+      "filename": "BCHILE Deuda Consumo.jpg",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "036163691728009680 (Crédito Consumo)",
+          "monto": 19259874,
+          "etiqueta_monto": "Total a cancelar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "036163691728009680 ... Estado: Moroso ... 28-10-2025 Total a cancelar 19.259.874",
+          "cita_fecha": "Estado: Moroso",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "informeCredito (2).pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "036163691728009680 (Consumo)",
+          "monto": 19193357,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Total de Prepago 19.193.357",
+          "cita_fecha": "Número de Cuotas Vencidas no Pagadas 1; Fecha Próximo Pago 03/11/2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "LC BANCO CHILE.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Línea de Crédito 01-036-02879-08",
+          "monto": 3389943,
+          "etiqueta_monto": "Monto utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto autorizado $ 3.390.000 Monto utilizado $ 3.389.943",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Tarjeta de Credito.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "TC VISA XXXX2 0594 0905",
+          "monto": 4083272,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 4.083.272 (estado de cuenta 23/09/2025, el más reciente)",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "BFALABELLA Certificado Deuda TC.jpg",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella / CMR Falabella",
+      "productos": [
+        {
+          "operacion": "CMR Mastercard Premium ....9915 / Op 0015720010810704155",
+          "monto": 79188,
+          "etiqueta_monto": "Saldo total adeudado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo total adeudado $ 79.188 (Saldo capital $ 73.538); Estado de operación Vigente",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 4293325,
+      "art": 260,
+      "cmf": true,
+      "doc": "Captura de pantalla (696).pdf",
+      "nota": "CMF Consumo overdue90=$6.746.183 (90+d). Producto 1 de 3 (multiproducto). Consumo Op 60425137: portal solucionesdepago muestra 182 días mora → vencimiento acreditado + monto a pagar $4.293.325 (más actual que constancia Saldo Insoluto $4.022.452). Art.260."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 1211188,
+      "art": 260,
+      "cmf": true,
+      "doc": "Captura de pantalla (696).pdf",
+      "nota": "Producto 2 de 3. Línea Preferencial Op 223951529 (portal '1529'): 132 días mora → vencimiento acreditado + monto a pagar $1.211.188 (constancia Monto Utilizado $1.000.000). Art.260."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 1723731,
+      "art": 260,
+      "cmf": true,
+      "doc": "BITAU Certificado Deuda.pdf",
+      "nota": "Producto 3 de 3. TC MasterCard Op 5549046501689327: Cartera Castigada (charged-off, >90d) → vencimiento acreditado + $Utilizado $1.723.731. Art.260. Suma 3 prods $7.228.244 vs CMF $6.863.568 (montos con mora, sobre CMF ~$364k)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 19259874,
+      "art": 261,
+      "cmf": true,
+      "doc": "BCHILE Deuda Consumo.jpg",
+      "nota": "CMF Consumo overdue90=$0. Producto 1 de 3 (multiproducto). Crédito Consumo Op ...9680: liquidación 'Total a cancelar' $19.259.874 (Estado Moroso pero solo 1 cuota vencida y CMF sin 90+d → Art.261). Payoff más autoritativo que Costo Total de Prepago $19.193.357 del informeCredito."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 3389943,
+      "art": 261,
+      "cmf": true,
+      "doc": "LC BANCO CHILE.pdf",
+      "nota": "Producto 2 de 3. Línea de Crédito 01-036-02879-08: Monto utilizado $3.389.943. overdue90=$0 → Art.261."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 4083272,
+      "art": 261,
+      "cmf": true,
+      "doc": "Tarjeta de Credito.pdf",
+      "nota": "Producto 3 de 3. TC VISA 0594 0905: COSTO MONETARIO PREPAGO $4.083.272 (estado de cuenta más reciente 23/09/2025). overdue90=$0 → Art.261. Suma 3 prods $26.733.089 vs CMF $26.866.887 y cert global BdCh $27.020.682 (consistente)."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 79188,
+      "art": 261,
+      "cmf": true,
+      "doc": "BFALABELLA Certificado Deuda TC.jpg",
+      "nota": "CMF Consumo overdue90=$0. CMR Mastercard Premium ....9915: Saldo total adeudado $79.188 (Estado Vigente). Art.261. Cert $79.188 vs CMF $73.538 (dentro tolerancia)."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 77313948,
+      "art": 261,
+      "cmf": true,
+      "doc": "BESTADO Certificado Deuda Hipotecaria.pdf",
+      "nota": "CMF Vivienda overdue90=$0. Producto 1 de 2 (multiproducto vivienda). Hipotecario Op 110931450: liquidación 'Total a pagar $' $77.313.948 (1952,989880 UF, fecha más reciente 29/10/2025). Art.261 (al día). Columna en pesos usada directamente."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 2281303,
+      "art": 261,
+      "cmf": true,
+      "doc": "BESTADO Certificado Deuda Hipotecaria Covid.pdf",
+      "nota": "Producto 2 de 2. Hipotecario COVID Op 110931451: liquidación 'Total a pagar $' $2.281.303 (57,626880 UF, fecha 29/10/2025). Art.261. Suma 2 hipotecarios $79.595.251 vs CMF Vivienda $78.798.386 (dentro tolerancia)."
+    },
+    {
+      "institucion": "Banco Estado",
+      "monto": 336046,
+      "art": 261,
+      "cmf": false,
+      "doc": "LC BANCO ESTADO_.pdf",
+      "nota": "NO-CMF: la Línea de Crédito 00008194939 (Has usado $336.046) NO aparece en el CMF (Banco Estado solo figura como Vivienda). Captura del portal bancario con saldo utilizado → acredita saldo. overdue90 no acreditado → Art.261."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "Dos CMF idénticos en datos (corte 03/10/2025): CMF/informe-deudas-pdf (27).pdf emitido 17/10 y SII/informe-deudas-pdf (31).pdf emitido 20/10. Se usó el más reciente (20/10); mismas 4 filas.",
+    "Banco Estado multiproducto Vivienda: CMF consolida 1 fila Vivienda $78.798.386; certs muestran 2 hipotecarios (Op 110931450 MUTUO TASA FIJA UF $77.313.948 + Op 110931451 PANDEMIA COVID $2.281.303). Montos en UF con columna 'Total a pagar $' en pesos → se usó la columna en pesos de la fecha más reciente (29/10/2025), sin re-convertir.",
+    "Banco Estado LC 00008194939 ($336.046) es NO-CMF: el CMF solo lista Banco Estado como Vivienda, no incluye esta línea de crédito. Se declara como acreedor NO-CMF Art.261.",
+    "BancoEstado 'Platino Giro Diferido Unipersonal' Nº 31460213323 (saldo $135) es una CUENTA DE AHORRO (activo), NO deuda → NO se declara. También 'BanChile $0 / Depositos $0' es cuenta sin saldo → NO se declara.",
+    "Banco de Chile multiproducto Consumo: CMF consolida 1 fila Consumo $26.866.887; cert global BdCh (Constancia) certifica Total $27.020.682 CLP + US$21,74. Los 3 productos (Consumo Op ...9680 $19.259.874 + LC 01-036-02879-08 $3.389.943 + TC VISA 0594 0905 $4.083.272 = $26.733.089) reconcilian con el CMF y el global.",
+    "Banco de Chile Consumo Op ...9680: dos docs del mismo producto. Se usó la liquidación de prepago 'BCHILE Deuda Consumo.jpg' (Total a cancelar $19.259.874, fecha más reciente 28/10/2025, Estado Moroso) como autoritativa por sobre 'informeCredito (2).pdf' (Costo Total de Prepago $19.193.357). El informeCredito solo aporta que hay 1 cuota vencida (no 90+d).",
+    "Banco de Chile TC VISA 0594 0905: 'Tarjeta de Credito.pdf' trae 4 estados de cuenta (jun/jul/ago/sep 2025) de la MISMA tarjeta. Un solo producto: COSTO MONETARIO PREPAGO del estado más reciente (23/09/2025) = $4.083.272. NO se suman las operaciones/avances internas.",
+    "Banco Itaú multiproducto con mora 90+d (CMF overdue90=$6.746.183): 3 productos. Consumo Op 60425137 y Línea Preferencial Op 223951529/'1529' vienen en la constancia (Cart.Vcida) y en el portal solucionesdepago (con días de mora 182 y 132 → vencimiento acreditado y montos más actuales). TC MasterCard Op 5549046501689327 solo en la constancia (Cart. Castigada). Los 3 → Art.260.",
+    "Itaú: se prefirió el 'Monto a pagar' del portal (incluye mora) sobre el 'Saldo Insoluto' de la constancia ('los montos no incluyen intereses por mora'); ambos dentro de tolerancia razonable vs CMF.",
+    "Elegibilidad: la mora 90+d viene concentrada en Banco Itaú (3 productos 90+d) → cumple mínimo 2 productos con 90+d (todos del mismo banco, permitido). Suma totalCredito 90+d muy superior a 80 UF (~$3,25M).",
+    "Los .jpg 'BFALABELLA Certificado Deuda TC(1).jpg' y 'BFALABELLA Certificado Deuda TC.jpg' son el MISMO documento duplicado (idéntico tamaño); se reporta una sola vez.",
+    "RUTs de emisor no visibles en los certificados/capturas (solo RUT del deudor 16.369.172-8); rut_emisor queda vacío. La institución se derivó por carpeta + contenido."
+  ]
+}

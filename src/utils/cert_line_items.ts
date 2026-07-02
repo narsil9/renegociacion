@@ -55,6 +55,14 @@ export function detectDocumentCurrency(text: string | null | undefined): 'UF' | 
  */
 export function normalizeOperationId(op: string | null | undefined): string | null {
   if (!op) return null;
+  // Caso "prefijo descriptivo + marcador de operación + Nº" que el LLM emite distinto entre
+  // documentos ("Prestamos de consumo Op. 650046641668" vs "Credito de Consumo Op. 650046641668"):
+  // cuando hay un marcador explícito ("Op."/"Operación"/"N°") seguido de un número de ≥6 dígitos,
+  // la clave canónica es ESE número, para que el MISMO producto leído de dos documentos con
+  // descripción distinta colapse a una sola operación. Requiere el marcador para NO pisar códigos
+  // alfanuméricos como "CRE - 00039038355" (que deben quedar intactos). L33.
+  const opMatch = op.match(/(?:\bop(?:eraci[oó]n)?\b\.?|\bn[°º]\.?)\s*(\d{6,})/i);
+  if (opMatch) return opMatch[1].replace(/^0+/, '') || '0';
   // Quitar descriptores entre paréntesis que el LLM agrega ("60451478 (Consumo)" → "60451478")
   // y luego separadores/enmascarado, para que el MISMO producto descrito por documentos
   // distintos colapse a una sola clave (dedup multiproducto).

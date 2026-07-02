@@ -1,0 +1,341 @@
+{
+  "case": "cristian_carrasco",
+  "rut": "12.778.033-1",
+  "cmf_cut_date": "2025-11-07",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 40754062,
+      "overdue90Days": 26822225
+    },
+    {
+      "institucion": "Falabella",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 89084391,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 904095,
+      "overdue90Days": 904095
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "estado deuda 12778033-1_rotated.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "SOCOFIN / Banco de Chile",
+      "productos": [
+        {
+          "operacion": "44881 (670)",
+          "monto": 11001092,
+          "etiqueta_monto": "Total, deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-24",
+          "cita_monto": "44881 | 670 | 10.100.000 | 527.018 | 0 | 374.074 | 11.001.092",
+          "cita_fecha": "Fecha de vencimiento 24-07-2025",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "37507 (9225)",
+          "monto": 546609,
+          "etiqueta_monto": "Total, deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-25",
+          "cita_monto": "37507 | 9225 | 470.369 | 36.173 | 0 | 40.067 | 546.609",
+          "cita_fecha": "Fecha de vencimiento 25-07-2025",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "06736 (9250)",
+          "monto": 15421327,
+          "etiqueta_monto": "Total, deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-05",
+          "cita_monto": "06736 | 9250 | 15.154.863 | 104.032 | 0 | 162432 | 15.421.327",
+          "cita_fecha": "Fecha de vencimiento 05-06-2025",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "00933 (9278)",
+          "monto": 15931683,
+          "etiqueta_monto": "Total, deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-09",
+          "cita_monto": "00933 | 9278 | 13.369.644 | 2.089.876 | 0 | 472.163 | 15.931.683",
+          "cita_fecha": "Fecha de vencimiento 09-06-2025",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "01358 (9278)",
+          "monto": 2265834,
+          "etiqueta_monto": "Total, deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-08",
+          "cita_monto": "01358 | 9278 | 1.914.444 | 224.678 | 0 | 126 712 | 2.265.834",
+          "cita_fecha": "Fecha de vencimiento 08-07-2025",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "informeCredito (5) (2).pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "405127780331006736",
+          "monto": 15416911,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-06",
+          "cita_monto": "Costo Total de Prepago 15.416.911",
+          "cita_fecha": "Fecha Proximo Pago 06/10/2025; Numero de Cuotas Vencidas no Pagadas 4",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "estados de cuenta Visa.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile (VISA)",
+      "productos": [
+        {
+          "operacion": "TC VISA XXXX...0256 2689",
+          "monto": 1882496,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 1.882.496",
+          "cita_fecha": "FECHA ESTADO DE CUENTA 22/08/2025",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "Certificado Deuda Banco de Chile.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "resumen_global",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 39170477,
+          "cita": "Total deudas en PESO CHILENO ($CH) 39.170.477,00 al dia 31 de julio de 2025"
+        }
+      ],
+      "productos": []
+    },
+    {
+      "filename": "Credito Hipotecario 1.pdf",
+      "institucion_asignada": "Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella",
+      "productos": [
+        {
+          "operacion": "606010003984 (Mutuo Hipotecario Vivienda)",
+          "monto": 79539834,
+          "etiqueta_monto": "Costo Total del Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Total del Prepago $ 79.539.834",
+          "cita_fecha": "Fecha del Proximo Pago 10/10/2025",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "credito Hipotecario 2.pdf",
+      "institucion_asignada": "Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella",
+      "productos": [
+        {
+          "operacion": "606010003992 (RRPP Complementario VIV)",
+          "monto": 9862548,
+          "etiqueta_monto": "Costo Total del Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Total del Prepago $ 9.862.548",
+          "cita_fecha": "Fecha del Proximo Pago 10/10/2025",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO 12.778.033-1.pdf",
+      "institucion_asignada": "Falabella",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella / CMR",
+      "productos": [
+        {
+          "operacion": "60-601-000398-4 (Mutuo Hipotecario Vivienda)",
+          "monto": 1993,
+          "etiqueta_monto": "Deuda Capital",
+          "moneda": "UF",
+          "fecha_mora": null,
+          "cita_monto": "Deuda Capital : U.F. 1.993,8825",
+          "cita_fecha": "",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "60-601-000399-2 (RRPP Complementario VIV)",
+          "monto": 247,
+          "etiqueta_monto": "Deuda Capital",
+          "moneda": "UF",
+          "fecha_mora": null,
+          "cita_monto": "Deuda Capital : U.F. 247,2863",
+          "cita_fecha": "",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "10-810-283462-1 (Tarjeta CMR)",
+          "monto": 838827,
+          "etiqueta_monto": "Deuda Capital (Castigada)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Tarjeta CMR ... Deuda Capital : $ 838.827 Estado Operacion : Castigada",
+          "cita_fecha": "",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "Estado Tarjeta CMR.png",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Falabella",
+      "productos": [
+        {
+          "operacion": "Tarjeta CMR ....4621",
+          "monto": 1010410,
+          "etiqueta_monto": "Monto total de la deuda",
+          "moneda": "CLP",
+          "fecha_mora": "2025-02-04",
+          "cita_monto": "Deuda actual $1.010.410 ... Monto total de la deuda $1.010.410",
+          "cita_fecha": "Dias de Mora 392; Fecha del Castigo 04-02-2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Certificado Deuda Banco BCI.pdf",
+      "institucion_asignada": "BCI",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97006000-6",
+      "emisor_nombre": "Banco de Credito e Inversiones",
+      "productos": [
+        {
+          "operacion": "D09200317105 (DOCTO VCDO VISA PERSONA)",
+          "monto": 1024456,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-16",
+          "cita_monto": "Monto total a Pagar al 29-08-2025 ... $ 1.024.456",
+          "cita_fecha": "Fecha ultimo Pago 16-06-2025; Castigada SI",
+          "confidence": 0.85
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 11001092,
+      "art": 260,
+      "cmf": true,
+      "doc": "estado deuda 12778033-1_rotated.pdf",
+      "nota": "CMF Banco de Chile Consumo overdue90=$26.822.225 (multiproducto). SOCOFIN Estado de Deuda (prejudicial) detalla 5 operaciones con fecha de vencimiento -> cada una 260. Op 44881: venc 24-07-2025, total prejudicial $11.001.092. Producto 1 de 5."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 546609,
+      "art": 260,
+      "cmf": true,
+      "doc": "estado deuda 12778033-1_rotated.pdf",
+      "nota": "Op 37507: venc 25-07-2025, total prejudicial $546.609. Producto 2 de 5 de Banco de Chile 90+d."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 15421327,
+      "art": 260,
+      "cmf": true,
+      "doc": "estado deuda 12778033-1_rotated.pdf",
+      "nota": "Op 06736 (credito consumo 405127780331006736): venc 05-06-2025, total prejudicial $15.421.327. Corroborado por informeCredito (5)(2) Costo Total de Prepago $15.416.911 (4 cuotas vencidas). Producto 3 de 5."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 15931683,
+      "art": 260,
+      "cmf": true,
+      "doc": "estado deuda 12778033-1_rotated.pdf",
+      "nota": "Op 00933: venc 09-06-2025, total prejudicial $15.931.683. Producto 4 de 5."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 2265834,
+      "art": 260,
+      "cmf": true,
+      "doc": "estado deuda 12778033-1_rotated.pdf",
+      "nota": "Op 01358: venc 08-07-2025, total prejudicial $2.265.834. Producto 5 de 5. Suma 5 ops = $45.166.545 vs CMF total $40.754.062 (cert manda; incluye recargos/intereses de mora). La TC VISA (Costo Monetario Prepago $1.882.496) y la cuenta consumo estan cubiertas dentro de estas 5 operaciones prejudiciales -> no se declara aparte para evitar doble conteo."
+    },
+    {
+      "institucion": "Falabella",
+      "monto": 79539834,
+      "art": 261,
+      "cmf": true,
+      "doc": "Credito Hipotecario 1.pdf",
+      "nota": "CMF Falabella Vivienda overdue90=$0 -> Art.261. Op 606010003984 Mutuo Hipotecario Vivienda, Costo Total del Prepago $79.539.834. Producto 1 de 2 (CMF consolida ambos hipotecarios en 1 fila Vivienda $89.084.391)."
+    },
+    {
+      "institucion": "Falabella",
+      "monto": 9862548,
+      "art": 261,
+      "cmf": true,
+      "doc": "credito Hipotecario 2.pdf",
+      "nota": "CMF Falabella Vivienda overdue90=$0 -> Art.261. Op 606010003992 RRPP Complementario VIV, Costo Total del Prepago $9.862.548. Producto 2 de 2. Suma 2 hipotecarios = $89.402.382 vs CMF $89.084.391 (diferencia $317.991, dentro tolerancia)."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1010410,
+      "art": 260,
+      "cmf": true,
+      "doc": "Estado Tarjeta CMR.png",
+      "nota": "CMF CMR Falabella overdue90=$904.095 (todo 90+d) -> Art.260. Estado Tarjeta CMR ....4621: Monto total deuda $1.010.410, 392 dias de mora, fecha castigo 04-02-2025 (acredita vencimiento). Monto pantalla $1.010.410 > cert Falabella $838.827 (payoff mas actual). Un solo producto (la tarjeta CMR es la misma; certificado y pantalla se refieren a la misma tarjeta castigada)."
+    },
+    {
+      "institucion": "BCI",
+      "monto": 1024456,
+      "art": 260,
+      "cmf": false,
+      "doc": "Certificado Deuda Banco BCI.pdf",
+      "nota": "NO-CMF (BCI no aparece en el CMF de corte 07/11/2025). Certificado de Liquidacion BCI op D09200317105 Monto total a Pagar $1.024.456, Castigada SI, fecha ultimo pago 16-06-2025 (>90 dias de mora, acredita vencimiento) -> Art.260. Cuenta Vista 17725119 $0: trivial, NO declarar."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF autoritativo: CMF/cmf_12.778.033-1.pdf, emitido 14/11/2025, informacion al 07/11/2025, codigo 17934552. Deuda directa total $130.742.548.",
+    "OJO: SII/CMF 02-09.pdf es de OTRA PERSONA (CORTES CACERES CRISTIAN ALFONSO, RUT 13.253.905-7). NO corresponde a este cliente; se ignora por completo.",
+    "Banco de Chile Consumo (CMF total $40.754.062, overdue90 $26.822.225) es MULTIPRODUCTO. El doc autoritativo con montos+vencimientos es SOCOFIN 'Estado de Deuda con Banco de Chile (proyectado)' (estado deuda 12778033-1_rotated.pdf): 5 operaciones prejudiciales (44881, 37507, 06736, 00933, 01358) con fecha de vencimiento -> las 5 en Art.260. Total prejudicial $45.166.545 (> CMF por recargos/intereses de mora; cert manda).",
+    "Dedup Banco de Chile: informeCredito.pdf (01/09/2025) e informeCredito (5) (2).pdf (16/09/2025) son el MISMO credito consumo op 006736 -> se usa el mas reciente (5)(2) solo como corroboracion; el producto se declara desde SOCOFIN op 06736 ($15.421.327), no se cuenta dos veces. La TC VISA ...2689 (COSTO MONETARIO PREPAGO $1.882.496, estados de cuenta Visa.pdf) es otro producto de Banco de Chile ya englobado en las operaciones prejudiciales de SOCOFIN -> no se declara aparte para no inflar el total.",
+    "Falabella Vivienda (CMF 1 fila $89.084.391 vigente, overdue90 $0) = 2 mutuos hipotecarios: op 606010003984 (Costo Total Prepago $79.539.834) + op 606010003992 (Costo Total Prepago $9.862.548). Suma $89.402.382 ~ CMF. Ambos Vigentes (solo 1 dividendo atrasado c/u) -> Art.261. El CERTIFICADO Falabella los da en UF (1.993,8825 y 247,2863); se usan los Costo Total del Prepago en pesos de las Comunicaciones Hipotecarias.",
+    "CMR Falabella (CMF $904.095 todo 90+d) = tarjeta castigada. La captura 'Estado Tarjeta CMR.png' muestra Monto total deuda $1.010.410, 392 dias de mora, castigo 04-02-2025 -> Art.260 con vencimiento acreditado. El certificado Falabella la lista aparte como 'Tarjeta CMR $838.827 Castigada' (mismo producto, monto payoff menor/antiguo).",
+    "BCI NO aparece en el CMF (corte 07/11/2025) -> acreedor NO-CMF. Certificado de Liquidacion BCI op D09200317105 payoff $1.024.456, castigada, ultimo pago 16-06-2025 -> Art.260 (>90d + vencimiento acreditable). Cuenta Vista $0 trivial no se declara. RUT emisor BCI 97006000-6 (impreso en el cert como 'Rol Unico tributario').",
+    "PRESTAMO EMPRESA (Bonatti, $3.000.000, 10 cuotas de $300.000, otorgado 09/06/2025) es un prestamo del empleador descontado por planilla, NO un acreedor del sistema financiero ni del CMF -> NO se declara como acreedor de renegociacion.",
+    "Elegibilidad: mucho mas de 2 productos 90+d (5 ops Banco de Chile + CMR Falabella + BCI NO-CMF) y suma muy superior a 80 UF (~$3.4M). Cumple holgadamente.",
+    "Brecha monto-cert-vs-CMF Banco de Chile: SOCOFIN $45.166.545 vs CMF $40.754.062 (+$4.4M por intereses de mora/recargos de cobranza; esperable en deuda prejudicial). El certificado manda."
+  ]
+}

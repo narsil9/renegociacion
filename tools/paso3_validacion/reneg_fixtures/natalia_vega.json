@@ -1,0 +1,239 @@
+{
+  "case": "natalia_vega",
+  "rut": "16.182.530-1",
+  "cmf_cut_date": "2025-12-12",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 180028,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 10673235,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 13335355,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1190563,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2383795,
+      "overdue90Days": 107089
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "certificado de deuda Banco Chile.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "resumen_global",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 177842,
+          "cita": "Total deudas en PESO CHILENO ($CH) 177.842,00"
+        }
+      ],
+      "productos": []
+    },
+    {
+      "filename": "LC banco Chile_.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Línea de Crédito 01-209-02141-02",
+          "monto": 0,
+          "etiqueta_monto": "Monto utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto utilizado $ 0",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "certificado de deuda ITAÚ.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Itaú Chile",
+      "productos": [
+        {
+          "operacion": "Crédito Consumo 60431360",
+          "monto": 10555092,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "60431360 04/09/2024 04/09/2028 Pesos 14.309.046 10.555.092 48 Consumo Vigente",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Crédito Consumo 60483366",
+          "monto": 2735480,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "60483366 09/01/2025 10/01/2029 Pesos 3.338.898 2.735.480 48 Consumo Vigente",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Línea Preferencial 228691024",
+          "monto": 610000,
+          "etiqueta_monto": "Monto Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "228691024 2.100.000 610.000 Vigente",
+          "cita_fecha": "",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO DEUDA CAT CENCOSUD.pdf",
+      "institucion_asignada": "CAT (ex CENCOSUD)",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "99.500.840-8",
+      "emisor_nombre": "CAT Administradora de Tarjetas S.A. (Cencosud)",
+      "productos": [
+        {
+          "operacion": "Tarjeta MasterCard xxxx xxxx xxxx 7240",
+          "monto": 1195823,
+          "etiqueta_monto": "Monto Total Capital Prepago / Saldo Deuda Pesos",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto Total Capital Prepago $ 1,195,823",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Certificado de prepago Falabella.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella / CMR Falabella",
+      "productos": [
+        {
+          "operacion": "CMR Mastercard Premium ****9501",
+          "monto": 2515050,
+          "etiqueta_monto": "Total Valor Pago Anticipado",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-05",
+          "cita_monto": "TOTAL VALOR PAGO ANTICIPADO $ 2.515.050",
+          "cita_fecha": "Cancelar cuotas atrasadas del 05-septiembre de $ 107.085, 05-octubre de $ 123.950, 05-noviembre de $ 146.011",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "scotia.pdf",
+      "institucion_asignada": "Scotiabank Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Scotiabank Chile",
+      "productos": [
+        {
+          "operacion": "Mutuo Hipotecario 913019077413",
+          "monto": 10758862,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Total de Prepago $ 10.758.862",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "CMR Falabella",
+      "monto": 2515050,
+      "art": 260,
+      "cmf": true,
+      "doc": "Certificado de prepago Falabella.pdf",
+      "nota": "Único acreedor con mora 90+d en CMF (overdue90=$107.089). Cert de Pago Anticipado 23/12/2025 acredita monto payoff $2.515.050; EECC acredita mora (cuotas impagas desde 05/09/2025). Monto+vencimiento → Art.260. Cert manda sobre CMF ($2.383.795)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 177842,
+      "art": 261,
+      "cmf": true,
+      "doc": "certificado de deuda Banco Chile.pdf",
+      "nota": "CMF overdue90=$0. Certificado de Deuda al 14/12/2025 Total deudas $177.842. LC utilizado $0 (no aporta monto). CMF $180.028, diferencia $2.186 trivial."
+    },
+    {
+      "institucion": "Scotiabank Chile",
+      "monto": 10758862,
+      "art": 261,
+      "cmf": true,
+      "doc": "scotia.pdf",
+      "nota": "CMF overdue90=$0 (Monto Vencido no Pagado $0, 0 cuotas vencidas). Hipotecario vigente. Payoff Costo Total de Prepago $10.758.862 (Informe de Crédito 22/12/2025). Reporte de Deuda alterno da Saldo Actual $10.764.498. CMF $10.673.235."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 10555092,
+      "art": 261,
+      "cmf": true,
+      "doc": "certificado de deuda ITAÚ.pdf",
+      "nota": "CMF overdue90=$0. Multiproducto (CMF consolida en 1 fila Consumo $13.335.355). Producto 1 de 3: Crédito Consumo 60431360 Saldo Insoluto $10.555.092."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 2735480,
+      "art": 261,
+      "cmf": true,
+      "doc": "certificado de deuda ITAÚ.pdf",
+      "nota": "CMF overdue90=$0. Producto 2 de 3: Crédito Consumo 60483366 Saldo Insoluto $2.735.480."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 610000,
+      "art": 261,
+      "cmf": true,
+      "doc": "certificado de deuda ITAÚ.pdf",
+      "nota": "CMF overdue90=$0. Producto 3 de 3: Línea Preferencial 228691024 Monto Utilizado $610.000. Suma 3 prods = $13.900.572 vs CMF $13.335.355 (diferencia $565.217, cert más actual). Tarjeta MasterCard utilizado $0 y cta cte $0 NO se declaran."
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "monto": 1195823,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO DEUDA CAT CENCOSUD.pdf",
+      "nota": "CMF overdue90=$0 (mora leve 30-89d pero $0 en 90+). Payoff Monto Total Capital Prepago $1.195.823 (NO el Total a Pagar $1.226.323 que incluye comisión $30.500). CMF $1.190.563, diferencia $5.260 trivial."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF emitido 26/12/2025, información al 12/12/2025. Un solo PDF de CMF en la carpeta.",
+    "CMR Falabella es el ÚNICO acreedor con mora 90+d (overdue90=$107.089). Elegibilidad: solo 1 producto con 90+d → NO cumple el mínimo de 2 productos con mora ≥91d. El cliente podría NO calificar por Art.260/elegibilidad; verificar aguas arriba. Suma totalCredito 90+d = $2.383.795 (< 80 UF por sí solo).",
+    "CMR Falabella: hay Certificado de Pago Anticipado (23/12/2025) $2.515.050 + 6 EECC mensuales (ago-dic). Se toma el cert de prepago como payoff (más autoritativo/reciente) y el EECC 19/12/2025 para la fecha de mora (cuotas impagas desde 05/09/2025). Costo Monetario Prepago EECC 19/12 = $2.513.355 (≈ igual al cert). Un solo producto (tarjeta), NO se declaran las operaciones/avances individuales.",
+    "Banco Itaú multiproducto: CMF consolida en 1 fila Consumo $13.335.355; el cert (constancia 15/12/2025) muestra 2 créditos de consumo (Saldo Insoluto $10.555.092 + $2.735.480) + Línea Preferencial utilizado $610.000. Tarjeta MasterCard 5549046503673162 utilizado $0 y ctas cte $0/US$0 → triviales, no declarar. Suma declarada $13.900.572.",
+    "Scotiabank hipotecario: 2 docs de la misma operación 913019077413. 'scotia.pdf' (Informe de Crédito 22/12/2025): Saldo del Crédito $10.693.759, Costo Total de Prepago $10.758.862, 0 cuotas vencidas no pagadas, Monto Vencido no Pagado $0 → vigente, Art.261. 'Detalle Hipotecario.pdf' (Reporte de Deuda al 30/11/2025): Saldo Actual $ 10.764.498 (columna en pesos). Se usa el Costo Total de Prepago del informe más reciente como payoff.",
+    "Banco de Chile: 2 archivos idénticos 'certificado de deuda Banco Chile.pdf' y 'certificado de deuda bco Chile.pdf' (mismo Total deudas $177.842 al 14/12/2025). Se reporta una vez. Dos capturas de LC (07/01/2026 y 31/12/2025) con Monto utilizado $0 → la línea no aporta deuda; el monto viene del certificado.",
+    "CAT/Cencosud: payoff = Monto Total Capital Prepago $1.195.823 (= Saldo Deuda Pesos). El 'Total a Pagar' $1.226.323 incluye comisión de prepago $30.500 → no usar. RUT emisor CAT Administradora de Tarjetas 99.500.840-8.",
+    "NO-CMF: ninguno. CCAF Los Héroes (AL FINAL/16182530-3588-2026.PDF) certifica 'No mantiene deuda de crédito social' → no es acreedor. Declaración Jurada de bienes no es doc de deuda.",
+    "Docs ignorados por no acreditar deuda: cartolas mensuales de Banco Chile/Falabella/Cencosud (solo aportan contexto/fecha), Bienes, Ingresos, SII, cédula, Cuadro de Audiencias."
+  ]
+}

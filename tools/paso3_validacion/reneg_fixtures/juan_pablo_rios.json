@@ -1,0 +1,316 @@
+{
+  "case": "juan_pablo_rios",
+  "rut": "17.517.117-7",
+  "cmf_cut_date": "2025-10-17",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 65904771,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 98373528,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 53223300,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "tipoCredito": "Consumo",
+      "totalCredito": 3382151,
+      "overdue90Days": 336940
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1518784,
+      "overdue90Days": 168649
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Consumo 1.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Consumo 000175171177039923",
+          "monto": 62259860,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Total de Prepago 62.259.860",
+          "cita_fecha": null,
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "filename": "consumo 2.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Consumo 000175171177094874",
+          "monto": 1780967,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Total de Prepago 1.780.967",
+          "cita_fecha": null,
+          "confidence": 0.95
+        }
+      ]
+    },
+    {
+      "filename": "BcoChile_Septiembre.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "TC Visa XXXX XXX2 0080 2555",
+          "monto": 2087375,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 2.087.375",
+          "cita_fecha": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "LINEA DE CREDITO.png",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Linea de Credito 01-800-03326-05",
+          "monto": 442549,
+          "etiqueta_monto": "Monto utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto utilizado $ 442.549",
+          "cita_fecha": null,
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "informe-credito-hipotecario (1).pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97004000-5",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Hipotecario 000-9-878280-100",
+          "monto": 98278144,
+          "etiqueta_monto": "Total a pagar a la fecha de liquidacion (Cert. Ley 20.130)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Total a pagar a la fecha de liquidacion: $ 98.278.144",
+          "cita_fecha": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO DE DEUDA DIRECTA _ INDIRECTA.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97036000-K",
+      "emisor_nombre": "Banco Santander Chile",
+      "productos": [
+        {
+          "operacion": "Prestamo hipotecario 500005955222",
+          "monto": 51883697,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Prestamos hipotecarios para vivienda 500005955222 ... Sdo. Total $ 51.883.697",
+          "cita_fecha": null,
+          "confidence": 0.88
+        },
+        {
+          "operacion": "Prestamo hipotecario 500009748680",
+          "monto": 1532372,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Prestamos hipotecarios para vivienda 500009748680 ... Sdo. Total $ 1.532.372",
+          "cita_fecha": null,
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO DE DEUDA RIPLEY.pdf",
+      "institucion_asignada": "CAR - Ripley",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": null,
+      "emisor_nombre": "CAR S.A. (Tarjeta Ripley)",
+      "productos": [
+        {
+          "operacion": "Tarjeta Ripley Mastercard Black 5227********4140",
+          "monto": 3378614,
+          "etiqueta_monto": "TOTAL",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-01",
+          "cita_monto": "TOTAL 3.378.614",
+          "cita_fecha": "CMF: 90 o mas dias de atraso $336.940 (mora >90d al corte 17/10/2025)",
+          "confidence": 0.75
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO DE DEUDA CMR.jpg",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": null,
+      "emisor_nombre": "Banco Falabella / CMR Falabella",
+      "productos": [
+        {
+          "operacion": "CMR MasterCard Elite ****2798 (op 0015999200000284841)",
+          "monto": 1495352,
+          "etiqueta_monto": "Saldo total adeudado",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-25",
+          "cita_monto": "Saldo total adeudado $ 1.495.352",
+          "cita_fecha": "AVISO DE COBRANZA Cancelar cuotas atrasadas del 25-junio de $ 168.654, 25-julio de $ 178.260, 25-agosto de $ 196.588",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "LosHeroes_CertificadoDeuda_Latest.jpeg",
+      "institucion_asignada": "CCAF Los Heroes",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": null,
+      "emisor_nombre": "Los Heroes C.C.A.F.",
+      "productos": [
+        {
+          "operacion": "Credito social 107030287",
+          "monto": 14593749,
+          "etiqueta_monto": "Monto de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto de Prepago($) 14.593.749,00 (fecha de pago 27/10/25, ultima fila del pronostico)",
+          "cita_fecha": "Cuota 12/60 F.Venc 30/09/2025; Cuota 13/60 F.Venc 31/10/2025 en proceso de cobro",
+          "confidence": 0.75
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 62259860,
+      "art": 261,
+      "cmf": true,
+      "doc": "Consumo 1.pdf",
+      "nota": "CMF Consumo overdue90=$0 -> Art.261. Producto 1 de 4 del Consumo consolidado (op 039923). CMF consolida Consumo BdCh en 1 fila $65.904.771; los certs muestran 4 productos -> split multiproducto."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 1780967,
+      "art": 261,
+      "cmf": true,
+      "doc": "consumo 2.pdf",
+      "nota": "CMF Consumo overdue90=$0 -> Art.261. Producto 2 de 4 (op 094874). Costo Total de Prepago."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 2087375,
+      "art": 261,
+      "cmf": true,
+      "doc": "BcoChile_Septiembre.pdf",
+      "nota": "CMF Consumo overdue90=$0 -> Art.261. Producto 3 de 4: TC Visa 2555, COSTO MONETARIO PREPAGO del estado de cuenta mas reciente (23/09/2025)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 442549,
+      "art": 261,
+      "cmf": true,
+      "doc": "LINEA DE CREDITO.png",
+      "nota": "CMF Consumo overdue90=$0 -> Art.261. Producto 4 de 4: Linea de Credito, monto utilizado. Suma 4 prods = $66.570.751 vs CMF $65.904.771 (diferencia $665.980, dentro tolerancia)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 98278144,
+      "art": 261,
+      "cmf": true,
+      "doc": "informe-credito-hipotecario (1).pdf",
+      "nota": "CMF Vivienda overdue90=$0 -> Art.261. Hipotecario op 878280. Saldo credito 2.486,86 UF; el Certificado Ley 20.130 (CERTIFICADO DE DEUDA HIPOTECARIO.pdf) da el Total a pagar en CLP $98.278.144 = CMF Vivienda $98.373.528 (diferencia $95.384). Se usa la cifra en pesos, no re-convertir la UF."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 51883697,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO DE DEUDA DIRECTA _ INDIRECTA.pdf",
+      "nota": "CMF Vivienda directa overdue90=$0 -> Art.261. Producto 1 de 2 (op 500005955222, Sdo. Total $51.883.697). CMF consolida Santander Vivienda directa en 1 fila $53.223.300; el cert muestra 2 operaciones hipotecarias directas -> split."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 1532372,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO DE DEUDA DIRECTA _ INDIRECTA.pdf",
+      "nota": "CMF Vivienda directa overdue90=$0 -> Art.261. Producto 2 de 2 (op 500009748680, Sdo. Total $1.532.372, confirmado por CERTIFICADO DE LIQUIDACION.png $1.532.371). Suma 2 prods = $53.416.069 vs CMF $53.223.300 (diferencia $192.769)."
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "monto": 3378614,
+      "art": 260,
+      "cmf": true,
+      "doc": "CERTIFICADO DE DEUDA RIPLEY.pdf",
+      "nota": "CMF overdue90=$336.940 (90+d) + cert CAR S.A. acredita monto $3.378.614 (Tarjeta Ripley Mastercard Black *4140). Fecha de mora inferida ~julio/2025 (CMF muestra aging con 90+d al corte 17/10; sin fecha explicita en cert). Vencimiento acreditable via aging CMF -> Art.260."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1495352,
+      "art": 260,
+      "cmf": true,
+      "doc": "CERTIFICADO DE DEUDA CMR.jpg",
+      "nota": "CMF overdue90=$168.649 (90+d) + cert Banco Falabella acredita monto (Saldo total adeudado $1.495.352) + vencimiento (EECC 09/09/2025: cuotas atrasadas desde 25-junio-2025) -> Art.260. Monto cert $1.495.352 vs CMF $1.518.784 (diferencia $23.432)."
+    },
+    {
+      "institucion": "CCAF Los Heroes",
+      "monto": 14593749,
+      "art": 261,
+      "cmf": false,
+      "doc": "LosHeroes_CertificadoDeuda_Latest.jpeg",
+      "nota": "NO-CMF: credito social Los Heroes CCAF (op 107030287), pagadero via empleador Inchcape. Pronostico de liquidacion: Monto de Prepago $14.593.749 (fecha mas reciente 27/10/25). Mora minima (cuota 12/60 venc 30/09/2025 en proceso de cobro; <90d al corte) -> Art.261."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF unico en CMF/, corte 17/10/2025, emitido 27/10/2025.",
+    "Deuda INDIRECTA excluida: Santander-Chile Vivienda $60.306.542 (CMF pagina 1) = codeudor/fiador RUT deudor directo 15.962.703-9 (confirmado en CERTIFICADO DE DEUDA DIRECTA _ INDIRECTA.pdf, seccion DEUDA INDIRECTA). NO se declara.",
+    "Banco de Chile Consumo: CMF consolida 1 fila $65.904.771; certs revelan 4 productos: Consumo op 039923 ($62.259.860 Costo Total Prepago), Consumo op 094874 ($1.780.967), TC Visa 2555 ($2.087.375 Costo Monetario Prepago) y Linea de Credito ($442.549 utilizado). Suma $66.570.751 ~ CMF (dif $665.980).",
+    "Banco de Chile Vivienda: op 878280. El informe-credito-hipotecario da Saldo 2.486,86 UF / Costo Total Prepago 2.499,014 UF; el Certificado Ley 20.130 lo da en pesos $98.278.144 (Total a pagar a la fecha de liquidacion 16/09/2025) ~ CMF $98.373.528. Se declara la cifra en CLP.",
+    "Santander directa: CMF 1 fila Vivienda $53.223.300; cert muestra 2 operaciones hipotecarias directas (500005955222 $51.883.697 + 500009748680 $1.532.372) -> multiproducto (split). CERTIFICADO DE LIQUIDACION.png confirma op 748680 = $1.532.371.",
+    "CAR - Ripley y CMR Falabella son los 2 productos con 90+d -> cumplen el minimo de 2 productos para elegibilidad. Ambos tienen cert de monto; CMR tiene fecha de mora explicita (25/06/2025 via aviso de cobranza en EECC); Ripley sin fecha explicita en documentos (mora inferida via aging CMF). Ambos declarados Art.260.",
+    "Elegibilidad: 2 productos con overdue90 (CAR-Ripley $336.940 + CMR Falabella $168.649). Suma totalCredito de esos 2 = $3.382.151 + $1.518.784 = $4.900.935 > 80 UF (~$3,25M). Cumple.",
+    "NO-CMF: Los Heroes CCAF credito social $14.593.749 (payoff), mora leve (<90d) -> Art.261. Es un pasivo real a declarar (Art.261 obliga a declarar todos los pasivos).",
+    "Houm (Carpetas Acreedores NO CMF/ARRIENDO): NO es deuda. Los comprobantes muestran a Juan Pablo como PROPIETARIO recibiendo arriendo (arriendo depositado) -> es INGRESO, no acreedor. Excluido.",
+    "DUDA: fecha de mora de CAR-Ripley no aparece explicita en los documentos leidos (cert CAR sin fecha; EECC Ripley sin aviso de cobranza con fecha). Se infiere ~julio/2025 por el aging del CMF (90+d presente al corte 17/10). confidence 0.75. Verificar con el abogado o pedir estado de cuenta con detalle de cuotas atrasadas.",
+    "Bienes/Ingresos/SII/contratos/poderes ignorados (fuera de acreditacion de deuda)."
+  ]
+}

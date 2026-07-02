@@ -1,0 +1,221 @@
+{
+  "case": "fernando_gonzalez",
+  "rut": "19.757.881-5",
+  "cmf_cut_date": "2025-11-07",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 26748345,
+      "overdue90Days": 2432123
+    },
+    {
+      "institucion": "Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 51698,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 696774,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "2374 MONTO.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Crédito Consumo 192197578815022374",
+          "monto": 5856895,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-27",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Total de Prepago 5.856.895",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "3783 MONTO_.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Crédito Consumo 192197578815023783",
+          "monto": 12223172,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-30",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Total de Prepago 12.223.172",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "4570 MONTO.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Crédito Consumo 192197578815024570",
+          "monto": 6897859,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-04",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Total de Prepago 6.897.859",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "Estado de Cuenta TC Chile.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "TC Visa XXXX XXX3 0142 4853",
+          "monto": 1011576,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 1.011.576",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "3783 mora 30_06.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": []
+    },
+    {
+      "filename": "4570 Mora 04_07.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": []
+    },
+    {
+      "filename": "09_2025.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Falabella (Banco Falabella)",
+      "productos": [
+        {
+          "operacion": "CMR Mastercard Premium *9926",
+          "monto": 686105,
+          "etiqueta_monto": "Costo Monetario Prepago al 24/09/2025",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-10",
+          "dias_mora_doc": 0,
+          "cita_monto": "Costo Monetario Prepago al 24/09/2025 **** 686.105",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "LC CMR.pdf",
+      "institucion_asignada": "Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella",
+      "productos": [
+        {
+          "operacion": "Línea de Crédito 2 984 050763 5",
+          "monto": 49564,
+          "etiqueta_monto": "Saldo utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "dias_mora_doc": 0,
+          "cita_monto": "Linea de Credito 2 984 050763 5 $49.564 Saldo utilizado",
+          "confidence": 0.75
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 5856895,
+      "art": 260,
+      "cmf": true,
+      "doc": "2374 MONTO.pdf",
+      "nota": "CMF Banco de Chile Consumo overdue90=$2.432.123 (única fila con mora 90+d). Multiproducto: CMF consolida 4 productos en 1 fila. Producto 1/4: crédito consumo *2374, 3 cuotas vencidas no pagadas, próx pago 27/10/2025. Payoff Costo Total de Prepago $5.856.895. Acredita monto + vencimiento -> Art.260."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 12223172,
+      "art": 260,
+      "cmf": true,
+      "doc": "3783 MONTO_.pdf",
+      "nota": "Producto 2/4 BdCh: crédito consumo *3783, 4 cuotas vencidas. Portal de pago (3783 mora 30_06.pdf) muestra Fecha de Vencimiento 30/06/2025 -> inicio de mora. Payoff Costo Total de Prepago $12.223.172. Art.260."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 6897859,
+      "art": 260,
+      "cmf": true,
+      "doc": "4570 MONTO.pdf",
+      "nota": "Producto 3/4 BdCh: crédito consumo *4570, 4 cuotas vencidas. Portal de pago (4570 Mora 04_07.pdf) muestra Fecha de Vencimiento 04/07/2025. Payoff Costo Total de Prepago $6.897.859. Art.260."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 1011576,
+      "art": 260,
+      "cmf": true,
+      "doc": "Estado de Cuenta TC Chile.pdf",
+      "nota": "Producto 4/4 BdCh: TC Visa *4853. Estado de cuenta 23/09/2025 -> COSTO MONETARIO PREPAGO $1.011.576 (payoff de la tarjeta, NO la cuota del mes). Banco de Chile está 90+d en el CMF -> toda deuda BdCh acreditable va a 260. Suma 4 productos = $25.989.502 vs CMF $26.748.345 (diferencia ~$759k, dentro de tolerancia)."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 686105,
+      "art": 261,
+      "cmf": true,
+      "doc": "09_2025.pdf",
+      "nota": "CMF CMR Falabella Consumo overdue90=$0 -> Art.261 (solo monto). Tarjeta CMR Mastercard *9926. Estado de cuenta más reciente (24/09/2025): Costo Monetario Prepago $686.105 (payoff de la tarjeta). Los EECC 06-08/2025 y la captura LC CMR.pdf son del mismo producto -> un solo item. CMF totalCredito $696.774 ~ payoff (diferencia $10.669)."
+    },
+    {
+      "institucion": "Falabella",
+      "monto": 49564,
+      "art": 261,
+      "cmf": true,
+      "doc": "LC CMR.pdf",
+      "nota": "CMF Falabella (Banco Falabella) Consumo overdue90=$0 -> Art.261. Línea de Crédito 2 984 050763 5, saldo utilizado $49.564 (captura portal BancoFalabella 08/10/2025). Entidad distinta de CMR Falabella (la tarjeta). CMF totalCredito $51.698 ~ saldo (diferencia $2.134). Sobre 1 UF (~$40.661) -> SÍ se declara."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF emitido 14/11/2025, información actualizada al 07/11/2025. 3 filas de deuda directa; sin deuda indirecta.",
+    "Banco de Chile es la ÚNICA institución con mora 90+d en el CMF ($2.432.123). Falabella y CMR Falabella están con overdue90=$0.",
+    "MULTIPRODUCTO Banco de Chile: el CMF consolida 1 fila Consumo $26.748.345, pero los certs muestran 4 productos: 3 créditos de consumo (*2374, *3783, *4570) + 1 TC Visa *4853. Se declaran 4 filas, cada una con su payoff. Suma payoffs = $25.989.502 vs CMF $26.748.345 (la diferencia ~$759k es esperable: el CMF informa saldo capital, los certs informan Costo Total/Monetario de Prepago).",
+    "Los 3 certs de crédito de consumo de BdCh son del tipo 'INFORMACIÓN CRÉDITO CONSUMO' (fecha 07/10/2025): payoff = 'Costo Total de Prepago' (NO 'Saldo del Crédito' ni 'Monto Vencido no Pagado'). Cada uno acredita cuotas vencidas no pagadas -> vencimiento -> Art.260.",
+    "Fechas de mora de BdCh: para *2374 se usó la Fecha Próximo Pago 27/10/2025 (el doc no da la 1ª cuota impaga). Para *3783 y *4570 las capturas del portal de pago ('3783 mora 30_06.pdf' y '4570 Mora 04_07.pdf') muestran Fecha de Vencimiento 30/06/2025 y 04/07/2025 respectivamente -> se usaron como inicio de mora (más antiguas, más correctas). Esos dos PDF de mora son del mismo producto que sus certs MONTO -> NO crean producto nuevo, solo aportan fecha.",
+    "TC Visa BdCh *4853 (Estado de Cuenta TC Chile.pdf, 12 páginas, dos statements): el statement más reciente es 23/09/2025 con COSTO MONETARIO PREPAGO $1.011.576 (payoff). El statement 22/08/2025 mostraba Cupo Utilizado $984.154; se usó el payoff más reciente. Es UN producto (la tabla de operaciones Shell/Arcos/etc. son componentes de la tarjeta).",
+    "CMR Falabella card *9926: hay 4 EECC mensuales (06,07,08,09_2025) + 'Falabella Fernando.pdf' (captura portal) + 'report-...pdf' (captura portal). Todos del MISMO producto. Se reporta una sola vez con el payoff del EECC más reciente (24/09/2025): Costo Monetario Prepago $686.105. Aviso de cobranza por cuota atrasada 10-sep -> fecha_mora 10/09/2025 (no aplica a 261 pero se anota).",
+    "Banco Falabella vs CMR Falabella son DOS entidades distintas en el CMF (filas 'Falabella' $51.698 y 'CMR Falabella' $696.774). La captura LC CMR.pdf (portal BancoFalabella, 08/10/2025) muestra ambos: Línea de Crédito 2 984 050763 5 saldo utilizado $49.564 (-> fila 'Falabella') y CMR Mastercard *9926 cupo utilizado $670.937 (-> fila 'CMR Falabella'). La Cuenta Corriente $0 NO se declara (trivial/$0).",
+    "Elegibilidad: solo 1 institución (Banco de Chile) con mora 90+d en el CMF, pero a nivel de producto son 4 créditos morosos del mismo banco -> cumple el mínimo de 2 productos 90+d (pueden ser del mismo banco). Suma totalCredito 90+d (Banco de Chile) = $26.748.345 >> 80 UF (~$3.25M). Califica.",
+    "Confianza: los 3 certs de consumo BdCh son texto nítido (conf 0.92). El TC y el CMR card vienen de EECC legibles (0.88). El saldo de la LC Banco Falabella sale de una captura de pantalla del portal con texto pequeño (conf 0.75) pero coincide con la fila CMF $51.698.",
+    "No se leyeron como acreedores: Bienes/Inversiones (fondos mutuos, plazo vivienda), Vehículos, Ingresos (liquidaciones, AFP, carnet), SII (carpeta tributaria, agentes retenedores), 'AL FINAL/CREDITO CON EL EMPLEADOR' -> son ingresos/bienes/poder, no acreditan deuda para el Paso 3."
+  ]
+}

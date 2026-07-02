@@ -1,0 +1,439 @@
+{
+  "case": "john_molina",
+  "rut": "10.280.831-2",
+  "cmf_cut_date": "2025-11-30",
+  "cmf_rows": [
+    {
+      "institucion": "De Credito e Inversiones",
+      "tipoCredito": "Consumo",
+      "totalCredito": 16212892,
+      "overdue90Days": 1403897
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2555389,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 23855562,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Consorcio",
+      "tipoCredito": "Consumo",
+      "totalCredito": 21145479,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2283516,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Coopeuch",
+      "tipoCredito": "Consumo",
+      "totalCredito": 15089690,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1453645,
+      "overdue90Days": 188011
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Certificado Liquidación BCI.pdf",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97006000-6",
+      "emisor_nombre": "Banco de Crédito e Inversiones",
+      "productos": [
+        {
+          "operacion": "CRECON D26400001730 (Consumo On-Line)",
+          "monto": 13629293,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "CRECON CONSUMO ON-LINE D26400001730 02-05-2023 $ 13.629.293",
+          "cita_fecha": "",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "CTACTE 89233034 (Cuenta Corriente)",
+          "monto": 2044457,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "CTACTE CUENTA CORRIENTE 89233034 24-04-2023 $ 2.044.457",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "CREOTR D26400007601 (Docto Vcdo Visa Persona)",
+          "monto": 1149775,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "CREOTR DOCTO VCDO VISA PERSONA D26400007601 05-08-2025 $ 1.149.775",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Certificado_Liquidación Consorcio.pdf",
+      "institucion_asignada": "Consorcio",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Consorcio Banco",
+      "productos": [
+        {
+          "operacion": "Crédito Consumo 6011041372",
+          "monto": 21263060,
+          "etiqueta_monto": "TOTAL PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "TOTAL PREPAGO : 21,263,060",
+          "cita_fecha": "",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "linea de crédito Consorcio.pdf",
+      "institucion_asignada": "Consorcio",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Consorcio Banco (Sucursal Virtual)",
+      "productos": [
+        {
+          "operacion": "Línea de Crédito 4320231472",
+          "monto": 446609,
+          "etiqueta_monto": "Cupo Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Cupo Utilizado $446.609",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Estado Tarjeta Visa Consorcio a pago diciembre 2025.pdf",
+      "institucion_asignada": "Consorcio",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Consorcio Banco",
+      "productos": [
+        {
+          "operacion": "Tarjeta VISA 416589...5659",
+          "monto": 32866,
+          "etiqueta_monto": "Cupo Utilizado / Monto Total Facturado a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "CUPO UTILIZADO $ 32.866 ... MONTO TOTAL FACTURADO A PAGAR $ 32.866",
+          "cita_fecha": "",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO_LIQUIDACION_1764852864605.pdf",
+      "institucion_asignada": "Coopeuch",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "82.878.900-7",
+      "emisor_nombre": "Cooperativa de Ahorro y Crédito Coopeuch",
+      "productos": [
+        {
+          "operacion": "CRECON 202471931580",
+          "monto": 14849296,
+          "etiqueta_monto": "Costo total de deuda por pagar (pesos)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo total de deuda por pagar (pesos) 14.849.296",
+          "cita_fecha": "",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "Certificado santander.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Santander",
+      "productos": [
+        {
+          "operacion": "Préstamo hipotecario vivienda 500001389133",
+          "monto": 21323522,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Préstamos hipotecarios para vivienda 500001389133 ... Sdo. Total UF $ 21.323.522",
+          "cita_fecha": "",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "Préstamo hipotecario vivienda 500008669646",
+          "monto": 1097636,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Préstamos hipotecarios para vivienda 500008669646 ... Sdo. Total UF $ 1.097.636",
+          "cita_fecha": "",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "Préstamo hipotecario vivienda 500010830365",
+          "monto": 1096633,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Préstamos hipotecarios para vivienda 500010830365 ... Sdo. Total UF $ 1.096.633",
+          "cita_fecha": "",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "Tarjeta de crédito 800045665700",
+          "monto": 1009780,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Tarjetas de crédito 800045665700 ... PESOS Sdo. Total $ 1.009.780",
+          "cita_fecha": "",
+          "confidence": 0.8
+        },
+        {
+          "operacion": "Tarjeta de crédito 800045665710",
+          "monto": 1491121,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Tarjetas de crédito 800045665710 ... PESOS Sdo. Total $ 1.491.121",
+          "cita_fecha": "",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "Estado Cuenta tardeja Visa Cencosud a pago Diciembre 2025 (1)_unlocked.pdf",
+      "institucion_asignada": "CAT (ex CENCOSUD)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CAT Administradora de Tarjetas / Cencosud Scotiabank",
+      "productos": [
+        {
+          "operacion": "Tarjeta Cencosud Scotiabank Mastercard ****8418",
+          "monto": 2241489,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "COSTO MONETARIO PREPAGO 2.241.489",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "ilovepdf_merged - 2025-12-11T102420.566.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Falabella / Banco Falabella",
+      "productos": [
+        {
+          "operacion": "Tarjeta CMR 888810...1959",
+          "monto": 1498450,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-05",
+          "cita_monto": "Costo Monetario Prepago al 19/11/2025 **** 1.498.450",
+          "cita_fecha": "AVISO DE COBRANZA Cancelar cuotas atrasadas del 05-agosto de $ 188.011, 05-septiembre de $ 181.014, 05-octubre de $ 197.577",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Información del Credito 1 Caja Los Andes.pdf",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "71.551.500-8",
+      "emisor_nombre": "Caja Los Andes (CCAF)",
+      "productos": [
+        {
+          "operacion": "Crédito 33.033CON103916479-9",
+          "monto": 5032072,
+          "etiqueta_monto": "Saldo Cuotas Vigentes",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Cuotas Vigentes $ 5.032.072",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Información del Credito 2 Caja Los Andes.pdf",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "71.551.500-8",
+      "emisor_nombre": "Caja Los Andes (CCAF)",
+      "productos": [
+        {
+          "operacion": "Crédito 95.095CON104156184-4",
+          "monto": 9107420,
+          "etiqueta_monto": "Saldo Cuotas Vigentes",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Cuotas Vigentes $ 9.107.420",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1498450,
+      "art": 260,
+      "cmf": true,
+      "doc": "ilovepdf_merged - 2025-12-11T102420.566.pdf",
+      "nota": "CMF overdue90=$188.011. Tarjeta CMR 888810...1959. EECC 19/11/2025 acredita monto (Costo Monetario Prepago $1.498.450) Y vencimiento (aviso de cobranza cuotas impagas 05-ago/05-sep/05-oct 2025) -> Art.260. Monto cert $1.498.450 vs CMF total $1.453.645 (diferencia $44.805, dentro tolerancia). Tarjeta = un producto (Costo Monetario Prepago, no las filas de compras/avances)."
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 13629293,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado Liquidación BCI.pdf",
+      "nota": "CMF overdue90=$1.403.897 (banco 90+d) PERO el cert de liquidación NO acredita fecha de vencimiento/mora (muestra todos los productos vigentes, sin fila de mora); los pantallazos 'BCI No Credito moroso' confirman que el banco no expone mora -> sin vencimiento acreditable se degrada a Art.261. CRECON D26400001730 (Consumo On-Line) $13.629.293. Producto 1 de 3 (CMF consolida BCI en 1 fila Consumo)."
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 2044457,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado Liquidación BCI.pdf",
+      "nota": "CTACTE Cuenta Corriente 89233034 $2.044.457 (saldo utilizado, no es cta cte $0 trivial). Producto 2 de 3. Art.261 (sin vencimiento acreditable)."
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 1149775,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado Liquidación BCI.pdf",
+      "nota": "CREOTR Docto Vcdo Visa Persona D26400007601 $1.149.775. Producto 3 de 3. Suma 3 productos = $16.823.525 (Total a Pagar del cert) vs CMF total $16.212.892 (diferencia $610.633, brecha razonable, el cert es más actual). Art.261 (sin vencimiento acreditable)."
+    },
+    {
+      "institucion": "Consorcio",
+      "monto": 21263060,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado_Liquidación Consorcio.pdf",
+      "nota": "CMF overdue90=$0. Crédito Consumo 6011041372, TOTAL PREPAGO $21.263.060 (01/12/2025). Monto cert vs CMF Consumo $21.145.479 (diferencia $117.581, dentro tolerancia). Producto principal."
+    },
+    {
+      "institucion": "Consorcio",
+      "monto": 446609,
+      "art": 261,
+      "cmf": true,
+      "doc": "linea de crédito Consorcio.pdf",
+      "nota": "CMF overdue90=$0. Línea de Crédito 4320231472, Cupo Utilizado $446.609 (>1 UF, se declara). Producto adicional del mismo banco no consolidado por separado en el CMF; el CMF trae 1 sola fila Consorcio Consumo. Se declara como producto propio Art.261."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 21323522,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado santander.pdf",
+      "nota": "CMF Santander Vivienda overdue90=$0. Préstamo hipotecario 500001389133, Sdo. Total $21.323.522 (columna en pesos, no re-convertir UF). Producto 1 de 3 de Vivienda. Art.261."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 1097636,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado santander.pdf",
+      "nota": "Préstamo hipotecario 500008669646, Sdo. Total $1.097.636. Producto 2 de 3 de Vivienda. Art.261."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 1096633,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado santander.pdf",
+      "nota": "Préstamo hipotecario 500010830365, Sdo. Total $1.096.633. Producto 3 de 3 de Vivienda. Suma vivienda = $23.517.791 vs CMF Vivienda $23.855.562 (diferencia $337.771, ok). Art.261."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 1009780,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado santander.pdf",
+      "nota": "CMF Santander Consumo overdue90=$0. Tarjeta de crédito 800045665700, Sdo. Total $1.009.780. Producto 1 de 2 de Consumo (tarjetas). Art.261."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 1491121,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado santander.pdf",
+      "nota": "Tarjeta de crédito 800045665710, Sdo. Total $1.491.121. Producto 2 de 2 de Consumo. Suma tarjetas = $2.500.901 vs CMF Consumo $2.555.389 (diferencia $54.488, ok). Art.261. (Las filas DOLAR y las duplicadas por sub-línea del cert son $0, no cuentan)."
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "monto": 2241489,
+      "art": 261,
+      "cmf": true,
+      "doc": "Estado Cuenta tardeja Visa Cencosud a pago Diciembre 2025 (1)_unlocked.pdf",
+      "nota": "CMF overdue90=$0. Tarjeta Cencosud Scotiabank Mastercard ****8418 (21/11/2025), Costo Monetario Prepago $2.241.489. Monto cert vs CMF $2.283.516 (diferencia $42.027, dentro tolerancia). Tarjeta = un producto (Costo Monetario Prepago, no Monto Total Facturado del mes $251.585). Art.261."
+    },
+    {
+      "institucion": "Coopeuch",
+      "monto": 14849296,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO_LIQUIDACION_1764852864605.pdf",
+      "nota": "CMF overdue90=$0. CRECON 202471931580, Costo total de deuda por pagar $14.849.296 (04-12-2025). Monto cert vs CMF $15.089.690 (diferencia $240.394, dentro tolerancia). Art.261."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 5032072,
+      "art": 261,
+      "cmf": false,
+      "doc": "Información del Credito 1 Caja Los Andes.pdf",
+      "nota": "NO-CMF (no aparece en el Informe CMF). Crédito 33.033CON103916479-9, Saldo Cuotas Vigentes $5.032.072, Cuotas Morosas 0 -> al día -> Art.261. RUT emisor 71.551.500-8 (Caja Los Andes CCAF)."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 9107420,
+      "art": 261,
+      "cmf": false,
+      "doc": "Información del Credito 2 Caja Los Andes.pdf",
+      "nota": "NO-CMF. Crédito 95.095CON104156184-4, Saldo Cuotas Vigentes $9.107.420, Cuotas Morosas 0 -> al día -> Art.261. RUT emisor 71.551.500-8."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF: informe emitido 09/12/2025, información al 30/11/2025 (único PDF en CMF/). Deuda total directa $82.596.173. Sin deuda indirecta.",
+    "Solo 2 acreedores con 90+d en el CMF: De Credito e Inversiones (BCI) $1.403.897 y CMR Falabella $188.011. Cumple el mínimo de 2 productos 90+d para elegibilidad (pueden ser de bancos distintos).",
+    "CMR Falabella -> Art.260: el EECC (fecha facturación 19/11/2025) acredita el payoff Costo Monetario Prepago $1.498.450 y el vencimiento vía Aviso de Cobranza (cuotas impagas 05-ago/05-sep/05-oct 2025). fecha_mora = 05/08/2025.",
+    "BCI -> degradado a Art.261: el CMF lo marca 90+d ($1.403.897) pero el Certificado de Liquidación BCI NO indica fecha de mora/vencimiento (lista todos los productos como vigentes) y los pantallazos 'print BCI No Credito moroso' refuerzan que el banco no expone mora acreditable. Regla 260/261: 90+d va a 260 SOLO si se acredita monto Y vencimiento; sin vencimiento acreditable -> 261. ALERTA: esto deja solo 1 acreedor con 90+d acreditado (CMR); revisar con el abogado si BCI debe conseguir un certificado con la mora para llevar los 3 productos BCI a 260 (y asegurar el requisito de 2 productos 90+d acreditables).",
+    "BCI multiproducto: el CMF consolida BCI en 1 fila Consumo $16.212.892; el cert de liquidación (02-12-2025, RUT emisor 97006000-6) muestra 3 productos: CRECON D26400001730 $13.629.293 + CTACTE 89233034 $2.044.457 + CREOTR D26400007601 (Docto Vcdo Visa) $1.149.775 = Total a Pagar $16.823.525. La cuenta corriente NO es $0 (saldo utilizado $2.044.457) -> se declara.",
+    "Santander multiproducto: 2 filas CMF (Consumo $2.555.389 y Vivienda $23.855.562), ambas 90+d=0. Cert Santander (cierre 04/12/2025) desglosa 3 hipotecarios (500001389133 $21.323.522 + 500008669646 $1.097.636 + 500010830365 $1.096.633 = $23.517.791 ≈ Vivienda) y 2 tarjetas (800045665700 $1.009.780 + 800045665710 $1.491.121 = $2.500.901 ≈ Consumo). Se usaron los Sdo. Total en PESOS (no re-convertir UF). Las filas DOLAR y las sub-filas $0 del cert se ignoran.",
+    "Consorcio: CMF trae 1 fila Consumo $21.145.479 (90+d=0). El Cert de Liquidación Consumo 6011041372 da TOTAL PREPAGO $21.263.060 (producto principal, ≈ CMF). Además hay Línea de Crédito 4320231472 con Cupo Utilizado $446.609 (>1 UF, se declara). La Tarjeta VISA 416589...5659 tiene Cupo Utilizado $32.866 (<1 UF ~$40.661) -> TRIVIAL, NO se declara.",
+    "CAT (ex CENCOSUD): PDF era imagen/escaneado (sin capa de texto) -> renderizado con Ghostscript y leído como imagen. Tarjeta ****8418 (21/11/2025), Costo Monetario Prepago $2.241.489 (no el Monto Total Facturado del mes $251.585).",
+    "Coopeuch: RUT emisor 82.878.900-7. CRECON 202471931580, Costo total de deuda por pagar $14.849.296 (04-12-2025).",
+    "Caja Los Andes (NO-CMF): 2 créditos (33.033CON103916479-9 $5.032.072 y 95.095CON104156184-4 $9.107.420), ambos con Cuotas Morosas 0 (al día) -> Art.261. RUT empresa/emisor 71.551.500-8. No aparecen en el CMF.",
+    "Los estados de cuenta CMR de septiembre/octubre/noviembre y los EECC/prints/pantallazos individuales de Consorcio, BCI y CAT de meses anteriores son duplicados/mora del mismo producto -> se dedupean, aportan solo fecha de mora, no productos nuevos.",
+    "Docs de bienes (inmuebles, contribuciones TGR, vehículo), ingresos, SII, poderes y cédula fueron ignorados (no acreditan deuda de acreedores). NOTA: hay una carpeta 'DEUDA CONTRIBUCIONES' (impuesto territorial/TGR) que podría ser un acreedor NO-CMF adicional, pero no está en la carpeta de Acreedores y no se leyó su monto -> revisar con el abogado.",
+    "Total esperado declarado: 15 filas (1 Art.260 CMR + 12 Art.261 CMF + 2 Art.261 NO-CMF Caja Los Andes)."
+  ]
+}

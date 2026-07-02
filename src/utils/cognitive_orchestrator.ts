@@ -242,6 +242,13 @@ export interface ClientDocument {
   uploaded_at: string;
   local_path?: string;
   textContent?: string;
+  /**
+   * doc_type SEMÁNTICO que devolvió el LLM por documento (camino per-doc): 'chat',
+   * 'comprobante_pago', 'cartola', 'desglose_por_producto', etc. Cuando está presente, las
+   * heurísticas deterministas (isChatDocument / classifyNonAccreditingDoc) lo prefieren sobre
+   * su regex. No confundir con `document_type` (código numérico 22/23/24 del portal).
+   */
+  llmDocType?: string;
   /** true when the file is a JPG/PNG/GIF or a PDF whose text extraction returned < 50 chars */
   isImageDoc?: boolean;
   /** base64-encoded image data (only set when isImageDoc = true) */

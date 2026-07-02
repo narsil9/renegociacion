@@ -1,0 +1,270 @@
+{
+  "case": "alejandro_rojas",
+  "rut": "15.706.898-9",
+  "cmf_cut_date": "2025-11-28",
+  "cmf_rows": [
+    {
+      "institucion": "De Credito e Inversiones",
+      "tipoCredito": "Consumo",
+      "totalCredito": 20759268,
+      "overdue90Days": 1073580
+    },
+    {
+      "institucion": "PRESTO LIDER",
+      "tipoCredito": "Consumo",
+      "totalCredito": 64910,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "COFISA (ABCDIN-ADRetail)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 4806857,
+      "overdue90Days": 4806857
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1008274,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Hites Inversiones y Tarjetas S.A.",
+      "tipoCredito": "Consumo",
+      "totalCredito": 295494,
+      "overdue90Days": 295494
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Certificado de Deuda.pdf",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97006000-6",
+      "emisor_nombre": "Banco de Crédito e Inversiones",
+      "productos": [
+        {
+          "operacion": "CRECON D59400099708",
+          "monto": 20614298,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-07",
+          "cita_monto": "CRECON RENEGOCIADO $ CUOTA/TASA FIJA D59400099708 ... Monto total a Pagar al 26-11-2025 ... $ 20.614.298",
+          "cita_fecha": "Detalle de cuotas vencidas: N° cuota 13 Vencimiento 07/07/2025 Vencida (portal BCI); Advertencia: Este producto o servicio se encuentra en estado de morosidad",
+          "confidence": 0.93
+        }
+      ]
+    },
+    {
+      "filename": "11_25.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella / CMR Falabella",
+      "productos": [
+        {
+          "operacion": "Tarjeta 999920******7477",
+          "monto": 1021904,
+          "etiqueta_monto": "Costo Monetario Prepago al 04/11/2025",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Monetario Prepago al 04/11/2025 **** 1.021.904",
+          "cita_fecha": "",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "EECC noviembre 2025.pdf",
+      "institucion_asignada": "PRESTO LIDER",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Presto (Tarjeta Líder / Walmart)",
+      "productos": [
+        {
+          "operacion": "Tarjeta XXXXXXXXXXXX2001",
+          "monto": 64131,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Monetario Prepago $ 64.131",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Certificado Deuda ABCDIN_rotated.pdf",
+      "institucion_asignada": "COFISA (ABCDIN-ADRetail)",
+      "doc_type": "resumen_global",
+      "rut_emisor": "96522900-0",
+      "emisor_nombre": "Créditos, Organización y Finanzas S.A. (COFISA)",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 4806857,
+          "cita": "MONTO TOTAL DEUDA CASTIGADA $ 4806857"
+        }
+      ],
+      "productos": [
+        {
+          "operacion": "Deuda castigada",
+          "monto": 4806857,
+          "etiqueta_monto": "MONTO TOTAL DEUDA CASTIGADA",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "MONTO TOTAL DEUDA CASTIGADA $ 4806857",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Certificado Deuda Hites Firmado_rotated.pdf",
+      "institucion_asignada": "Hites Inversiones y Tarjetas S.A.",
+      "doc_type": "resumen_global",
+      "rut_emisor": "85325100-3",
+      "emisor_nombre": "Inversiones y Tarjetas S.A (Hites) — Administradora Plaza S.A.",
+      "productos": [
+        {
+          "operacion": "Tarjeta Hites",
+          "monto": 337126,
+          "etiqueta_monto": "Total a pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-05",
+          "cita_monto": "la cual asciende a $ 337.126 ... Total a pagar : $337.126",
+          "cita_fecha": "Días Mora : 120 (cert emitido 03/12/2025 → mora inicia ~05/08/2025)",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "15706898-9 Caja los Andes.pdf",
+      "institucion_asignada": "Caja Los Andes (NO-CMF, CCAF)",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "81826800-9",
+      "emisor_nombre": "Caja de Compensación Los Andes",
+      "productos": [
+        {
+          "operacion": "Crédito Social 208COS100389053",
+          "monto": 8823123,
+          "etiqueta_monto": "Monto total a pagar al 02-12-2025",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "1 Crédito Social 8.823.123 ... Monto total a pagar al: 8.823.123",
+          "cita_fecha": "Este producto o servicio se encuentra en estado de morosidad (sin fecha ni cuotas impagas acreditadas)",
+          "confidence": 0.82
+        },
+        {
+          "operacion": "Crédito Social 208COS100414162",
+          "monto": 1281809,
+          "etiqueta_monto": "Monto a pagar a la fecha de emisión",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "2 Crédito Social 1.281.809",
+          "cita_fecha": "Este producto o servicio se encuentra en estado de morosidad (sin fecha ni cuotas impagas acreditadas)",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO DE DEUDA PRESTAMO EMPRESA ZOFRI S.A ALEJANDRO ROJAS.pdf",
+      "institucion_asignada": "ZOFRI S.A. (NO-CMF, préstamo empleador)",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "ZOFRI S.A. (Préstamo Empresa)",
+      "productos": [
+        {
+          "operacion": "Pagaré N° 2025-016",
+          "monto": 1975325,
+          "etiqueta_monto": "saldo pendiente adeudado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "a la fecha el saldo pendiente adeudado es de $1.975.325.-",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 20614298,
+      "art": 260,
+      "cmf": true,
+      "doc": "Certificado de Deuda.pdf",
+      "nota": "CMF overdue90=$1.073.580. Certificado de Liquidación BCI: único crédito CRECON D59400099708 payoff $20.614.298 en morosidad; portal acredita vencimiento (cuota 13 vencida 07/07/2025) → monto + vencimiento → Art.260. Cuentas vista/corriente $0, no declarar."
+    },
+    {
+      "institucion": "COFISA (ABCDIN-ADRetail)",
+      "monto": 4806857,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado Deuda ABCDIN_rotated.pdf",
+      "nota": "CMF overdue90=$4.806.857 (deuda 100% morosa/castigada). Cert certifica monto $4.806.857 exacto = CMF, pero NO acredita vencimiento (sin fecha de mora) → degradado a Art.261 por la regla decisiva (260 requiere monto Y vencimiento)."
+    },
+    {
+      "institucion": "Hites Inversiones y Tarjetas S.A.",
+      "monto": 337126,
+      "art": 260,
+      "cmf": true,
+      "doc": "Certificado Deuda Hites Firmado_rotated.pdf",
+      "nota": "CMF overdue90=$295.494. Cert certifica monto $337.126 (diff $41.632 dentro tolerancia) + Días Mora 120 (mora ~05/08/2025) → monto + vencimiento → Art.260."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 1021904,
+      "art": 261,
+      "cmf": true,
+      "doc": "11_25.pdf",
+      "nota": "CMF overdue90=$0 (al día). EECC nov-2025: Costo Monetario Prepago $1.021.904 (payoff tarjeta; NO el 'Monto Total Facturado' $436.330 que es la cuota del mes). CMF total $1.008.274 (diff $13.630, ok) → Art.261."
+    },
+    {
+      "institucion": "PRESTO LIDER",
+      "monto": 64131,
+      "art": 261,
+      "cmf": true,
+      "doc": "EECC noviembre 2025.pdf",
+      "nota": "CMF overdue90=$0. EECC nov-2025: Costo Monetario Prepago $64.131 (CMF total $64.910, diff $779). Monto $64.131 > 1 UF (~$40.661) → declarable Art.261."
+    },
+    {
+      "institucion": "Caja Los Andes",
+      "monto": 8823123,
+      "art": 261,
+      "cmf": false,
+      "doc": "15706898-9 Caja los Andes.pdf",
+      "nota": "NO-CMF (CCAF, fiscalizada por SUSESO, RUT 81.826.800-9). Crédito Social 208COS100389053 payoff $8.823.123. En morosidad pero sin fecha/cuotas impagas acreditadas (tabla Morosidad y Cobranza vacía) → Art.261 (solo monto). Producto 1 de 2 (multiproducto)."
+    },
+    {
+      "institucion": "Caja Los Andes",
+      "monto": 1281809,
+      "art": 261,
+      "cmf": false,
+      "doc": "15706898-9 Caja los Andes.pdf",
+      "nota": "NO-CMF (CCAF). Crédito Social 208COS100414162 payoff $1.281.809. En morosidad sin vencimiento acreditable → Art.261. Producto 2 de 2. Suma 2 productos = $10.104.932."
+    },
+    {
+      "institucion": "ZOFRI S.A.",
+      "monto": 1975325,
+      "art": 261,
+      "cmf": false,
+      "doc": "CERTIFICADO DE DEUDA PRESTAMO EMPRESA ZOFRI S.A ALEJANDRO ROJAS.pdf",
+      "nota": "NO-CMF (préstamo empleador ZOFRI S.A., Pagaré 2025-016). Saldo pendiente adeudado $1.975.325 al 26/11/2025 (10 de 29 cuotas pagadas, al día, próxima cuota dic-25). Sin mora → Art.261."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "Un solo PDF en CMF/: corte 28/11/2025, emitido 05/12/2025. Deuda directa total $26.934.803; sin deuda indirecta.",
+    "BCI: el certificado de prepago 'BCI-40895812-certificado-prepago.pdf' está PROTEGIDO CON CONTRASEÑA (no legible). PERO 'Certificado de Deuda.pdf' es el mismo Certificado de Liquidación BCI (ID portabilidad 40895812) y SÍ es legible vía capa de texto → payoff $20.614.298 del crédito CRECON D59400099708. Único producto con deuda; cuentas vista/corriente en $0.",
+    "BCI vencimiento: capturas del portal ('Vencimiento BCI.png' y 'VENCIMIENTO 7_7.pdf') muestran cuotas vencidas del crédito D59400099708 (cuota 13 venc. 07/07/2025, 14 venc. 05/08/2025, cuota 0 venc. 05/09/2025) → mora inicia 07/07/2025. Son capturas del portal bancario con saldo/cuotas → acreditan (no son chat).",
+    "COFISA/ABCDIN: cert está ROTADO 180° (usé la versión _rotated.pdf, legible). Emisor Créditos, Organización y Finanzas S.A. RUT 96.522.900-0. 'MONTO TOTAL DEUDA CASTIGADA $4.806.857' = CMF exacto. Sin fecha de mora en el cert → aunque CMF marca 90+d, degrado a Art.261 (regla decisiva: 260 exige monto Y vencimiento acreditable).",
+    "Hites: cert ROTADO 180° (usé _rotated.pdf). Emisor Inversiones y Tarjetas S.A RUT 85.325.100-3 (nominativo a HITES S.A. 81.675.600-6). Total a pagar $337.126, Días Mora 120 → mora ~05/08/2025. Art.260.",
+    "CMR Falabella: EECC más reciente = 11_25.pdf (facturación 04/11/2025). Costo Monetario Prepago $1.021.904 (payoff); NO usé 'Monto Total Facturado a Pagar' $436.330 (cuota del mes). La subcarpeta 'Línea de Crédito' (Cartola Banco Falabella) muestra cupo utilizado $0 → NO es producto declarable.",
+    "PRESTO LIDER: EECC noviembre 2025 (más reciente, fecha 25/11/2025). Costo Monetario Prepago $64.131. Monto pequeño pero > 1 UF → declarable. CMF lo tiene al día ($0 overdue90).",
+    "Caja Los Andes (NO-CMF): Certificado de portabilidad, RUT 81.826.800-9, 2 Créditos Sociales ($8.823.123 + $1.281.809 = $10.104.932). Ambos 'en estado de morosidad' pero la tabla 'Morosidad y Cobranza' está VACÍA (sin fecha ni cuotas impagas) → sin vencimiento acreditable → Art.261 para ambos (multiproducto, una fila por producto).",
+    "ZOFRI S.A. (NO-CMF): préstamo empleador, Pagaré 2025-016. Saldo pendiente $1.975.325 al 26/11/2025. Está AL DÍA (10 de 29 cuotas pagadas, cuota dic-25 aún no vencida) → Art.261. Es un pasivo real que debe declararse aunque no esté en mora.",
+    "Elegibilidad: 3 productos CMF con overdue90 (BCI, COFISA, Hites) → cumple mínimo 2. Suma totalCredito de esos = $20.759.268 + $4.806.857 + $295.494 = $25.861.619 >> 80 UF (~$3.253.000).",
+    "Ignorados (no acreditación de deuda): poderes, cédulas, declaración jurada de bienes, VEH (vehículo), inversiones Mercado Pago (bien), SII (carpeta tributaria/agentes retenedores), ingresos (liquidaciones/boletas/cotizaciones), cuadro de audiencias.",
+    "Docs de mora/mensuales redundantes deduplicados: CMR (08_25/9_25/10_25) y Presto (agosto/sept/oct) y Hites (Detalle/EECC ago-sept) sólo confirman el mismo producto; reporté una vez desde el más autoritativo/reciente."
+  ]
+}

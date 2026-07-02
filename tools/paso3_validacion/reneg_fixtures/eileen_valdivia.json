@@ -1,0 +1,452 @@
+{
+  "case": "eileen_valdivia",
+  "rut": "16.545.984-9",
+  "cmf_cut_date": "2025-12-05",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 29487642,
+      "overdue90Days": 1105058
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 14671406,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 221741252,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 46977374,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "tipoCredito": "Consumo",
+      "totalCredito": 4724002,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "CONSUMO MONTO.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Consumo 000165459849087659",
+          "monto": 29054579,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Total de Prepago 29.054.579",
+          "cita_fecha": "Número Cuota 11/36; Número de Cuotas Vencidas no Pagadas 4",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "CONSUMO MORA 3_9.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "comprobante_pago",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Consumo 00016545984908...7659 (cuota N°7)",
+          "monto": 0,
+          "etiqueta_monto": "Pantalla Pagar mi Crédito - solo cuota vencida",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-03",
+          "cita_monto": "N° de Cuotas 7 / Fecha de Vencimiento 03/09/2025 / Monto Cuota Mensual $731.330",
+          "cita_fecha": "Fecha de Vencimiento 03/09/2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "ConstanciaDeudaVigenteDia_16545984_20251119.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "resumen_global",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 27926549,
+          "cita": "Total deudas en PESO CHILENO ($CH) 27.926.549,00"
+        }
+      ],
+      "productos": []
+    },
+    {
+      "filename": "LC BANCO CHILE.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Línea de Crédito 01-000-94062-04",
+          "monto": 1000000,
+          "etiqueta_monto": "Monto utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto utilizado $ 1.000.000 (Saldo al 04/12/2025)",
+          "cita_fecha": "",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "OPERACIONES VIGENTES_251215_143244.pdf",
+      "institucion_asignada": "Banco Itaú Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Itaú Chile",
+      "productos": [
+        {
+          "operacion": "Consumo 60215387",
+          "monto": 796876,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "60215387 ... Saldo Insoluto 796.876 ... Vigente",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Consumo 60283771",
+          "monto": 7879917,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "60283771 ... Saldo Insoluto 7.879.917 ... Vigente",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Consumo 60341228",
+          "monto": 5311437,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-06",
+          "cita_monto": "60341228 ... Saldo Insoluto 5.311.437 ... Mora 1",
+          "cita_fecha": "Cuota 20 Vencida F.Vcto 06/10/25 (CREDITO N° 60341228.pdf)",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Consumo 60512528",
+          "monto": 4281058,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-06",
+          "cita_monto": "60512528 ... Saldo Insoluto 4.281.058 ... Mora 1",
+          "cita_fecha": "Cuota 6 Vencida F.Vcto 06/10/25 (CREDITO N° 60512528.pdf)",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Línea Preferencial 215430488",
+          "monto": 3000000,
+          "etiqueta_monto": "Monto Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "215430488 ... Monto Utilizado 3.000.000 ... Vigente",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Tarjeta MasterCard 5598001100508493",
+          "monto": 25273122,
+          "etiqueta_monto": "$ Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "5598001100508493 $ Aprobado 24.600.000 $ Utilizado 25.273.122 ... Vigente",
+          "cita_fecha": "",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO DE DEUDA_.pdf (Santander Consumo)",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97.036.000-K",
+      "emisor_nombre": "Banco Santander Chile",
+      "productos": [
+        {
+          "operacion": "Otros préstamos de consumo 001013231342",
+          "monto": 2900000,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "001013231342 ... Sdo. Total $ 2.900.000",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Tarjeta de crédito 800058584435 (WorldMember Visa)",
+          "monto": 7623852,
+          "etiqueta_monto": "Suma Sdo. Total de las 3 líneas PESOS de la tarjeta",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "800058584435 Sdo. Total $ 6.813.145 + $ 363.278 + $ 447.429",
+          "cita_fecha": "",
+          "confidence": 0.82
+        },
+        {
+          "operacion": "Préstamo de consumo 650043758122",
+          "monto": 4187170,
+          "etiqueta_monto": "Monto total a pagar (Certificado de Liquidación UGCERTPAGO)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto total a pagar al 19-11-2025 4.187.170 (op. 00350419650043758122)",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "UGCERTPAGO_BSS334732_n935709 EILEEN.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97.036.000-K",
+      "emisor_nombre": "Banco Santander Chile",
+      "productos": [
+        {
+          "operacion": "Consumo 00350419650043758122",
+          "monto": 4187170,
+          "etiqueta_monto": "Monto total a pagar al",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto total a pagar al: 4.187.170 (19-11-2025)",
+          "cita_fecha": "",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO DE DEUDA_.pdf (Santander Hipotecario)",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "97.036.000-K",
+      "emisor_nombre": "Banco Santander Chile",
+      "productos": [
+        {
+          "operacion": "Hipotecario vivienda 500007615143",
+          "monto": 52755124,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "500007615143 ... UF 1.965,00 ... Sdo. Total $ 52.755.124",
+          "cita_fecha": "",
+          "confidence": 0.88
+        },
+        {
+          "operacion": "Hipotecario vivienda 500008471820",
+          "monto": 107207814,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "500008471820 ... UF 3.096,00 ... Sdo. Total $ 107.207.814",
+          "cita_fecha": "",
+          "confidence": 0.88
+        },
+        {
+          "operacion": "Hipotecario vivienda 500011432525",
+          "monto": 61932490,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "500011432525 ... UF 1.716,00 ... Sdo. Total $ 61.932.490",
+          "cita_fecha": "",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "cert deuda Ripley.pdf",
+      "institucion_asignada": "CAR - Ripley",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97947000-2",
+      "emisor_nombre": "Banco Ripley",
+      "productos": [
+        {
+          "operacion": "Tarjeta de Crédito Mastercard ...1879",
+          "monto": 4805976,
+          "etiqueta_monto": "Monto Total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "MONTO TOTAL A PAGAR $ 4.805.976 (Tarjeta de Crédito ...1879, 20-11-2025)",
+          "cita_fecha": "Monto en Mora $ 1.858.580 / N° de Cuotas Impagas 3 / Cobranza Judicial NO",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "PRESTAMO CON EL EMPLEADOR.pdf",
+      "institucion_asignada": "FIJACIONES DE ACERO SPA (NO-CMF)",
+      "doc_type": "otro",
+      "rut_emisor": "96.554.050-4",
+      "emisor_nombre": "Fijaciones de Acero SpA (Steelfix)",
+      "productos": [
+        {
+          "operacion": "Préstamo empleador (10 cuotas 2026 de $460.000)",
+          "monto": 4600000,
+          "etiqueta_monto": "Saldo pendiente estimado 2026 (10 cuotas x $460.000)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Año 2026: 10 cuotas ... Valor cuota a descontar mensual $ 460.000 (pagando la totalidad del préstamo)",
+          "cita_fecha": "",
+          "confidence": 0.5
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 29054579,
+      "art": 260,
+      "cmf": true,
+      "doc": "CONSUMO MONTO.pdf",
+      "nota": "Único CMF con mora 90+d ($1.105.058). Crédito consumo 087659, 4 cuotas vencidas, 1ª cuota impaga 03/09/2025 (>90d al corte CMF 05/12) → Art.260. Monto payoff = Costo Total de Prepago $29.054.579 (Saldo del Crédito $28.731.499). Constancia global 18/11 lista $27.926.549 (solo este consumo)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 1000000,
+      "art": 261,
+      "cmf": true,
+      "doc": "LC BANCO CHILE.pdf",
+      "nota": "Línea de Crédito 01-000-94062-04 utilizada $1.000.000 al 04/12/2025, sin mora informada → Art.261. Producto 2 de 2 de BdCh (CMF consolida en 1 fila Consumo $29.487.642). Consumo $29.054.579 + LC $1.000.000 = $30.054.579 vs CMF $29.487.642 (brecha $567k, dentro de tolerancia razonable dado que CMF es total del crédito no payoff)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 2900000,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO DE DEUDA_.pdf (Santander Consumo)",
+      "nota": "CMF Consumo overdue90=$0. Otros préstamos consumo 001013231342, Sdo. Total $2.900.000. Producto 1 de 3 del Consumo Santander. (Op. 000072284640 $50.389 vigente 03/12/2025 se omite: préstamo puente reciente/trivial que ya cubre parte de otro.)"
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 7623852,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO DE DEUDA_.pdf (Santander Consumo)",
+      "nota": "CMF Consumo overdue90=$0. Tarjeta de crédito 800058584435 (WorldMember Visa *0571). El cert la parte en 3 líneas PESOS del MISMO Nº operación (deuda tarjeta = un producto): $6.813.145 + $363.278 + $447.429 = $7.623.852. Producto 2 de 3."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 4187170,
+      "art": 261,
+      "cmf": true,
+      "doc": "UGCERTPAGO_BSS334732_n935709 EILEEN.pdf",
+      "nota": "CMF Consumo overdue90=$0. Préstamo de consumo 650043758122, Certificado de Liquidación 19-11-2025 Monto total a pagar $4.187.170 (payoff > Sdo.Total $4.176.181 del cert de deuda). Producto 3 de 3. Suma Consumo Santander = 2.900.000 + 7.623.852 + 4.187.170 = $14.711.022 vs CMF $14.671.406 (brecha $39.616, ok)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 52755124,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO DE DEUDA_.pdf (Santander Hipotecario)",
+      "nota": "CMF Vivienda overdue90=$0. Hipotecario 500007615143, Sdo. Total $52.755.124 (UF 1.965). Producto 1 de 3 de Vivienda (CMF consolida en 1 fila $221.741.252)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 107207814,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO DE DEUDA_.pdf (Santander Hipotecario)",
+      "nota": "CMF Vivienda overdue90=$0. Hipotecario 500008471820, Sdo. Total $107.207.814 (UF 3.096). Producto 2 de 3 de Vivienda."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 61932490,
+      "art": 261,
+      "cmf": true,
+      "doc": "CERTIFICADO DE DEUDA_.pdf (Santander Hipotecario)",
+      "nota": "CMF Vivienda overdue90=$0. Hipotecario 500011432525, Sdo. Total $61.932.490 (UF 1.716). Producto 3 de 3. Suma Vivienda = 52.755.124 + 107.207.814 + 61.932.490 = $221.895.428 vs CMF $221.741.252 (brecha $154k, ok)."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 796876,
+      "art": 261,
+      "cmf": true,
+      "doc": "OPERACIONES VIGENTES_251215_143244.pdf",
+      "nota": "CMF Consumo overdue90=$0. Consumo 60215387, Saldo Insoluto $796.876 (Vigente). Producto 1 de 6 de Itaú (CMF consolida en 1 fila Consumo $46.977.374)."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 7879917,
+      "art": 261,
+      "cmf": true,
+      "doc": "OPERACIONES VIGENTES_251215_143244.pdf",
+      "nota": "CMF Consumo overdue90=$0. Consumo 60283771, Saldo Insoluto $7.879.917 (Vigente). Producto 2 de 6."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 5311437,
+      "art": 261,
+      "cmf": true,
+      "doc": "OPERACIONES VIGENTES_251215_143244.pdf",
+      "nota": "CMF Consumo overdue90=$0. Consumo 60341228, Saldo Insoluto $5.311.437 (Mora 1). 1ª cuota vencida 06/10/2025 (~60d al corte CMF → no 90+d aún) → Art.261. Producto 3 de 6."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 4281058,
+      "art": 261,
+      "cmf": true,
+      "doc": "OPERACIONES VIGENTES_251215_143244.pdf",
+      "nota": "CMF Consumo overdue90=$0. Consumo 60512528, Saldo Insoluto $4.281.058 (Mora 1). 1ª cuota vencida 06/10/2025 → Art.261. Producto 4 de 6."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 3000000,
+      "art": 261,
+      "cmf": true,
+      "doc": "OPERACIONES VIGENTES_251215_143244.pdf",
+      "nota": "CMF Consumo overdue90=$0. Línea Preferencial 215430488, Monto Utilizado $3.000.000 (Vigente). Producto 5 de 6."
+    },
+    {
+      "institucion": "Banco Itaú Chile",
+      "monto": 25273122,
+      "art": 261,
+      "cmf": true,
+      "doc": "OPERACIONES VIGENTES_251215_143244.pdf",
+      "nota": "CMF Consumo overdue90=$0. Tarjeta MasterCard 5598001100508493, $ Utilizado $25.273.122 (Vigente). Producto 6 de 6. Suma Itaú = 796.876 + 7.879.917 + 5.311.437 + 4.281.058 + 3.000.000 + 25.273.122 = $46.542.410 vs CMF $46.977.374 (brecha $434k, ok; sobregiro cta cte $70.776 trivial no declarado)."
+    },
+    {
+      "institucion": "CAR - Ripley",
+      "monto": 4805976,
+      "art": 261,
+      "cmf": true,
+      "doc": "cert deuda Ripley.pdf",
+      "nota": "CMF Consumo overdue90=$0 (tiene 30-59d $615.500 y 60-89d $590.180, aún no 90+d al corte 05/12). Certificado de Liquidación 20-11-2025 Monto Total a Pagar $4.805.976 (tarjeta ...1879, en morosidad, 3 cuotas impagas, sin cobranza judicial). Sin mora >90d acreditable → Art.261. Monto cert $4.805.976 vs CMF $4.724.002 (brecha $82k, ok)."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF: emitido 16/12/2025, información al 05/12/2025 (un solo PDF en CMF/).",
+    "⚠️ ELEGIBILIDAD DUDOSA: en el CMF solo Banco de Chile tiene mora 90+d ($1.105.058) = 1 solo producto 90+d. Itaú (60341228, 60512528) y Ripley están en mora pero a 06/10/2025 → ~60 días al corte CMF (columnas 30-59/60-89, no 90+d). Requisito de sesión pide MÍNIMO 2 productos con mora >90d. Al corte del CMF NO se cumple con 2. Para cuando se presente la solicitud, Itaú y Ripley cruzarían los 90d (mora desde 06/10 → 90d ≈ 04/01/2026) y BdCh 1ª cuota impaga 03/09 ya excede. Revisar fecha de presentación / CMF más fresco. NO bloqueo el fixture pero lo marco.",
+    "Banco de Chile: Consumo 087659 payoff = Costo Total de Prepago $29.054.579 (Saldo del Crédito $28.731.499); 1ª cuota impaga 03/09/2025 (pantalla 'Pagar mi Crédito', cuota N°7 vence 03/09/2025) → mora >90d al corte → Art.260. Línea de Crédito $1.000.000 (LC BANCO CHILE.pdf, saldo 04/12) = producto 2, Art.261 (sin mora). CONSUMO MORA 3_9.pdf y ConstanciaDeudaVigenteDia solo aportan fecha de mora / total agregado, no productos nuevos.",
+    "Banco de Chile: la Constancia (18/11) informa Total deudas $27.926.549 (agregado, solo el consumo). Consumo payoff $29.054.579 + LC $1.000.000 supera el CMF total $29.487.642 en ~$567k — el CMF informa 'total del crédito' y el cert el 'costo de prepago'; brecha razonable, no re-anclar al CMF.",
+    "Itaú: OPERACIONES VIGENTES (Constancia 15/12/2025, saldos al 12/12) es el doc AUTORITATIVO con Saldo Insoluto por producto — 6 productos declarables (4 consumo + LC Preferencial + TC MasterCard). Los 4 PDFs 'CREDITO N° ...' solo aportan el detalle de cuotas / fecha de mora (60341228 y 60512528 con cuotas Vencidas desde 06/10/2025). Cta Cte 215430478 sobregiro $70.776 = trivial, NO declarado.",
+    "Itaú TC MasterCard 5598001100508493: $ Utilizado $25.273.122 (US$ Utilizado 0,00; el cupo US$ 14.246 está aprobado no utilizado). Monto en CLP.",
+    "Santander: MISMO 'CERTIFICADO DE DEUDA_' N° 68227 (cierre 11/12/2025) aparece en las carpetas Consumo E Hipotecario — es un único certificado que lista TODOS los productos. Consumo = 3 productos declarables + hipotecario = 3. Tarjeta 800058584435 viene en 3 líneas PESOS del mismo Nº operación → se suma como UN producto ($7.623.852). Op. 000072284640 $50.389 (vigente, otorgada 03/12/2025, vence 23/12/2025) = préstamo puente trivial, omitido.",
+    "Santander Consumo 650043758122: se usa el Certificado de Liquidación (UGCERTPAGO) Monto total a pagar $4.187.170 (payoff) en vez del Sdo.Total $4.176.181 del cert de deuda — el certificado de liquidación es el payoff formal.",
+    "Santander hipotecarios en UF: el cert ya trae columna en pesos (Sdo. Total en $) → uso el valor en CLP directamente, no re-convierto la UF. 3 hipotecarios distintos (500007615143 UF1.965, 500008471820 UF3.096, 500011432525 UF1.716).",
+    "NO-CMF: PRESTAMO CON EL EMPLEADOR.pdf = préstamo del empleador Fijaciones de Acero SpA (RUT 96.554.050-4) por $7.000.000, descontado por planilla ($460.000/mes en 2026, 10 cuotas). NO es acreedor financiero CMF; es una deuda de descuento por remuneración. NO lo incluí en expected_declaration (deuda laboral/planilla, no institución financiera; confirmar con abogado si debe declararse como pasivo Art.261; saldo estimado 2026 ≈ $4.600.000, sin fecha de mora, al día).",
+    "Docs ignorados (bienes/ingresos/poder/SII): CBR/CDV/HYG San Bernardo, AFP Provida, APV, Banco Estado (inversión), vehículo Toyota, ingresos (liquidaciones, cert cotizaciones), PODER, Carpeta Tributaria, AGENTES RETENEDORES, Cuadro de Audiencias. ITAU $0.pdf (portal inversiones sin productos) y LINEA CREDITO $0.pdf / CCF_000067.pdf (Santander, ya cubiertos por el cert de deuda) no aportan productos nuevos.",
+    "TOTAL declarado: 15 filas (1 Art.260 BdCh + 14 Art.261). Deuda directa total CMF $317.601.676. Sin deuda indirecta."
+  ]
+}

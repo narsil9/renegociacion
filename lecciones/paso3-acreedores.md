@@ -293,3 +293,368 @@ real (G2). *(Testigos: María Paz Itaú, Alejandra BdCh, Betzy. 2026-06-29.)* ·
 - **#4 sobre comprobante/cartola con CAPA DE TEXTO**: validado por unit test, aún sin caso real con texto
   (los reales fueron escaneos). Confirmar cuando aparezca uno. *(pendiente)*
 - **L5 cosmético**: pedir a Claude que `cita_monto` sea fragmento textual sin razonamiento. *(pendiente)*
+
+---
+
+## Tanda de 30 casos (Constanza Mulchi) — 2026-06-30 · errores de lectura vs TS
+
+> Metodología: Claude (yo) actué como el LLM lector nativo de los 30 casos → 30 fixtures
+> (`reneg_fixtures/*.json`) → corrí la capa determinista REAL (`assembleRawFromDocFacts` →
+> `applyDeterministicBackstops`) + comparación fila-a-fila `deep_compare.ts` (art + monto + fuente,
+> lo que el harness de conteo NO chequea). Agregado: ART 62, MONTO 14, FUENTE(cmf/nocmf) 81, HUÉRFANAS 38.
+> ⚠️ Sin verdad-terreno del abogado: el "esperado" lo derivé yo → las discrepancias valen como
+> señal de dónde diverge la estructura, no como conteo de aciertos.
+
+### L27 — `doc_facts` debe contener SOLO lo declarable (TS declara TODO producto emitido) ⭐
+El ensamblador declara **cada** producto de `doc_facts` (salvo `monto ≤ 0` + dedup). La decisión del
+lector de "extraer pero NO declarar" (trivial, pagado, superado por el CMF) **no se expresa** en `doc_facts`
+ni la aplica TS → esos productos igual se declaran. **Regla:** si un producto no debe declararse (trivial
+< 1 UF, cta cte $0, pagado, superado por un CMF más nuevo), **NO emitirlo como producto**. *(Testigos:
+paulina "VARIOS DEUDOR" $60.000/$20.000 + Santander $6.065; rodrigo BancoEstado 4 productos superados por
+un CMF más nuevo; matias_garrido Inversiones LP $5.116; viviana Santander $34.610.)* · **validada** (deep_compare).
+
+### L28 — Tarjeta = UN producto = SUMA de sus sub-líneas/cupos DEL MISMO documento (refuerza L21/L23) ⭐
+Si un estado de cuenta lista una tarjeta en **varias sub-líneas** (cupos, avances, "Sdo. Total" partido),
+el lector debe **sumarlas en UN solo producto**, no emitir una por línea. Si las emite, comparten el Nº de
+operación → el dedup determinista las colapsa a 1 quedándose con el monto de UNA (no la suma) → se **pierde
+deuda**. *(Testigo: viviana Santander tarjeta op 800060552341 leída como 5 líneas a–e → dedup dejó $11.9M y
+perdió $2.9M; correcto = un producto ≈ $14.8M.)* · **validada**.
+
+### L29 — Mismo Nº de operación desde varios documentos → UN producto; NUNCA anclar el monto al overdue del CMF (refuerza L26 + G1) ⭐
+Un mismo crédito leído desde varios docs (cert + captura de mora + liquidación) con **etiquetas distintas**
+genera varios productos que el dedup EXACTO no une (los strings de `operacion` difieren) → doble/triple
+conteo. Peor aún: si el lector toma como "producto" la cifra de **mora 90+d del CMF**, inyecta una fila
+fantasma cuyo monto = overdue del CMF (viola G1: el cert manda, el CMF nunca es fuente de monto). **Regla:**
+reconocé que es la MISMA operación (por Nº o últimos 4 dígitos) y emití **una sola** desde el doc más
+autoritativo; jamás uses el overdue del CMF como monto de un producto. *(Testigo: patricio op 01401 emitida
+3× — $8.152.942 / $7.165.935 / $7.124.087, y $7.124.087 = overdue90 del CMF de BdCh → fila fantasma.)* · **validada**.
+
+### L30 — (GAP de TS) No hay filtro de trivial < 1 UF: solo se descarta `monto ≤ 0`
+Hoy el ensamblador descarta `monto ≤ 0` (G2) pero **declara** cualquier producto con `0 < monto < 1 UF`
+(~$40.661). CLAUDE.md dice excluir "montos triviales (< 1 UF, remanentes/comisiones)", pero esa exclusión
+la hace HOY el lector, no TS → si el lector la emite, se declara. **Decisión de estructura (candidata a
+fix TS):** descartar `0 < monto < 1 UF` en el ensamblador **con alerta** (nunca en silencio, G2). Pendiente.
+*(Testigos: matias_garrido Inversiones LP $5.116; paulina $60.000/$20.000/$6.065; viviana $34.610.)*
+
+### L31 — (TENSIÓN DE DISEÑO, no bug) 260/261 y CMF/NO-CMF en banco multiproducto
+El CMF consolida un banco en 1 fila con **un solo** `overdue90Days`. El flujo ancla 1 producto a esa fila
+(queda CMF) y **desborda los demás a `additionalCreditors` (NO-CMF)**; el gate degrada 260→261 dejando ~1
+producto en 260. Si CADA producto del banco 90+d acredita vencimiento, "deberían" ser todos 260/CMF — pero
+**el CMF no expone la mora por-producto**, así que el flujo no puede saber cuáles. Por eso el "esperado"
+derivado (que puso todos en 260) diverge sistemáticamente del declarado (FUENTE 81 / ART 62). **No es un
+bug claro:** para decidirlo hace falta la mora por-producto del CERT, no del CMF. → **Pregunta para el
+abogado:** un banco 90+d multiproducto, ¿va TODO a 260, o solo la porción con mora acreditada por documento?
+*(Testigos: fernando BdCh, cristian BdCh, matias_holtheuer Santander, felipe Itaú, etc. — patrón en ~todos.)*
+
+> **Cierre de la tanda de 30 (2026-06-30):** la comparación fila-a-fila confirma la tesis rectora — **TS
+> declara fielmente lo que el lector le entrega; la principal fuente de error estructural es la LECTURA**
+> (emitir no-declarables L27, no sumar sub-cupos de tarjeta L28, no deduplicar la misma operación multi-doc
+> y anclar al overdue del CMF L29). Los únicos ajustes de TS candidatos son defensivos: filtro < 1 UF con
+> alerta (L30) y — opcional — un dedup por Nº-de-operación más robusto que tolere etiquetas distintas SIN
+> arriesgar G2. La clasificación 260/261 multiproducto (L31) es una definición a cerrar con el abogado, no
+> un bug. Arnés nuevo: `tools/paso3_validacion/deep_compare.ts` (comparación art+monto+fuente).
+
+---
+
+## Fixes implementados y validados — 2026-07-01 (tanda de 30, branch paso-3)
+
+### L30 (REVISADA) — NO existe un filtro de trivialidad por MONTO seguro: lo trivial es SEMÁNTICO ⭐ ✅
+La idea de "descartar en TS todo producto `0 < monto < 1 UF`" (para atajar remanentes/comisiones) se
+**implementó y se REVIRTIÓ**: rompió el golden **G1 (TGR $18.000)** — una deuda fiscal REAL de $18.000
+(< 1 UF) quedaba descartada. **Un monto chico NO implica trivial**: TGR, multas, cuotas de CCAF o saldos
+fiscales pueden ser < 1 UF y son deuda legítima (viola G2: nunca tirar un acreedor real). **Conclusión:**
+la distinción "remanente/comisión trivial" vs "deuda pequeña real" es **semántica, del LECTOR** (por el
+rótulo/contexto), NO un umbral que TS pueda aplicar a ciegas. TS sigue descartando SOLO `monto ≤ 0`. El
+lector no debe **emitir** remanentes/comisiones como productos (regla agregada al prompt). *(Testigo del
+freno: golden G1 TGR $18.000; el fix se revirtió y quedó como regla de lectura.)* · **validada** (golden test).
+
+### L32 — Overflow multiproducto CON `fecha_mora` acreditada → Art. 260 (no forzar a 261) ⭐ ✅ FIX TS
+**Bug de TS encontrado y corregido.** El ensamblador ancla 1 producto por fila CMF; el **overflow** (más
+productos que filas) iba **siempre a `identified261`** aunque el producto tuviera su propia `fecha_mora`
+≥91d → un producto con vencimiento acreditado terminaba en Art. 261 en vez de 260 (sub-declaración del
+artículo). **Fix (`sentinel_per_doc.ts`, bloque de overflow):** cada producto sobrante se clasifica por su
+PROPIA `fecha_mora` — ≥91d → `cmf260DirectOverride` CON `fecha_vencimiento` (el gate lo mantiene en 260);
+sin vencimiento → `identified261` (comportamiento previo intacto). Regla del abogado: 260 si monto Y
+vencimiento; el robot declara en 260 TODA deuda acreditable. **Impacto medido:** ART 62→36, FUENTE 81→49
+en `deep_compare` sobre los 30 casos, sin regresión (batería 6/6). Golden nuevo en `test_assembler_edge.ts`
+("overflow 90+d → 3 overrides Art.260" + control sin fecha). *(Testigos: fernando/cristian/matias BdCh,
+felipe Itaú multiproducto.)* · **validada** (golden + batería).
+
+### L33 — CMF vs NO-CMF de un producto multiproducto es routing INTERNO, no material al portal ✅
+La `promoteOverflowIdentified261ToAdditional` mueve a **NO-CMF** los productos de un banco del CMF que
+exceden sus filas CMF — **por diseño**: en el portal, cada fila CMF se declara sobre su línea y los
+productos extra necesitan su propia fila, que se crea vía "Otros Acreedores" (NO-CMF). Por eso, en la
+comparación, un producto declarado como NO-CMF-261 en vez de CMF-261 (mismo art + mismo monto) **NO es un
+error material**: cae en la misma sección del portal con el mismo monto. La comparación fila-a-fila
+(`deep_compare.ts`) ahora separa **MATERIAL** (art 260/261, monto, acreedor de más/menos — cambian la
+declaración) de **NO-MATERIAL** (fuente CMF/NO-CMF con igual art+monto). Sobre los 30: 49 discrepancias de
+FUENTE son no-materiales (routing por diseño). · **validada** (lectura del código + deep_compare).
+
+### L34 — El "esperado" con juicio holístico del lector diverge de lo que TS declara desde `doc_facts`
+Cuando el lector aplica un **juicio que NO queda en `doc_facts`** (consolidar sub-líneas, excluir un
+producto "superado por un CMF más nuevo", omitir un componente), TS —que declara fielmente cada producto de
+`doc_facts`— no puede reproducir ese juicio → aparece como discrepancia (huérfana/monto). **No es bug de TS
+ni siempre error de lectura**: es que el juicio debe estar EN `doc_facts` (el lector emite exactamente lo
+declarable) o codificado como regla determinista. Refuerza L27: `doc_facts.productos` = exactamente lo que
+se declara. *(Testigos: paulina "VARIOS DEUDOR"; rodrigo BancoEstado superado por CMF nuevo; viviana card-split.)*
+· **validada**.
+
+### L35 — Hardening para producción: convertir errores de lectura SILENCIOSOS en ALERTAS (no en silencio) ⭐ ✅
+El principio "TS blinda la estructura" no significa que TS *corrija* (arriesga G2), sino que **haga VISIBLE**
+lo que el lector pudo equivocar. Dos redes nuevas (additivas, generales, sin tocar montos ni clasificación),
+que fluyen a `claudeReadIssues` → `automation_alert` del worker:
+- **`posible_subdivision_operacion`**: el dedup del ensamblador conserva 1 producto por (banco+operación) y
+  **descartaba en silencio** los demás. Si el descartado tiene monto MATERIALMENTE distinto (>5% y >$100k),
+  no es una re-lectura del mismo saldo sino una posible **sub-línea perdida** (tarjeta leída como N líneas con
+  la misma op → se perdía deuda, ej. viviana $2.9M). Ahora el ensamblador registra el descarte (`_dedupDrops`)
+  y el backstop **alerta** (no suma: sumar arriesga doble conteo de una re-lectura real). Dispara en 3/30
+  (betzy, claudia, william).
+- **`monto_trivial`**: un producto declarado < 1 UF (~$39.000) se **declara igual** (nunca se descarta —
+  L30: un monto chico puede ser TGR/CCAF/multa real) y se **alerta** para que el abogado confirme si es un
+  remanente/comisión trivial. Dispara en 3/30 (betzy, john, matias_garrido).
+Golden **G5** en `test_backstops_golden.ts` (incluye el control "TGR $18.000 NO se descarta"). Etiquetas de
+la alerta en `read_issues_alert.ts`. Batería 6/6, `build:prod` limpio, sin regresión. *(2026-07-01.)* · **validada**.
+
+### L36 — Producto revolvente (línea/cta cte/sobregiro): PONER esa palabra en `etiqueta_monto` ⭐ ✅
+Regla del abogado: **línea de crédito / cuenta corriente / sobregiro → SIEMPRE 261** (revolvente, no
+acredita vencimiento). TS lo detecta con `isRevolvingLine` sobre **DOS** señales: el `tipoCredito` de la
+fila CMF a la que el producto ancló **Y** el `etiqueta_monto` del producto del cert. El anclaje cert↔CMF es
+**por monto** (el CMF no trae Nº de operación), y el *payoff* de una línea puede caer más cerca del cupo de
+la fila CMF de **tarjeta** que de la de línea → el producto ancla mal y hereda `tipoCredito='Tarjeta'` → se
+clasificaría **260 por error**. La red de seguridad es el `etiqueta_monto` del propio cert: si el lector
+escribe "LÍNEA DE CRÉDITO / CTA CTE" (o "sobregiro") en la etiqueta, TS lo manda a 261 **aunque el anclaje
+por monto haya errado la fila**. → **El lector DEBE nombrar la naturaleza revolvente en `etiqueta_monto`**
+(no solo el rótulo del saldo). Testigo: Miguel Lugo, BdCh línea cta cte **$606.175** (payoff $606k más cerca
+de la tarjeta CMF $639.943 que de la línea CMF $500.000 → anclaba a tarjeta; sin la palabra "línea" iba a
+260; con ella → 261, igual que la abogada). Validado sobre 3 casos reales con verdad-terreno de screenshots
+(Cristian 10, Miguel 13, Néctor 12): **conteo exacto Y split 260/261 exacto** vs la abogada
+(`test_step3_casos_reales.ts`, batería 8/8). *(2026-07-01.)* · **validada**.
+
+### L37 — Reconciliación cert↔CMF en el LLM REAL (no el oráculo): 4 blindajes de step3 ⭐ ✅
+Corridas EN VIVO con el LLM real (Cristian/Miguel/Néctor, comparadas vs screenshots de la abogada)
+revelaron que el CMF real trae MÁS filas que las que declara la abogada y que el LLM reparte los
+productos de forma ruidosa entre `identified261` y `additionalCreditors`. Cuatro blindajes deterministas
+en `fillStep3` (G3: el LLM extrae hechos, TS blinda la estructura), todos additivos y batería-verdes:
+1. **Fila 90+d reclamada por su payoff (id261)**: una fila 90+d SIN override cuyo payoff se emitió como
+   `identified261` (por no traer venc) es la MISMA deuda. Se incluye en el pool de asignación y, si un
+   id261 la reclama, se declara UNA vez como 261 (no se degrada al monto CMF aparte). Sin esto:
+   doble conteo (fila 90+d al monto CMF + id261 en una fila al-día). Testigo: Santander consumo de
+   Cristian (CMF $6.891.901 / payoff $6.985.718) → 10/10.
+2. **Dedup NO-CMF↔id261**: un `additionalCreditor` que DUPLICA un `identified261` ya declarado del
+   MISMO banco (misma institución vía `looseKey`, monto ≤10% o casi idéntico) se descarta. El LLM
+   emite el mismo producto en 2 listas. Testigo: Itaú $9.511.066 (id261 + NO-CMF) de Miguel.
+   ⚠️ **DOS guardas imprescindibles**: (a) exigir misma institución por `institucion_cmf` (no por el
+   grupo, que se une también por `bank`) — sin ella, CMR $2.296.733 se descartaba como "dup" de
+   Banco Falabella $2.988.488 (**Banco Falabella≠CMR**, regla de oro del catálogo); (b) tolerancia
+   ESTRECHA (≤10%) — a 30% descartaba BancoEstado $553.350 como dup de $389.848 (préstamos DISTINTOS).
+3. **`looseKey` ignora el sufijo país " chile"** ("BANCO ITAU" vs "Banco Itaú Chile") pero NO
+   "de chile" (Banco de Chile) — `canonicalInstitutionKey(s).replace(/(?<!\bde)\s+chile$/, '')`. Sin
+   esto el additional "BANCO ITAU" no agrupaba con los id261 "Banco Itaú Chile" → el dedup no veía el
+   duplicado.
+4. **Multiproducto-261 estrechado**: un banco es multiproducto-261 solo si sus id261 SUPERAN el pool de
+   filas CMF reclamables (al-día MÁS 90+d-sin-override), no solo al-día. Con el reclamo de 90+d (fix 1),
+   el loop principal ya declara bien esos bancos; el disparo viejo (id261 > al-día) marcaba Itaú de
+   Miguel como multiproducto y se COMÍA su línea al-día $500.000. Alfonso (id261 = pool) sigue igual.
+Resultado en vivo (cache del Centinela, sin re-llamar al LLM): **Cristian 10/10, Miguel 13/13** exactos
+a la abogada, 0 saltados. ⚠️ **Néctor**: la corrida FRESCA del LLM leyó mal (hipoteca BdCh partida en 2
+≈$142.5M+$144.7M, faltó el consumo BdCh $37.7M, cross-label Banco Falabella↔CMR con la misma Nº op) →
+composición incorrecta pese a contar ~12: es error de LECTURA del LLM en ese run (no de TS; no se
+re-corrió el LLM por instrucción). Los blindajes de TS quedan listos para cuando se re-lea. Pendiente
+de fondo: dedup de `identified261` por Nº de operación entre instituciones (misma op = misma deuda) para
+el cross-label, y evitar que el LLM parta un mismo crédito hipotecario en 2 productos. *(2026-07-01.)*
+· **validada (Cristian/Miguel); Néctor limitado por lectura del LLM**.
+
+### L38 — Hipoteca = UN producto · Certificado GLOBAL · misma Nº op = una deuda ⭐ ✅
+De la revisión de los documentos REALES de Néctor (leídos directo del PDF), 3 patrones que hacían al LLM
+duplicar/omitir deudas — reglas GENERALES para cualquier cliente con esas deudas:
+- **Crédito hipotecario/vivienda = UN solo producto.** El cert hipotecario trae varias cifras del MISMO
+  crédito: "Saldo del Crédito (UF)", "Valor del Dividendo (UF)", "Costo Total del Prepago (UF)". Son la
+  misma casa. Declarar UNA vez, al **payoff** (Costo Total del Prepago; si no, el Saldo). Testigo: Néctor,
+  el LLM emitió Saldo 3.538,959 UF (≈$142,5M) **y** Prepago 3.559,669 UF (≈$144,7M) como 2 productos →
+  hipoteca contada doble. El Dividendo es la cuota mensual, no la deuda.
+- **"Certificado de Deuda GLOBAL"** (solo totales: "Total deudas en PESO $X", "…en UF Y"): es el total del
+  banco, NO un producto. El total **en UF** = el hipotecario; el total **en pesos** = suma de los productos
+  en pesos (consumo+tarjetas+líneas) → sirve para acreditar el monto de un producto del CMF **sin cert
+  propio**, NO se declara como deuda extra. Testigo: Néctor, "Total deudas en peso $37.700.317" de Banco de
+  Chile = el consumo de ~$36M del CMF (`Banco de Chile Consumo $35.977.919`); el LLM no lo reconoció y el
+  robot sub-declaró ~$36M (le pegó por error el cert de la línea de $503.808 a la fila del consumo).
+- **Misma Nº de operación = una sola deuda**, aunque venga en 2 documentos o con 2 nombres de institución.
+  Testigo: Néctor, op `29821865337` apareció como "Banco Falabella $2.988.488" **y** "CMR Falabella
+  $2.988.488" (la MISMA deuda; el archivo del cert de CMR era una **copia** del de Banco Falabella —
+  md5 idéntico → problema de CARGA, no de lectura). El CMR real es otra deuda ($2.296.733, del WhatsApp).
+Blindaje TS determinista (no depende del LLM): (a) **dedup de productos por Nº de operación normalizada**
+cross-institución; (b) **dedup de id261 casi-idénticos del mismo banco** (ambos grandes, ≤3% → misma
+deuda, se queda el payoff) para la hipoteca saldo/prepago. Pendiente aguas arriba: detectar **archivos
+duplicados** (hash de contenido) y reconciliar nombre↔RUT en la carga. *(2026-07-01.)* · **validada**.
+
+**Resolución del consumo sin cert propio (2026-07-01, corrida fresca):** el mecanismo YA existía
+(`banksWithGlobalSummary` en `sentinel_per_doc.ts`: un banco con `doc_type:'resumen_global'` acredita sus
+productos del CMF sin cert propio, AL MONTO DEL CMF por-producto → sin doble conteo). Estaba **bloqueado**
+por dos bugs, ahora corregidos: (1) `pickProductForRow` forzaba un match aunque el monto fuera absurdo
+(ratio >5×) → el cert de la línea ($503.808) se anclaba al consumo ($35.977.919, 70×), tapando el camino
+al resumen global; fix: el fallback rechaza mismatches >5× y devuelve null. (2) La lección decía
+`doc_type="certificado_global"` (typo) en vez del `resumen_global` real del schema → el LLM no tageaba;
+fix aplicado. Además, un producto <1 UF que SOLO viene del resumen global (sin cert propio) NO se declara
+(remanente trivial, ej. la línea del CMF en $13). **Resultado verificado en vivo:** el consumo BdCh de
+Néctor **$35.977.919 se declara** ("monto del CMF, banco con certificado resumen global"); batería 9/9,
+Cristian 10 / Miguel 13 intactos. Queda como problema de DATO (no de lectura ni de TS) la triplicación
+CMR/Banco Falabella por el archivo de CMR duplicado (= copia del cert de Banco Falabella).
+
+---
+
+## Caso Yasmín Silva Switt (18.424.396-2) — 2ª VERDAD-TERRENO REAL de la abogada (2026-07-02)
+
+> 9 acreedores declarados por la abogada (3×260 + 6×261). Análisis hardcodeado (sin API) →
+> `test_yasmin.ts`: el robot declara **9 = abogada** (captura TODAS las deudas). Única divergencia:
+> La Polar (juicio 260 vs 261, defendible). Lecciones GENERALES de la relectura de los PDFs reales:
+
+### L39 — Cert de CCAF (Crédito Social) se identifica por LOGO, no por texto; anclar por Fecha Otorgamiento ⭐ ✅
+El cert "Información de Crédito" de Caja Los Andes **no trae "Caja Los Andes"/CCAF en la capa de texto**
+(está solo en el LOGO/imagen del encabezado). El ÚNICO RUT del texto es "**RUT Empresa**" = el RUT del
+**EMPLEADOR/agente retenedor** (ej. `65.166.786-0`), **NO** el de la CCAF (`81.826.800-9`). → El resolver
+por-RUT-de-texto (`cert_institution_resolver`) **no puede** identificarlo; depende de la lectura NATIVA de
+Claude (lee el logo) o del match determinista por **Fecha de Otorgamiento + monto** contra la fila del CMF.
+Regla general para certs sin nombre en el texto: anclar por `(fecha_otorgamiento, monto)` a la fila CMF.
+Testigo: Yasmín, 2 créditos CCAF cuyas Fechas de Otorgamiento (02/05/2024 y 09/10/2024) coinciden EXACTO
+con las filas CMF; ambos con `Cuotas Morosas 0`/Estado Vigente → correctamente 261. *(validada)*
+
+### L40 — 90+d en el CMF SIN vencimiento acreditable → 261 (1ª confirmación con verdad-terreno) ⭐ ✅
+Primera vez que la declaración REAL de la abogada confirma la regla decisiva **90+d ≠ 260**. Yasmín:
+**Líder BCI** (Serv. Financieros y Adm. Créditos Comerciales, $789.001, cert "deuda total" SIN fecha) y
+**Banco Falabella** ($114.492, "Cartera Vencida / Castigada" SIN fecha) están **90+d en el CMF** pero la
+abogada los declaró en **261** — exactamente como el ensamblador (`push261` cuando la fila 90+d no trae
+venc explícito). Confirma que el flag 90+d del CMF NO basta: sin vencimiento acreditable → 261. *(validada)*
+
+### L41 — "Deuda castigada" NO-CMF: 260 SOLO si el cert trae días de mora/fecha ⭐ ✅
+Dos NO-CMF castigadas, mismo tipo de deuda, distinto desenlace por la FECHA:
+- **Hites** (Inversiones y Tarjetas S.A.): cert con "**Días Mora: 176**" → venc computable (30/06/2026 −
+  176d ≈ 05/01/2026) → **260**. *(el ensamblador da additional 260 por `fecha_mora`≥91d.)*
+- **La Polar** (Inversiones LP S.A.): "MONTO TOTAL DEUDA CASTIGADA $2.364.308" **sin días de mora ni
+  fecha** → **261** (no se puede acreditar venc; poner una fecha inventada viola la regla anti-fabricación).
+  La abogada la puso en 260 con un venc externo (01/12/2025) que el cert NO trae → **divergencia de juicio
+  defendible; la deuda se declara igual**. Regla: castigada ⇏ 260 automático; requiere fecha en el cert.
+
+### L42 — Tarjeta partida en 2 filas CMF por moneda (Nota 3 nacional/extranjera) = UN producto ⭐
+El CMF puede partir UNA tarjeta en 2 filas (moneda nacional + extranjera; misma fecha de otorgamiento —
+Nota 3). El cert (Costo Monetario Prepago) cubre la tarjeta completa → se declara **UNA fila**. La 2ª fila
+CMF sin cert propio la descarta el **Gate I2** (`falta_documento`) — no es deuda perdida (misma tarjeta).
+Testigo: Yasmín, Santander tarjeta CMF $166.143 + $21.759 (otorg. 10/07/2023), cert prepago $202.061 → 1
+fila; la abogada también declaró 1. ⚠️ Genera una alerta de ruido → **mejora futura**: consolidar filas
+CMF tarjeta/línea de misma `fecha_otorgamiento` antes del Gate (evita el `falta_documento` cosmético).
+
+### L43 — Trampas de lectura: nombre de comercio ≠ acreedor; 2 RUTs en un cert ⭐ ✅
+- **Un nombre de comercio en una línea de transacción de un estado de cuenta NO es un acreedor.** En la
+  cartola Santander Visa apareció "HIP **LIDER** INDEPENDENCIA" (una COMPRA en el supermercado Líder) —
+  NO es una tarjeta Líder. No inferir un emisor/acreedor separado de las descripciones de movimientos; el
+  emisor es la marca de la tarjeta ("TARJETA SANTANDER", card XXXX-8653 VISA PLATINUM). *(error propio
+  detectado al releer: había supuesto un "merge Líder+Santander" que no existía.)*
+- **Un cert puede traer 2 RUTs**: el del EMISOR/acreedor y el del DESTINO de pago. Hites → acreedor
+  "Inversiones y Tarjetas S.A." RUT `85.325.100-3`; "Nominativo a nombre de HITES S.A. RUT `81.675.600-6`"
+  es solo el beneficiario del pago. Al resolver por RUT, usar el del **emisor/acreedor**, no el de pago.
+- **Monto del cert manda aunque difiera fuerte del CMF (reneg).** Santander consumo: CMF $1.318.621 vs
+  cert $2.268.481 (RENEG CONS) → manda el cert (más actual). La abogada declaró $2.268.481. (Refuerza G1.)
+
+### L44 — Resolución de catálogo: el `rut_emisor` del LLM GANA sobre nombre/PDF ⭐ ✅ FIX TS (Tier 2)
+Confiar más en el LLM (extiende G3). El LLM ya lee el RUT del emisor por documento (`evidence.rut_emisor`,
+incluso en certs IMAGEN leídos nativo). `fillStep3` NO lo usaba: re-extraía el RUT del PDF con `pdftotext`
+(falla en imagen) y matcheaba por NOMBRE (que suele no estar en `acreedores_canonicos`) → saltaba el
+acreedor. **Fix:** en la resolución institución→catálogo, primero `findCatalogEntryByRut([evidence.rut_emisor])`;
+si matchea, gana sobre nombre/PDF/filename. Aplica al loop de filas CMF (vía `getReclassifiedMatch`/
+`getIdentified261Match`, que llevan `evidence`) y al path NO-CMF (`ac.evidence.rut_emisor`). Solo agrega una
+vía previa: si el RUT no matchea, cae al flujo anterior intacto (no cambia 260/261 ni montos). **Testigo:
+Yasmín — "Servicios Financieros y Adm. de Créditos Comerciales" (nombre no está en el catálogo) resolvió por
+RUT `77085380-K` → "Tarjeta Lider" y pasó de SALTADO a DECLARADO ($789.001); Hites por RUT `85325100-3`.**
+Verificado en vivo (7/9 declarados, antes 6/9); batería 9/9; type-check limpio. (2026-07-02.)
+> Pendiente (NO en este tier): CCAF ×2 aún se salta (Tier 1 `isChatDocument` + Tier 3 desambiguación) y La
+> Polar sale como "ABC S.A."/"Empresas La Polar" (Tier 3: falta la fila "Inversiones LP S.A." en el catálogo).
+> Observación: algunas filas 261 (Tricot/Falabella/Líder) quedan sin doc adjunto ("Acredita: No") pese a que
+> el log dice adjuntado — bug de la fase de adjunción, fuera del Tier 2.
+
+### L45 — Batch "confiar más en el LLM" + fix de adjunción → Yasmín 9/9 en vivo ⭐ ✅ (2026-07-02)
+Lote de cambios GENERALES para achicar la superficie de fallos de TS (el LLM extrae hechos; TS deja de
+re-derivarlos con regex/nombre). Validado con la corrida REAL de Yasmín: **6/9 → 9/9, todas con documento
+adjunto** (montos y entidades correctas). Cambios:
+- **doc_type del LLM manda** (`isChatDocument`/`classifyNonAccreditingDoc` reciben `doc_type`; regex solo
+  fallback y endurecido: un date+time solo no basta, se exige ≥3 timestamps o marcador conversacional). Un
+  **timestamp de generación en el pie** de un cert (ej. CCAF "01-07-2026 13:46:42") ya NO lo marca como chat.
+- **`product_type` emitido por el LLM** (`tarjeta_credito|credito_consumo|linea_credito|hipotecario|otro`):
+  `isRevolvingLine`/`productTypeOf` lo prefieren sobre el regex de la etiqueta (blinda el gate 260/261).
+- **Resolución de catálogo por lo que lee el LLM del cert**: 1º `rut_emisor` (L44), 2º `emisor_nombre` (logo/
+  encabezado) — gana sobre el nombre del CMF (que llega mangleado/truncado). Testigos: Líder BCI
+  `77085380-K`→"Tarjeta Lider"; La Polar `76265724-4`→"Inversiones LP S.A." (fila nueva en el catálogo).
+- **Normalización CCAF determinista en `matchAcreedor`** (red si el LLM no da nombre): mapear el prefijo
+  largo del CMF "Caja de Compensación de Asignación Familiar <X>" (aunque venga TRUNCADO mid-word por el
+  ancho de columna, "…Famili Los Andes") → "ccaf <X>" → calza exacto con "CCAF <X>" del catálogo. General a
+  cualquier caja (Los Andes/Los Héroes/La Araucana). Evita tocar el parser del CMF (compartido, frágil).
+- **Fix de adjunción (isOtros)**: `addedDocs` ahora guarda el `isOtros` FINAL con que se DECLARÓ la fila
+  (post-degradación 90+d→261); la fase de adjunción lo usa en vez de recomputarlo desde `overdue90Days`
+  (que mandaba un producto degradado a 261 a buscar su fila en la tabla 260 → el cert no quedaba). Testigos:
+  Tricot/Falabella/Líder, que pasaron de "Acredita: No" a "Acredita: Sí". (Invariante del CLAUDE.md.)
+- Divergencia de JUICIO restante (no error): Tricot y La Polar quedan en 261 (la abogada 260) porque sus
+  certs no acreditan fecha de vencimiento. Se declaran igual con su monto.
+- Cosmético pendiente: las 2 filas CMF de CCAF (al día) generan una alerta "sin cargar" aunque la CCAF ya
+  quedó declarada vía los certs (NO-CMF) — no hay pérdida ni doble conteo; limpiar la alerta a futuro.
+Verificado: `tsc` limpio, batería 10/10 (+ unit test `test_ischat_doctype.ts`), corrida real 9/9 con docs.
+
+### L46 — Cómo leer un ESTADO DE CUENTA de tarjeta para acreditar MONTO y VENCIMIENTO ⭐ ✅
+Un **estado de cuenta / cartola de tarjeta de crédito** (tienda o banco: Tricot, Ripley, CMR, Líder, Visa…)
+acredita **monto Y vencimiento** — pero hay que saber leerlo. Regla GENERAL:
+
+- **MONTO** = **"Costo Monetario Prepago"** (el payoff para saldar TODA la tarjeta) del estado de cuenta **MÁS
+  RECIENTE**. NO uses "Monto Mínimo a Pagar" ni "Monto Total Facturado a Pagar" (son la cuota del mes), ni la
+  suma de cupos. Si un doc trae varios meses, el prepago del mes más nuevo es el saldo actual.
+- **¿ESTÁ EN MORA?** Señales (cualquiera): **"Cargo Moratorio" / "Costo por Atraso" > $0**, **"Monto Pagado
+  Período Anterior: $0"**, o la columna "VENCIMIENTO PRÓXIMOS MESES → ACTUAL" con casi todo el saldo. Si las
+  hay, la tarjeta está MOROSA (no al día).
+- **VENCIMIENTO (`fecha_mora`)** = el **"Pagar Hasta" del estado de cuenta MÁS ANTIGUO que ya está en mora**
+  (el primero, cronológicamente, con "Cargo Moratorio">0 / "Monto Pagado $0"). Un mismo PDF suele ser un
+  **merge de varios estados de cuenta mensuales** → ordenalos por su fecha y tomá el "Pagar Hasta" del primero
+  en mora. Esa fecha **está impresa** ("Pagar Hasta DD/MM/AAAA") → es un vencimiento ACREDITADO, no inventado.
+- ⚠️ **Leé TODAS las páginas del PDF (nativo).** El dato del vencimiento suele estar en el **mes más antiguo**,
+  que puede venir como **página imagen/escaneo** (sin capa de texto). El monto está en el mes más nuevo; el
+  vencimiento en el más viejo. Si solo miras la primera página perdés el vencimiento.
+
+**Ejemplo REAL (Tricot Visa de Yasmín — el doc es un merge de 5 estados de cuenta mensuales):**
+| Estado de cuenta | "Pagar Hasta" | Cargo Moratorio | Costo Monetario Prepago |
+|---|---|---|---|
+| 21/01–20/02/2026 (más antiguo) | **05/03/2026** | **$967** (1ª mora) | $284.733 |
+| 21/02–20/03/2026 | 05/04/2026 | $2.146 | $304.949 |
+| 21/03–20/04/2026 | 05/05/2026 | $9.275 | $315.994 |
+| 21/04–20/05/2026 | 05/06/2026 | $17.569 | $342.297 |
+| 21/05–20/06/2026 (más reciente) | 05/07/2026 | $26.718 | **$355.163** |
+
+Lectura correcta: **monto = $355.163** (Costo Monetario Prepago del mes más reciente); **fecha_mora =
+2026-03-05** (el "Pagar Hasta" del estado más antiguo en mora, donde aparece el primer "Cargo Moratorio").
+
+### L47 — Documento de COBRANZA: "último pago" / "N días de mora" SÍ acreditan el vencimiento ⭐ ✅
+Un **aviso/mensaje/correo de cobranza** (o un cert que comunica una mora) acredita el **vencimiento** aunque
+no diga "vencido desde DD/MM". Cómo reconocerlo y leerlo:
+- **¿Es cobranza?** Por CONTENIDO (no por filename): el texto trae señales de mora explícitas —
+  **"N días de mora"**, **"deuda castigada"**, **"cartera vencida"**, **"cobranza (judicial/prejudicial)"**,
+  o un **"último pago: DD/MM/AAAA"** junto a esas señales.
+- **Vencimiento (`fecha_mora`)**: en ESE contexto de cobranza, usá la **fecha del "último pago"** como el
+  inicio de la mora (la deuda quedó impaga desde ese pago). Si en vez de fecha hay **"N días de mora"**,
+  calculá `fecha_mora = fecha del documento − N días`. Es una fecha/dato **impreso** → NO es fabricar.
+- ⚠️ **Acotado**: esto aplica SOLO cuando el doc trae esas señales de mora. Un estado de cuenta o cert normal
+  que solo diga "Fecha último Pago" (sin días de mora / castigada / cobranza) **NO** cuenta como venc (la
+  regla general se mantiene: "último pago" ≠ vencimiento).
+- El **monto** de la cobranza es **referencial**: el monto formal lo acredita el certificado del acreedor.
+  (En el TS, un doc de cobranza NO crea una fila nueva; su vencimiento se adjunta a la MISMA deuda —mismo
+  monto— que ya trae el cert formal. Igual que "chat solo acredita vencimiento", extendido a NO-CMF.)
+
+**Ejemplo REAL (Gmail de cobranza de La Polar / ABC — Yasmín):**
+> *"…presenta la siguiente **deuda castigada**… la deuda castigada al día de hoy es de **$2.364.308** y tiene
+> a la fecha **202 días de mora**, su **último pago** se realizó el día **01/12/2025**…"* (de servicio al
+> cliente de ABC, sobre "su caso N°…").
+
+Lectura correcta: es cobranza (dice "deuda castigada" + "202 días de mora" + "último pago"). → producto con
+**monto = 2.364.308** (referencial), **fecha_mora = 2025-12-01** (último pago), cita_fecha = "su último pago
+se realizó el día 01/12/2025". El cert formal de Inversiones LP aporta el monto; este Gmail aporta el venc →
+la deuda queda en **Art. 260** (una sola fila). *(Testigo: la abogada declaró La Polar en 260 con venc
+01/12/2025, leído justo de este correo.)*
+→ productos:[{monto:355163, etiqueta_monto:"Costo Monetario Prepago", moneda:"CLP", **product_type:"tarjeta_credito"**,
+**fecha_mora:"2026-03-05"**, cita_monto:"Costo Monetario Prepago $ 355.163", cita_fecha:"Pagar Hasta 05/03/2026",
+confidence:0.9}]. Con eso el producto tiene monto+venc → **Art. 260** (y coincide con la mora 90+d del CMF:
+del 05/03/2026 a la fecha son >90 días). *(Testigo: en la corrida del 2026-07-02 Claude leyó el PDF NATIVO y
+sacó el monto bien, pero dejó `fecha_mora` vacío por no conocer esta regla → el producto cayó a 261. La
+abogada lo declaró en 260 con venc 05/03/2026, leído justo de esa página.)*

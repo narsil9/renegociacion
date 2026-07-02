@@ -25,8 +25,13 @@ function assemble(facts: DocFacts[], creditors: Row[]) {
 function allRows(raw: any): any[] {
   return [...raw.cmf260DirectOverrides, ...raw.reclassifiedCreditors, ...raw.identified261Creditors, ...raw.additionalCreditors];
 }
-const prod = (monto: number, etiqueta: string, extra: Partial<DocFacts['productos'][number]> = {}) =>
-  ({ monto, etiqueta_monto: etiqueta, moneda: 'CLP' as const, cita_monto: `${etiqueta}: $${monto}`, confidence: 0.95, ...extra });
+const prod = (monto: number, etiqueta: string, extra: Partial<DocFacts['productos'][number]> = {}) => {
+  const p: any = { monto, etiqueta_monto: etiqueta, moneda: 'CLP' as const, cita_monto: `${etiqueta}: $${monto}`, confidence: 0.95, ...extra };
+  // Si el test pone fecha_mora sin cita_fecha, generamos una cita CORROBORANTE (un cert real con
+  // vencimiento SÍ lo cita). Los tests que quieren probar el rechazo pasan una cita_fecha explícita.
+  if (p.fecha_mora && !p.cita_fecha) p.cita_fecha = `Fecha de vencimiento ${p.fecha_mora}`;
+  return p;
+};
 
 let ok = 0, fail = 0;
 function check(name: string, cond: boolean, detail = '') {
@@ -82,6 +87,65 @@ console.log('═══ Ramas del ensamblador ═══');
     [{ institucion: 'Banco Tres', tipoCredito: 'Consumo', totalCredito: 1_000_000, overdue90Days: 0 }]
   );
   check('overflow: 3 productos / 1 fila → 3 entradas', allRows(raw).length === 3, `got ${allRows(raw).length}`);
+}
+
+// 4b. overflow multiproducto 90+d: los productos EXTRA con fecha_mora≥91 → Art.260 override (no 261).
+//     Regla del abogado: 260 si monto Y vencimiento acreditados; el robot declara TODO lo acreditable.
+{
+  const mora = '2025-01-01'; // >91d antes de TODAY
+  const raw = assemble(
+    [{ filename: 'multi90.pdf', institucion_asignada: 'Banco Cuatro', doc_type: 'desglose_por_producto', productos: [
+      prod(5_000_000, 'Saldo', { operacion: 'A', fecha_mora: mora }),
+      prod(3_000_000, 'Saldo', { operacion: 'B', fecha_mora: mora }),
+      prod(2_000_000, 'Saldo', { operacion: 'C', fecha_mora: mora }),
+    ] }],
+    [{ institucion: 'Banco Cuatro', tipoCredito: 'Consumo', totalCredito: 5_000_000, overdue90Days: 5_000_000 }]
+  );
+  check('overflow 90+d: 3 productos con fecha_mora → 3 overrides Art.260', raw.cmf260DirectOverrides.length === 3, `got ${raw.cmf260DirectOverrides.length}`);
+  check('overflow 90+d: los overrides llevan fecha_vencimiento', raw.cmf260DirectOverrides.every((o: any) => o.fecha_vencimiento === mora));
+  // Consumo 90+d SIN fecha de vencimiento explícita → TODO a Art. 261 (regla del abogado 2026-07-01:
+  // 260 solo con vencimiento explícito acreditado). Antes se creaba un override 260 con fecha vacía
+  // que un gate degradaba; ahora el ensamblador lo rutea directo a 261 (más limpio, no se pierde).
+  const raw2 = assemble(
+    [{ filename: 'multi.pdf', institucion_asignada: 'Banco Cinco', doc_type: 'desglose_por_producto', productos: [prod(5_000_000, 'S', { operacion: 'A' }), prod(3_000_000, 'S', { operacion: 'B' })] }],
+    [{ institucion: 'Banco Cinco', tipoCredito: 'Consumo', totalCredito: 5_000_000, overdue90Days: 5_000_000 }]
+  );
+  check('consumo 90+d SIN venc explícito → todo a 261 (no override 260 con fecha vacía)', raw2.identified261Creditors.length === 2 && raw2.cmf260DirectOverrides.length === 0, `ovr=${raw2.cmf260DirectOverrides.length} id261=${raw2.identified261Creditors.length}`);
+}
+
+// 4c. Línea de crédito / cta cte / sobregiro → SIEMPRE 261, aunque el CMF marque 90+d y el cert traiga fecha.
+{
+  const mora = '2025-01-01';
+  const raw = assemble(
+    [{ filename: 'linea.pdf', institucion_asignada: 'Banco Seis', doc_type: 'desglose_por_producto', productos: [prod(4_000_000, 'Saldo', { operacion: 'L', fecha_mora: mora })] }],
+    [{ institucion: 'Banco Seis', tipoCredito: 'Linea de Crédito', totalCredito: 4_000_000, overdue90Days: 4_000_000 }]
+  );
+  check('línea 90+d CON fecha → 261 (nunca 260)', raw.cmf260DirectOverrides.length === 0 && raw.identified261Creditors.length === 1, `ovr=${raw.cmf260DirectOverrides.length} id261=${raw.identified261Creditors.length}`);
+}
+
+// 4d. Capa 2 anti-fabricación: fecha_mora que la CITA no corrobora como vencimiento → 261 + _fechaNoAcreditada.
+{
+  // (a) cita = "Fecha último Pago" → NO corrobora → 261
+  const rawA = assemble(
+    [{ filename: 'a.pdf', institucion_asignada: 'Banco Siete', doc_type: 'desglose_por_producto', productos: [prod(6_000_000, 'Saldo', { operacion: 'A', fecha_mora: '2026-05-02', cita_fecha: 'Fecha último Pago 05-02-2026' })] }],
+    [{ institucion: 'Banco Siete', tipoCredito: 'Consumo', totalCredito: 6_000_000, overdue90Days: 6_000_000 }]
+  );
+  check('consumo 90+d con fecha de ÚLTIMO PAGO (no venc) → 261', rawA.cmf260DirectOverrides.length === 0 && rawA.identified261Creditors.length === 1, `ovr=${rawA.cmf260DirectOverrides.length} id261=${rawA.identified261Creditors.length}`);
+  check('  → emite _fechaNoAcreditada', ((rawA as any)._fechaNoAcreditada ?? []).length === 1);
+
+  // (b) cita = "4 cuotas impagadas" (sin fecha) → NO corrobora → 261
+  const rawB = assemble(
+    [{ filename: 'b.pdf', institucion_asignada: 'Banco Ocho', doc_type: 'desglose_por_producto', productos: [prod(6_000_000, 'Saldo', { operacion: 'B', fecha_mora: '2026-06-17', cita_fecha: 'Morosidad cobranza; 4 cuotas impagadas' })] }],
+    [{ institucion: 'Banco Ocho', tipoCredito: 'Consumo', totalCredito: 6_000_000, overdue90Days: 6_000_000 }]
+  );
+  check('consumo 90+d con "N cuotas impagadas" (sin fecha) → 261', rawB.cmf260DirectOverrides.length === 0 && rawB.identified261Creditors.length === 1, `ovr=${rawB.cmf260DirectOverrides.length} id261=${rawB.identified261Creditors.length}`);
+
+  // (c) control: cita = "Fecha de vencimiento 5 marzo 2026" → SÍ corrobora → 260
+  const rawC = assemble(
+    [{ filename: 'c.pdf', institucion_asignada: 'Banco Nueve', doc_type: 'desglose_por_producto', productos: [prod(6_000_000, 'Saldo', { operacion: 'C', fecha_mora: '2026-03-05', cita_fecha: 'Fecha de vencimiento 5 marzo 2026' })] }],
+    [{ institucion: 'Banco Nueve', tipoCredito: 'Consumo', totalCredito: 6_000_000, overdue90Days: 6_000_000 }]
+  );
+  check('consumo 90+d con fecha de VENCIMIENTO corroborada → 260', rawC.cmf260DirectOverrides.length === 1 && ((rawC as any)._fechaNoAcreditada ?? []).length === 0, `ovr=${rawC.cmf260DirectOverrides.length}`);
 }
 
 // 5a. gate ensamblador: CMF overdue>0 + fecha_mora → override CON fecha

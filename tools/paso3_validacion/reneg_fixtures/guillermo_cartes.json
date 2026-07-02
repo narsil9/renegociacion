@@ -1,0 +1,267 @@
+{
+  "case": "guillermo_cartes",
+  "rut": "13.676.324-5",
+  "cmf_cut_date": "2026-02-28",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 14901893,
+      "overdue90Days": 9010318
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "EEDD (3)_rotated.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "SOCOFIN / Banco de Chile",
+      "productos": [
+        {
+          "operacion": "92430",
+          "monto": 391085,
+          "etiqueta_monto": "Total, deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-16",
+          "cita_monto": "92430 670 $ 16-10-2025 350.000 9.585 31.500 391.085",
+          "cita_fecha": "Fecha de vencimiento 16-10-2025",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "77974",
+          "monto": 58805,
+          "etiqueta_monto": "Total, deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-28",
+          "cita_monto": "77974 9225 $ 28-10-2025 57.950 855 0 58.805",
+          "cita_fecha": "Fecha de vencimiento 28-10-2025",
+          "confidence": 0.88
+        },
+        {
+          "operacion": "08903",
+          "monto": 6349764,
+          "etiqueta_monto": "Total, deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-05",
+          "cita_monto": "08903 9250 $ 05-08-2025 6.265.299 33.525 50.940 6.349.764",
+          "cita_fecha": "Fecha de vencimiento 05-08-2025",
+          "confidence": 0.92
+        },
+        {
+          "operacion": "00397",
+          "monto": 3255669,
+          "etiqueta_monto": "Total, deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-13",
+          "cita_monto": "00397 9278 $ 13-08-2025 3.042.965 50.057 162.647 3.255.669",
+          "cita_fecha": "Fecha de vencimiento 13-08-2025",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "01058",
+          "monto": 5199911,
+          "etiqueta_monto": "Total, deuda prejudicial (en pesos)",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-07",
+          "cita_monto": "01058 9278 $ 07-08-2025 4.862.685 119.987 217.239 5.199.911",
+          "cita_fecha": "Fecha de vencimiento 07-08-2025",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "8903 Certificado deuda Credito.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "495136763245008903",
+          "monto": 6433937,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Total de Prepago 6.433.937",
+          "cita_fecha": "Numero Cuota 16/60; Numero de Cuotas Vencidas no Pagadas 3",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "7570  07.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "TC Visa *0000 7570 (Op. 00397)",
+          "monto": 2884259,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 2.884.259",
+          "cita_fecha": "PAGAR HASTA 13/08/2025",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "9458 07.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "TC Visa *0057 9458 (Op. 01058)",
+          "monto": 4531020,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 4.531.020",
+          "cita_fecha": "PAGAR HASTA 07/08/2025",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "13676324-5_Certificado_CajaLosAndes20130_(64)_20260204_2303.PDF",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Caja de Compensacion de Asignacion Familiar de Los Andes",
+      "productos": [
+        {
+          "operacion": "139CON103940091",
+          "monto": 9279970,
+          "etiqueta_monto": "Saldo Total Diario a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "04-03-2026 9.117.058 162.912 22.027 0 0 0 9.279.970",
+          "cita_fecha": "credito otorgado el 13 de Noviembre de 2024",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "13676324-5_Certificado_CajaLosAndes_20130_(65)_20260204_2303.PDF",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Caja de Compensacion de Asignacion Familiar de Los Andes",
+      "productos": [
+        {
+          "operacion": "008CON104192870",
+          "monto": 803592,
+          "etiqueta_monto": "Saldo Total Diario a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "04-03-2026 786.604 16.988 2.399 0 0 0 803.592",
+          "cita_fecha": "credito otorgado el 25 de Abril de 2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "13676324-5_CrediNissan_informe_otorgamiento_cliente_3249188_20260309_1053.pdf",
+      "institucion_asignada": "Tanner (CrediNissan)",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Tanner Financial Services",
+      "productos": [
+        {
+          "operacion": "3249188",
+          "monto": 9557093,
+          "etiqueta_monto": "Saldo Insoluto",
+          "moneda": "CLP",
+          "fecha_mora": "2026-02-01",
+          "cita_monto": "Saldo Insoluto : $9.557.093",
+          "cita_fecha": "13 01-02-2026 $328.474 vencida; Dias Maximo Mora: 32",
+          "confidence": 0.85
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 391085,
+      "art": 260,
+      "cmf": true,
+      "doc": "EEDD (3)_rotated.pdf",
+      "nota": "CMF overdue90>0 (banco 90+d). Op 92430 credito consumo. SOCOFIN acredita monto payoff $391.085 + vencimiento 16-10-2025 -> Art.260. Producto 1 de 5 (CMF consolida en 1 fila Consumo $14.901.893)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 58805,
+      "art": 260,
+      "cmf": true,
+      "doc": "EEDD (3)_rotated.pdf",
+      "nota": "Op 77974. SOCOFIN payoff $58.805 + vencimiento 28-10-2025 -> Art.260. Monto > 1 UF (~$40.661) por lo que se declara. Producto 2 de 5."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 6349764,
+      "art": 260,
+      "cmf": true,
+      "doc": "EEDD (3)_rotated.pdf",
+      "nota": "Op 08903 = credito consumo 495136763245008903. SOCOFIN payoff $6.349.764 (mas actual/completo que el Costo Total de Prepago $6.433.937 del cert 8903) + vencimiento 05-08-2025 -> Art.260. Producto 3 de 5."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 3255669,
+      "art": 260,
+      "cmf": true,
+      "doc": "EEDD (3)_rotated.pdf",
+      "nota": "Op 00397 = TC Visa *7570. SOCOFIN payoff $3.255.669 (mas actual que COSTO MONETARIO PREPAGO $2.884.259 del EECC 7570 de jul-2025) + vencimiento 13-08-2025 -> Art.260. Producto 4 de 5."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 5199911,
+      "art": 260,
+      "cmf": true,
+      "doc": "EEDD (3)_rotated.pdf",
+      "nota": "Op 01058 = TC Visa *9458. SOCOFIN payoff $5.199.911 (mas actual que COSTO MONETARIO PREPAGO $4.531.020 del EECC 9458 de jul-2025) + vencimiento 07-08-2025 -> Art.260. Producto 5 de 5."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 9279970,
+      "art": 261,
+      "cmf": false,
+      "doc": "13676324-5_Certificado_CajaLosAndes20130_(64)_20260204_2303.PDF",
+      "nota": "NO-CMF (no aparece en CMF 28/02/2026). Credito 139CON103940091 Caja Los Andes. Saldo Total a Pagar $9.279.970. Solo intereses penales menores; sin fecha de mora 90+d clara -> Art.261 (solo monto)."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 803592,
+      "art": 261,
+      "cmf": false,
+      "doc": "13676324-5_Certificado_CajaLosAndes_20130_(65)_20260204_2303.PDF",
+      "nota": "NO-CMF. Credito 008CON104192870 Caja Los Andes. Saldo Total a Pagar $803.592 (> 1 UF, declarable). Sin fecha de mora 90+d clara -> Art.261."
+    },
+    {
+      "institucion": "Tanner (CrediNissan)",
+      "monto": 9557093,
+      "art": 261,
+      "cmf": false,
+      "doc": "13676324-5_CrediNissan_informe_otorgamiento_cliente_3249188_20260309_1053.pdf",
+      "nota": "NO-CMF. Tanner Financial Services N.Credito 3249188 (auto Nissan). Saldo Insoluto $9.557.093. Cuotas 13-14 vencidas desde 01-02-2026, Dias Maximo Mora 32 -> mora < 90 dias -> Art.261 (solo monto)."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "Hay 2 PDFs en CMF/. Se uso el MAS RECIENTE: informe_deudas_13676324-5_20260319.pdf (emitido 19/03/2026, informacion al 28/02/2026, total $14.901.893, overdue90 $9.010.318). El otro (informe-deudas-pdf - 2025-11-27, corte 14/11/2025, total $14.542.575) se descarto por ser mas antiguo. Ambos muestran UNICO acreedor CMF: Banco de Chile Consumo.",
+    "Banco de Chile es MULTIPRODUCTO: el CMF consolida en 1 fila Consumo $14.901.893, pero el SOCOFIN 'Estado de Deuda Directa con Banco de Chile (proyectado)' (archivo EEDD (3)_rotated.pdf, emitido 11-11-2025) lista 5 operaciones directas del titular con su payoff y fecha de vencimiento cada una: 92430 ($391.085/16-10-2025), 77974 ($58.805/28-10-2025), 08903 ($6.349.764/05-08-2025), 00397 (TC 7570 $3.255.669/13-08-2025), 01058 (TC 9458 $5.199.911/07-08-2025). Total SOCOFIN = $15.255.234. Se declara UNA fila por operacion (split multiproducto).",
+    "El SOCOFIN es el documento AUTORITATIVO (payoff consolidado con vencimiento por operacion). Los certs por-producto (8903 credito consumo, EECC 7570, EECC 9458) y las capturas de mora (PNGs 2430/0397/1058/8903) son del MISMO producto -> se deduplican y aportan solo confirmacion de fecha. Se usa el monto del SOCOFIN (mas actual: nov-2025 vs los EECC de jul-2025).",
+    "Las capturas PNG (2430 MORA 16_10, 0397 MORA 13_8, 1058 MORA 7_8, 8903 MORA 05_8) son pantallazos del portal Banco de Chile 'Pagar mi Credito' mostrando la cuota vencida y su Fecha de Vencimiento -> acreditan la FECHA de mora por operacion (16/10, 13/08, 07/08, 05/08 respectivamente), no un producto ni el payoff. No hay captura de mora para op 77974.",
+    "Elegibilidad: Banco de Chile tiene overdue90 $9.010.318 (>0) y 5 operaciones con vencimiento acreditado -> los 5 productos son Art.260. Cumple minimo 2 productos 90+d y suma >> 80 UF (solo Banco de Chile total $14.9M).",
+    "NO-CMF detectados (no en CMF): CCAF Los Andes (2 creditos, certs Ley 20.130) y Tanner/CrediNissan (auto Nissan). Ninguno aparece en el CMF 28/02/2026 -> reconciliacion documentos - CMF.",
+    "CCAF Los Andes: 2 creditos con Saldo Total a Pagar $9.279.970 (139CON103940091) y $803.592 (008CON104192870). Los certs no indican fecha de inicio de mora clara (solo intereses penales menores en la tabla de proyeccion) -> Art.261 (solo monto). Ambos > 1 UF. AMBIGUEDAD: la tabla de payoff lista fechas 04-03 a 17-03-2026 (proyeccion futura, saldo creciente); se uso la fila de la fecha de emision 04-03-2026 (saldo actual mas bajo/realista), NO la ultima fila (17-03) que es proyeccion.",
+    "Tanner/CrediNissan: Saldo Insoluto $9.557.093, cuotas 13 (01-02-2026) y 14 (01-03-2026) vencidas, Dias Maximo Mora 32 -> mora < 90 dias -> Art.261 (solo monto). Es NO-CMF.",
+    "No hay RUT del emisor visible en los certs/EECC de Banco de Chile ni en las capturas (rut_emisor vacio). CCAF Los Andes y Tanner tampoco imprimen su RUT propio (solo el del deudor 13.676.324-5 y el empleador 76.008.032-2).",
+    "Op 77974 SOCOFIN $58.805 > 1 UF (~$40.661) -> declarable. Si se aplicara umbral trivial estricto seguiria por encima."
+  ]
+}

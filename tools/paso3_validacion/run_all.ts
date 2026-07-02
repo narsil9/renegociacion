@@ -22,6 +22,11 @@ const TESTS = [
   'test_backstops_golden.ts',     // golden de applyDeterministicBackstops (refactor Parte A)
   'test_oracle_injection.ts',     // oráculo → agrupación/dedup = declaración de la abogada
   'test_renegociacion_docs.ts',   // 13 casos reales de renegociacion_docs/ (fixtures congelados); guard de regresión
+  'test_step3_classify.ts',       // clasificación PURA de step3 (planStep3Rows): multiproducto 261, anti doble-conteo (Alfonso)
+  'test_step3_casos_reales.ts',   // planStep3Rows sobre Cristian/Miguel/Néctor: conteo + split 260/261 = screenshots abogada
+  'test_dedup_id261.ts',          // dedup id261 por Nº op / hipoteca saldo-prepago (L38); no fusiona deudas distintas
+  'test_ischat_doctype.ts',       // Tier 1: isChatDocument/classifyNonAccreditingDoc confían en doc_type + regex endurecido
+  'test_cobranza_venc.ts',        // L47 + Parte B: cobranza aporta venc a la misma deuda (mismo monto), no duplica
 ];
 
 const results: { test: string; passed: boolean }[] = [];

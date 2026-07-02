@@ -133,6 +133,26 @@ async function run(raw: any, ctx: Partial<{ cmfCreditors: any[]; documents: any[
     check('claudeReadIssues propagado a result.claudeReadIssues', (result.claudeReadIssues?.length ?? 0) === claudeReadIssues.length);
   }
 
+  // ── G5: nets de robustez — sub-división de operación (dedup drop) + monto trivial ──
+  console.log('═══ G5 — sub-división de operación + monto trivial ═══');
+  {
+    const raw = emptyRaw();
+    raw.identified261Creditors = [
+      { bank: 'Banco Tarjeta', product_type: 'tarjeta_credito', institucion_cmf: 'Banco Tarjeta', total_credito_clp: 11_868_871, reason: '', document_filename: 'card.pdf', evidence: { numero_operacion: '800060552341', cita_monto: '$11.868.871', moneda: 'CLP', confidence: 0.9 } },
+      // deuda pequeña REAL (< 1 UF): no se descarta; se declara + alerta monto_trivial (ver L30).
+      { bank: 'TGR', product_type: 'otro', institucion_cmf: 'Tesorería General de la República', total_credito_clp: 18_000, reason: '', document_filename: 'tgr.pdf', evidence: { cita_monto: '$18.000', moneda: 'CLP', confidence: 0.9 } },
+    ];
+    // el ensamblador descartó una sub-línea de la misma operación con monto materialmente distinto
+    (raw as any)._dedupDrops = [{ bank: 'Banco Tarjeta', op: '800060552341', kept: 11_868_871, dropped: 1_847_478, keptFile: 'card.pdf', droppedFile: 'card.pdf' }];
+    const { result, claudeReadIssues } = await run(raw, {});
+    const tipos = new Set(claudeReadIssues.map((i: any) => i.tipo));
+    const declarada = (needle: string) =>
+      [...(result.identified261Creditors ?? []), ...(result.additionalCreditors ?? [])].some((c: any) => (c.institucion_cmf || c.bank || '').includes(needle));
+    check('detecta posible_subdivision_operacion (dedup drop material)', tipos.has('posible_subdivision_operacion'), [...tipos].join(','));
+    check('detecta monto_trivial (deuda < 1 UF)', tipos.has('monto_trivial'), [...tipos].join(','));
+    check('TGR $18.000 NO se descarta (deuda pequeña real sigue declarada)', declarada('Tesorería'));
+  }
+
   // ── G0: raw realista limpio → sin transformación espuria ni issues ──
   console.log('═══ G0 — raw limpio (sin cambios espurios) ═══');
   {

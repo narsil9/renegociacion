@@ -1,0 +1,265 @@
+{
+  "case": "paulina_zapata",
+  "rut": "13.057.652-4",
+  "cmf_cut_date": "2025-10-10",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 11163822,
+      "overdue90Days": 1371605
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 8597340,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 375562,
+      "overdue90Days": 375562
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Documento escaneado.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "resumen_global",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 10615180,
+          "cita": "Total deudas en PESO CHILENO ($CH) 10.615.180,00"
+        }
+      ],
+      "productos": []
+    },
+    {
+      "filename": "WhatsApp Image 2025-10-03 at 2.01.10 PM.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Credito Consumo Nº 53813 (Tipo 9254)",
+          "monto": 12074186,
+          "etiqueta_monto": "Total a pagar en $",
+          "moneda": "CLP",
+          "fecha_mora": "2025-02-26",
+          "cita_monto": "Total a pagar en $ 12.074.186",
+          "cita_fecha": "Fecha de Mora 26-02-2025 (Socofin Estado de Deuda Proyectado, Op 9254 Nº 53813)",
+          "confidence": 0.88
+        }
+      ]
+    },
+    {
+      "filename": "estado de deuda (1)_rotated.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Socofin (Banco de Chile)",
+      "productos": [
+        {
+          "operacion": "CREDITO DE CONSUMO RENEGOCIADO Op 9254 Nº 53813",
+          "monto": 12117059,
+          "etiqueta_monto": "Subtotal Etapa Judicial",
+          "moneda": "CLP",
+          "fecha_mora": "2025-02-26",
+          "cita_monto": "CREDITO DE CONSUMO RENEGOCIADO 9254 53813 ... 12.117.059",
+          "cita_fecha": "Fecha de Mora 26-02-2025, Dias de Mora 289",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "certificado de deuda.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella",
+      "productos": [
+        {
+          "operacion": "Tarjeta Mastercard Elite 00159999108108652910",
+          "monto": 402330,
+          "etiqueta_monto": "Deuda Capital",
+          "moneda": "CLP",
+          "fecha_mora": "2025-04-05",
+          "cita_monto": "Deuda Capital : $ 402.330",
+          "cita_fecha": "Aviso de cobranza (EECC): cuotas atrasadas 05-abril, 05-mayo, 05-junio",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "CMR SEPTIEMBRE.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Banco Falabella",
+      "productos": [
+        {
+          "operacion": "Tarjeta CMR 999910******2910",
+          "monto": 402330,
+          "etiqueta_monto": "Costo Monetario Prepago al 19/09/2025",
+          "moneda": "CLP",
+          "fecha_mora": "2025-04-05",
+          "cita_monto": "Costo Monetario Prepago al 19/09/2025 **** 402.330",
+          "cita_fecha": "AVISO DE COBRANZA: Cancelar cuotas atrasadas del 05-abril de $ 158.291, 05-mayo de $ 160.780, 05-junio de $ 23.156",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Certificado de deuda Santander.pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Santander",
+      "productos": [
+        {
+          "operacion": "Otros prestamos de consumo 001010659686",
+          "monto": 200000,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "001010659686 ... $ 200.000 ... Sdo. Total $ 200.000",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Tarjeta de credito 800058510889 (PESOS)",
+          "monto": 558213,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Tarjetas de credito 800058510889 ... $ 558.213",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Prestamos de consumo 650052422757",
+          "monto": 7760369,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Prestamos de consumo 650052422757 ... $ 7.760.369",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "cajac1.pdf",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Caja Los Andes",
+      "productos": [
+        {
+          "operacion": "Credito 10.010CON104066385-5",
+          "monto": 4248609,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-31",
+          "cita_monto": "Saldo Prepago $ 4.248.609",
+          "cita_fecha": "Cuotas Morosas 2; cuota 20 venc 31/07/2025 Morosa, cuota 21 venc 31/08/2025 Morosa",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "cajac2.pdf",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Caja Los Andes",
+      "productos": [
+        {
+          "operacion": "Credito 10.010CON104298665-5",
+          "monto": 2296260,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-31",
+          "cita_monto": "Saldo Prepago $ 2.296.260",
+          "cita_fecha": "Cuotas Morosas 2; cuota 11 venc 31/07/2025 Morosa, cuota 12 venc 31/08/2025 Morosa",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 12074186,
+      "art": 260,
+      "cmf": true,
+      "doc": "WhatsApp Image 2025-10-03 at 2.01.10 PM.pdf",
+      "nota": "CMF overdue90=$1.371.605. Liquidacion de Deuda 01/10/2025 (Tipo Cred 9254, Nº 53813): Total a pagar $12.074.186 con Capital Vencido $10.004.270 (mora) + fecha mora 26/02/2025 (Socofin) -> Art.260. MISMA operacion que el Socofin (Op 9254 Nº 53813): un solo producto, se toma el payoff de la liquidacion (mas autoritativo/reciente). Las lineas 'VARIOS DEUDOR' $60.000 y $20.000 del Socofin NO son productos (componentes de cobranza consolidada) y NO se declaran."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 402330,
+      "art": 260,
+      "cmf": true,
+      "doc": "certificado de deuda.pdf",
+      "nota": "CMF overdue90=$375.562. Payoff = Costo Monetario Prepago / Monto Total Facturado $402.330 (EECC 19/09/2025). Aviso de cobranza acredita cuotas impagas desde 05/04/2025 -> Art.260 con fecha_mora 2025-04-05. El cert dice 'Vigente - Al dia' pero CMF y el aviso de cobranza del EECC confirman mora. Un solo producto (tarjeta), no las sub-lineas."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 200000,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado de deuda Santander.pdf",
+      "nota": "CMF overdue90=$0. Otros prestamos de consumo Op 001010659686, Sdo Total $200.000. Producto 1 de 3 de Santander (CMF consolida en 1 fila Consumo)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 558213,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado de deuda Santander.pdf",
+      "nota": "CMF overdue90=$0. Tarjeta de credito Op 800058510889 (PESOS), Sdo Total $558.213. Producto 2 de 3. La linea DOLAR $0 se omite."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 7760369,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado de deuda Santander.pdf",
+      "nota": "CMF overdue90=$0. Prestamos de consumo Op 650052422757, Sdo Total $7.760.369. Producto 3 de 3. Suma 3 productos = $8.518.582 vs CMF $8.597.340 (diferencia $78.758, dentro tolerancia). El remanente Op 000068601363 $6.065 es trivial (<1 UF) y NO se declara."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 4248609,
+      "art": 260,
+      "cmf": false,
+      "doc": "cajac1.pdf",
+      "nota": "NO-CMF (Caja Los Andes no figura en el informe CMF). Credito 10.010CON104066385-5, Saldo Prepago $4.248.609, 2 cuotas morosas desde 31/07/2025 (mora >90d) -> Art.260 con fecha_mora 2025-07-31. Confirmado por descuento 'Credito Personal CCAF Los Andes' en las liquidaciones de sueldo."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 2296260,
+      "art": 260,
+      "cmf": false,
+      "doc": "cajac2.pdf",
+      "nota": "NO-CMF. Segundo credito Caja Los Andes 10.010CON104298665-5, Saldo Prepago $2.296.260, 2 cuotas morosas desde 31/07/2025 (mora >90d) -> Art.260 con fecha_mora 2025-07-31."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "Dos CMF en la carpeta: CMF/cmf_13.057.652-4.pdf (corte 10/10/2025, emitido 23/10/2025) y SII/CMF.pdf (corte 31/08/2025). Se usa el mas reciente (10/10/2025).",
+    "ERROR CORREGIDO (re-proceso): del Socofin 'Estado de Deuda Directa Proyectado con Banco de Chile' se habian emitido como productos las lineas 'VARIOS DEUDOR' $60.000 (Op 9212/52190) y $20.000 (Op 9212/53459), y el remanente Santander Op 000068601363 $6.065. NINGUNO es un producto declarable: los 'VARIOS DEUDOR' son componentes de una cobranza extrajudicial consolidada y el $6.065 es un remanente trivial (<1 UF). Se integran/omiten. doc_facts.productos = exactamente lo declarable.",
+    "Banco de Chile: el 'WhatsApp Image...pdf' NO es un chat sino una LIQUIDACION DE DEUDA AL 01-10-2025 (payoff $12.074.186). El 'Documento escaneado.pdf' es una Constancia (resumen_global $10.615.180, sin desglose). El Socofin 05/12/2025 confirma la MISMA operacion 9254/53813 (Etapa Judicial, $12.117.059). Un solo producto Banco de Chile: se declara al payoff de la liquidacion $12.074.186 (mas actual y detallado que la constancia $10.615.180).",
+    "Banco de Chile Art.260: CMF 90+d $1.371.605 + Capital Vencido $10.004.270 en la liquidacion + fecha mora 26/02/2025 (Socofin, 289 dias de mora) acreditan monto y vencimiento.",
+    "CMR Falabella: cert (24/09/2025) rotula 'Vigente - Al dia' PERO el EECC (19/09/2025) trae aviso de cobranza con cuotas impagas 05-abril/05-mayo/05-junio y el CMF marca 90+d $375.562. Se declara Art.260 con payoff $402.330 (Costo Monetario Prepago = Monto Total Facturado) y fecha_mora 05/04/2025. CMR SEPTIEMBRE.pdf y septiembrecmr.pdf son el MISMO estado de cuenta duplicado (mismo producto): un solo producto.",
+    "Santander CMF total $8.597.340 (90+d $0). Cert (cierre 23/09/2025) muestra 3 productos declarables: consumo $7.760.369, TC $558.213, prestamo $200.000 = $8.518.582 (brecha $78.758 vs CMF, ok). Multiproducto -> 1 fila por producto, todas Art.261 (sin mora 90+d en CMF). Remanente Op 000068601363 $6.065 trivial NO declarado; linea DOLAR $0 omitida.",
+    "Caja Los Andes (CCAF) NO aparece en el informe CMF -> 2 creditos NO-CMF Art.260, ambos con 2 cuotas morosas desde 31/07/2025 (>90d). Saldos Prepago $4.248.609 y $2.296.260. Corroborados por el descuento 'Credito Personal CCAF Los Andes' en las liquidaciones de sueldo oct/nov 2025.",
+    "document (9).pdf, document (10).pdf, document (11).pdf son liquidaciones de sueldo (ingresos Paso 5), NO acreditan deuda -> ignorados en el Paso 3.",
+    "Elegibilidad: mora 90+d en CMF -> Banco de Chile ($1.371.605) + CMR Falabella ($375.562) = 2 productos, cumple minimo 2. Ademas 2 NO-CMF Caja Los Andes 90+d. Suma acreditable >> 80 UF."
+  ]
+}

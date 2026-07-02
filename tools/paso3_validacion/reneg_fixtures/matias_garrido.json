@@ -1,0 +1,207 @@
+{
+  "case": "matias_garrido",
+  "rut": "19.089.846-6",
+  "cmf_cut_date": "2025-12-19",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 7951687,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1473183,
+      "overdue90Days": 962782
+    },
+    {
+      "institucion": "INVERSIONES LP",
+      "tipoCredito": "Consumo",
+      "totalCredito": 5116,
+      "overdue90Days": 5116
+    },
+    {
+      "institucion": "Hites Inversiones y Tarjetas S.A.",
+      "tipoCredito": "Consumo",
+      "totalCredito": 43274,
+      "overdue90Days": 43274
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "3514CONSUMO MONTO.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Credito Consumo 923190898466003514",
+          "monto": 6668063,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Total de Prepago 6.668.063",
+          "cita_fecha": "Numero Cuota 41/60; Fecha Proximo Pago 02/01/2026",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "2838 11_25.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "TC Visa XXXX XXX4 0087 2838",
+          "monto": 846349,
+          "etiqueta_monto": "COSTO MONETARIO PREPAGO",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "COSTO MONETARIO PREPAGO $ 846.349",
+          "cita_fecha": "PERIODO FACTURADO 23/10/2025 21/11/2025",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "LC Banco Chile  (1).pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Linea de Credito 01-923-03839-07",
+          "monto": 500000,
+          "etiqueta_monto": "Monto utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Monto utilizado $ 500.000",
+          "cita_fecha": "Saldo al 09/12/2025 11:00 Hrs.",
+          "confidence": 0.82
+        }
+      ]
+    },
+    {
+      "filename": "Certificado de deuda santander (7).pdf",
+      "institucion_asignada": "Santander-Chile",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Santander",
+      "productos": [
+        {
+          "operacion": "Tarjeta de credito 650053347490",
+          "monto": 533690,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Tarjetas de credito 650053347490 ... Sdo. Total $ 533.690",
+          "cita_fecha": "Fecha Otorg/Vencido 10/09/2025",
+          "confidence": 0.85
+        },
+        {
+          "operacion": "Prestamo de consumo 650046387613",
+          "monto": 932027,
+          "etiqueta_monto": "Sdo. Total",
+          "moneda": "CLP",
+          "fecha_mora": "2025-12-05",
+          "cita_monto": "Prestamos de consumo 650046387613 Sdo. Mora $ 502.764 Int.Mora $ 7.637 ... Sdo. Total $ 932.027",
+          "cita_fecha": "Fecha Otorg 01/12/2023 Fecha Venc 05/12/2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO DE DEUDA_19089846.pdf",
+      "institucion_asignada": "Hites Inversiones y Tarjetas S.A.",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "85.325.100-3",
+      "emisor_nombre": "Inversiones y Tarjetas S.A (Hites)",
+      "productos": [
+        {
+          "operacion": "Tarjeta Hites",
+          "monto": 94128,
+          "etiqueta_monto": "Total a pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2024-12-05",
+          "cita_monto": "Total a pagar : $ 94.128",
+          "cita_fecha": "Dias Mora : 370",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "bfe3b974-52d8-4bbf-8223-49f1543fecfc.certificadoDeuda (37).pdf",
+      "institucion_asignada": "INVERSIONES LP",
+      "doc_type": "resumen_global",
+      "rut_emisor": "76.265.724-4",
+      "emisor_nombre": "Inversiones LP S.A.",
+      "productos": []
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 6668063,
+      "art": 261,
+      "cmf": true,
+      "doc": "3514CONSUMO MONTO.pdf",
+      "nota": "CMF overdue90=$0 (BdCh solo 30-59/60-89 dias). Credito Consumo 3514, payoff Costo Total de Prepago $6.668.063. Producto 1 de 3 (CMF consolida BdCh en 1 fila Consumo)."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 846349,
+      "art": 261,
+      "cmf": true,
+      "doc": "2838 11_25.pdf",
+      "nota": "CMF overdue90=$0. TC Visa 2838, payoff COSTO MONETARIO PREPAGO $846.349 (EECC nov-2025). Producto 2 de 3."
+    },
+    {
+      "institucion": "Banco de Chile",
+      "monto": 500000,
+      "art": 261,
+      "cmf": true,
+      "doc": "LC Banco Chile  (1).pdf",
+      "nota": "CMF overdue90=$0. Linea de Credito, captura portal Cupo/Monto utilizado $500.000. Producto 3 de 3. Suma BdCh 3 prods = $8.014.412 vs CMF $7.951.687 (diferencia $62.725, dentro tolerancia)."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 932027,
+      "art": 260,
+      "cmf": true,
+      "doc": "Certificado de deuda santander (7).pdf",
+      "nota": "CMF Santander overdue90=$962.782. Prestamo de consumo 650046387613 concentra la mora (Sdo Mora $502.764 + Sdo Vencido $421.626 = $924.390 ~ 90+d CMF) con Fecha Venc 05/12/2025 -> acredita monto+vencimiento -> Art.260. Payoff Sdo. Total $932.027. Producto 1 de 2."
+    },
+    {
+      "institucion": "Santander-Chile",
+      "monto": 533690,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado de deuda santander (7).pdf",
+      "nota": "CMF overdue90 concentrado en el prestamo. TC 650053347490 Sdo Mora $0 -> sin mora -> Art.261. Payoff Sdo. Total $533.690. Producto 2 de 2. Suma 2 prods = $1.465.717 vs CMF $1.473.183 (diferencia $7.466). Consumo $11.399/$5/$5 triviales <1 UF, NO declarar."
+    },
+    {
+      "institucion": "Hites Inversiones y Tarjetas S.A.",
+      "monto": 94128,
+      "art": 260,
+      "cmf": true,
+      "doc": "CERTIFICADO DE DEUDA_19089846.pdf",
+      "nota": "CMF overdue90=$43.274, 370 dias mora. Cert Hites (Inversiones y Tarjetas S.A. RUT 85.325.100-3) acredita monto $94.128 (Total a pagar = capital $65.838 + int mora $24.424 + gasto cobranza $3.866) + vencimiento (370 dias) -> Art.260. Monto cert > CMF (interes/gastos acumulados)."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "CMF corte 19/12/2025, emitido 02/01/2026. Deuda total $9.473.260, 90+d $1.011.172.",
+    "INVERSIONES LP (La Polar): cert 09/12/2025 'MONTO TOTAL DEUDA CASTIGADA $ 5.116'. CMF tambien la marca $5.116 en 90+d. Es un remanente/castigo trivial < 1 UF (~$40.661) -> NO es producto declarable, NO se emite (corrige el error detectado de emitirla como producto). doc_facts.productos = [] para este cert.",
+    "Banco de Chile: CMF consolida en 1 fila Consumo $7.951.687 con overdue90=$0 (solo 30-59 y 60-89 dias). 3 productos en certs: Credito Consumo 3514 (Costo Total de Prepago $6.668.063) + TC Visa 2838 (Costo Monetario Prepago $846.349) + Linea de Credito ($500.000, captura portal). Multiproducto, todos Art.261. Los EECC 2838 08/09/10/25 son la misma tarjeta de meses anteriores -> se usa el mas reciente (nov-2025); 2838_.pdf es copia del EECC de nov. 3514 MORA 1_10.pdf es captura de la cuota vencida del mismo credito 3514, solo aporta fecha.",
+    "Santander: cert 29/12/2025 (cierre 26/12/2025) lista 5 lineas. Declarables (>1 UF): TC 650053347490 Sdo Total $533.690 (sin mora, Art.261) + Prestamo consumo 650046387613 Sdo Total $932.027 (mora, Fecha Venc 05/12/2025, Art.260). Los 3 consumos $11.399/$5/$5 son triviales <1 UF -> NO declarar. Suma declarable $1.465.717 vs CMF $1.473.183 (diferencia $7.466, excelente match).",
+    "Santander Art.260: la mora ($962.782 en 90+d CMF) se concentra en el prestamo 650046387613 (Sdo Mora $502.764 + Sdo Vencido $421.626). Fecha Venc del cert = 05/12/2025 (solo 14 dias antes del corte) — la mora de 90+d viene del CMF; el cert acredita monto+vencimiento del producto, por lo que se declara 260.",
+    "Hites: cert 10/12/2025 emitido por ADMINISTRADORA PLAZA S.A., acreedor Inversiones y Tarjetas S.A. (Hites) RUT 85.325.100-3. 370 dias mora, Total a pagar $94.128. CMF overdue90=$43.274 (solo capital); el cert incluye interes+gastos -> monto cert $94.128 manda. Art.260 (90+d + vencimiento).",
+    "Elegibilidad: 2 productos 90+d acreditables (Santander prestamo 260 + Hites 260) = cumple minimo 2. Suma totalCredito qualifying = Santander $1.473.183 + Hites $43.274 = $1.516.457 << 80 UF (~$3.253.000). ADVERTENCIA no bloqueante 80 UF (aunque la deuda total declarada = ~$9.47M > 80 UF; el abogado confirma).",
+    "Docs ignorados (no acreditan deuda): DECLARACION JURADA SIMPLE, NO HAY INVERSION BANCO CHILE (captura sin inversiones), WhatsApp Image (imagen suelta), PODER, Contrato de Prestacion de Servicios, Cuadro de Audiencias, SII (Carpeta Tributaria), Ingresos (liquidaciones/cotizaciones), Bienes/Inversiones BANCO ESTADO (captura de inversiones, no deuda)."
+  ]
+}

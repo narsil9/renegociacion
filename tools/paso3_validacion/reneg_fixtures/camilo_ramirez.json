@@ -1,0 +1,297 @@
+{
+  "case": "camilo_ramirez",
+  "rut": "15.936.582-4",
+  "cmf_cut_date": "2025-09-30",
+  "cmf_rows": [
+    {
+      "institucion": "Banco de Chile",
+      "tipoCredito": "Consumo",
+      "totalCredito": 63373796,
+      "overdue90Days": 2991748
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2618339,
+      "overdue90Days": 16800
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 105469295,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Comercial",
+      "totalCredito": 9558555,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Santander-Chile",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 101881116,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 16040,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 12732126,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 14555099,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "informeCredito (5) (1).pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Consumo 538159365824058138",
+          "monto": 64258892,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-10-02",
+          "cita_monto": "Costo Total de Prepago 64.258.892",
+          "cita_fecha": "Fecha Próximo Pago 02/10/2025; Número de Cuotas Vencidas no Pagadas 4",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "Certificado deuda  BancoChile.pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "productos": [
+        {
+          "operacion": "Consumo 538159365824058138",
+          "monto": 63906471,
+          "etiqueta_monto": "Costo Total de Prepago",
+          "moneda": "CLP",
+          "fecha_mora": "2025-09-02",
+          "cita_monto": "Costo Total de Prepago 63.906.471",
+          "cita_fecha": "Fecha Próximo Pago 02/09/2025; Número de Cuotas Vencidas no Pagadas 3",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "WhatsApp Image 2025-09-02 at 6.14.07 PM.jpeg",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "resumen_global",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Chile",
+      "totales_por_moneda": [
+        {
+          "moneda": "CLP",
+          "monto": 60680799,
+          "cita": "Total deudas en PESO CHILENO (CLP) $60.680.799,00 - montos adeudados al día 31 de Julio de 2025"
+        }
+      ],
+      "productos": []
+    },
+    {
+      "filename": "BCI Consumo 2.pdf",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97006000-6",
+      "emisor_nombre": "Banco de Crédito e Inversiones",
+      "productos": [
+        {
+          "operacion": "CRECON D25800041236",
+          "monto": 2506436,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-09",
+          "cita_monto": "CRECON RENEGOCIADO $ CUOTA/TASA FIJA D25800041236 $ 2.506.436",
+          "cita_fecha": "cuota vencida D25800054130 vencimiento 09/06/2025 (pantallazo BCI)",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "WhatsApp Image 2025-09-15 at 10.08.48 AM.jpeg",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Bci",
+      "productos": [
+        {
+          "operacion": "D25800041236",
+          "monto": 2489806,
+          "etiqueta_monto": "Saldo",
+          "moneda": "CLP",
+          "fecha_mora": "2025-07-08",
+          "cita_monto": "D25800041236 REN$CUO/TASF Saldo $ 2.489.806 Vencimiento 08/07/2025",
+          "cita_fecha": "Vencimiento 08/07/2025; cuota vencida D25800054130 09/06/2025",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "BCI Hipotecario.pdf",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "97006000-6",
+      "emisor_nombre": "Banco de Crédito e Inversiones",
+      "productos": [
+        {
+          "operacion": "CREHIP F90002497718",
+          "monto": 107520493,
+          "etiqueta_monto": "Monto total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "CREHIP BciHome Extra F90002497718 $ 107.520.493",
+          "cita_fecha": "",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "certificado- deuda CMR.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella",
+      "productos": [
+        {
+          "operacion": "CMR MasterCard Elite ****9923 / 00155413108103008331",
+          "monto": 10997013,
+          "etiqueta_monto": "Saldo total adeudado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo total adeudado $ 10.997.013",
+          "cita_fecha": "Estado de operación Vigente",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "CMR.jpeg",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella",
+      "productos": [
+        {
+          "operacion": "CMR MasterCard Elite ****9923",
+          "monto": 10308439,
+          "etiqueta_monto": "Cupo utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "CMR Mastercard Elite ....9923 Cupo utilizado $10.308.439",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "FORUM.pdf",
+      "institucion_asignada": "Forum Servicios Financieros",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "96.678.790-2",
+      "emisor_nombre": "FORUM SERVICIOS FINANCIEROS S.A.",
+      "productos": [
+        {
+          "operacion": "COMPRA INTELIGENTE LB494821",
+          "monto": 1783956,
+          "etiqueta_monto": "Deuda total vencida",
+          "moneda": "CLP",
+          "fecha_mora": "2025-08-05",
+          "cita_monto": "Deuda total vencida 1.783.956",
+          "cita_fecha": "Fecha vencimiento 05/08/2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "TEMPO CRÉDITO .jpeg",
+      "institucion_asignada": "Tenpo Payments S.A.",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Tenpo",
+      "productos": [
+        {
+          "operacion": "Tarjeta de crédito ****7435",
+          "monto": 0,
+          "etiqueta_monto": "Utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Utilizado $0 Disponible $50.000 Cupo Total $50.000",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "Banco de Chile",
+      "monto": 64258892,
+      "art": 260,
+      "cmf": true,
+      "doc": "informeCredito (5) (1).pdf",
+      "nota": "CMF Consumo overdue90 $2.991.748 (90+d). Credito consumo 538159365824058138, 4 cuotas vencidas, proximo pago vencido 02/10/2025 -> acredita monto+vencimiento -> Art.260. Payoff = Costo Total de Prepago $64.258.892 del doc mas reciente (15/09/2025), no el Saldo del Credito $77.785.419. Coincide con CMF total $63.373.796."
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 2506436,
+      "art": 260,
+      "cmf": true,
+      "doc": "BCI Consumo 2.pdf",
+      "nota": "CMF Consumo overdue90 $16.800 (90+d, cuota vencida D25800054130 vto 09/06/2025). Certificado de Liquidacion BCI payoff Monto total a Pagar $2.506.436 (op D25800041236). Acredita monto+vencimiento -> Art.260. Coincide con CMF total $2.618.339."
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 107520493,
+      "art": 261,
+      "cmf": true,
+      "doc": "BCI Hipotecario.pdf",
+      "nota": "CMF Vivienda overdue90 $0 -> Art.261. Certificado de Liquidacion BCI payoff $107.520.493 (CREHIP F90002497718). Coincide con CMF total $105.469.295 (dif por intereses de prepago)."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 10997013,
+      "art": 261,
+      "cmf": true,
+      "doc": "certificado- deuda CMR.pdf",
+      "nota": "CMF Consumo overdue90 $0 -> Art.261. Certificado de deuda Banco Falabella: CMR MasterCard Elite ****9923, Saldo total adeudado $10.997.013, estado Vigente. El cert manda sobre CMF ($14.555.099)."
+    },
+    {
+      "institucion": "Forum Servicios Financieros",
+      "monto": 1783956,
+      "art": 260,
+      "cmf": false,
+      "doc": "FORUM.pdf",
+      "nota": "NO-CMF (no aparece en el Informe CMF). Forum Servicios Financieros S.A. RUT 96.678.790-2, COMPRA INTELIGENTE LB494821, Deuda total vencida $1.783.956, fecha vencimiento 05/08/2025 (~90+ dias al corte 30/09) -> acredita monto+vencimiento -> Art.260."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "Hay 2 CMF: CMF/cmf_15.936.582-4.pdf (corte 30/09/2025, emitido 06/10/2025) y SII/CMF.pdf (corte 22/08/2025). Se usa el mas reciente (30/09/2025). OJO: en el CMF de agosto Banco de Chile tenia overdue90 $0; en el de septiembre ya muestra $2.991.748 -> la mora 90+d se consolido entre ambos cortes.",
+    "Banco de Chile: 2 informeCredito del mismo producto (538159365824058138). Se reporta UNA vez desde el mas reciente (15/09/2025): payoff Costo Total de Prepago $64.258.892. La constancia WhatsApp (28/08, montos al 31/07) da 'Total deudas en PESO CHILENO $60.680.799' (resumen global, no payoff por producto) -> solo respalda; no se usa como monto declarado. NO usar 'Saldo del Credito' $77.785.419 (no es payoff).",
+    "BCI Consumo: el pantallazo BCI (15/09) muestra 2 lineas: credito principal D25800041236 (saldo $2.489.806, cuota $57.428, vto 08/07/2025, 23/84) y una cuota vencida D25800054130 $16.800 (vto 09/06/2025) = exactamente el overdue90 del CMF. El Certificado de Liquidacion consolida en 1 payoff $2.506.436 -> se declara UNA vez a ese payoff.",
+    "SANTANDER: los unicos docs son 3 pantallazos de 'Cuotas a pagar' (dividendos hipotecarios **6860 y **2775 en UF, y un Credito de Consumo 1/12), con Estado 'Disponible' y 'Total a pagar $0'. NO certifican un saldo/payoff total, solo montos de cuota mensual. Sin certificado de saldo, NO se declaran Santander Comercial ($9.558.555) ni Santander Vivienda ($101.881.116). BRECHA: faltan certificados de saldo Santander (overdue90 $0 -> serian Art.261). Hay tambien 'Santander _.dng' (RAW) ilegible.",
+    "CAT (ex CENCOSUD) Consumo $12.732.126 (overdue90 $0): el unico archivo en la carpeta CAT es 'IMG_0407.dng' (RAW), ilegible. BRECHA: falta certificado de deuda CAT -> no declarado (seria Art.261).",
+    "Falabella Consumo $16.040 (overdue90 $0): trivial (<1 UF ~ $40.661). Es una linea de credito (cupo utilizado fluctuante ~$356.733 en pantallazos, saldo utilizado $0 en portal). NO se declara.",
+    "TENPO: 'Tenpo Payments S.A.' aparece en CMF solo como linea de credito disponible ($50.000), NO como deuda. Los pantallazos TEMPO CREDITO (utilizado $0) y TEMPO DEBITO (saldo $53.593 = activo) confirman $0 adeudado -> NO se declara.",
+    "ANEXO N2 en UF.pdf (carpeta CMR): es un 'Reconocimiento de deuda de prestamo' con SEGUROS FALABELLA (524,82 UF, descuento por planilla de remuneracion), NO una tarjeta/credito bancario del CMF. Es prestamo de empleador/aseguradora descontado del sueldo -> no es acreedor financiero CMF; requiere criterio del abogado (posible NO-CMF, pero no es institucion financiera y su naturaleza es descuento voluntario). No declarado como acreedor CMF.",
+    "Elegibilidad: >=2 productos con overdue90 en CMF (Banco de Chile $2.991.748 + BCI Consumo $16.800) + NO-CMF Forum con mora -> cumple minimo 2. Suma totalCredito de las lineas 90+d = $63.373.796 + $2.618.339 = $65.992.135 >> 80 UF."
+  ]
+}

@@ -18,6 +18,9 @@ const ETIQUETA: Record<ClaudeReadIssue['tipo'], string> = {
   documento_no_acredita: 'el documento de respaldo no acredita la deuda por sí solo (parece comprobante de pago o cartola) — verificar con un certificado formal',
   moneda_inconsistente: 'posible confusión de moneda entre UF y pesos al leer el monto — verificar el monto contra el documento',
   posible_duplicado: 'el mismo producto (igual nº de operación) aparece más de una vez — verificar que no se declare dos veces',
+  posible_subdivision_operacion: 'la misma operación aparece con montos distintos y se declaró uno solo — si son sub-líneas de una tarjeta/crédito el monto correcto es la SUMA; verificar que no falte deuda',
+  monto_trivial: 'monto menor a 1 UF — puede ser un remanente/comisión trivial (no declarar) o una deuda pequeña real (TGR/CCAF/multa); verificar',
+  fecha_no_acreditada: 'el documento no acredita una fecha de vencimiento (la fecha leída era último pago / emisión / otorgamiento) — se declaró en Art. 261; verificar si corresponde Art. 260',
 };
 
 const clp = (n: number | undefined): string =>

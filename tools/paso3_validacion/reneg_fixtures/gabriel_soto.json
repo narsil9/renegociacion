@@ -1,0 +1,363 @@
+{
+  "case": "gabriel_soto",
+  "rut": "16.248.217-3",
+  "cmf_cut_date": "2025-10-10",
+  "cmf_rows": [
+    {
+      "institucion": "De Credito e Inversiones",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1208081,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "tipoCredito": "Vivienda",
+      "totalCredito": 48626998,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 383449,
+      "overdue90Days": 0
+    },
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 23687764,
+      "overdue90Days": 948041
+    },
+    {
+      "institucion": "CMR Falabella",
+      "tipoCredito": "Consumo",
+      "totalCredito": 2936925,
+      "overdue90Days": 397760
+    },
+    {
+      "institucion": "MATIC KARD (MKSA)",
+      "tipoCredito": "Consumo",
+      "totalCredito": 1138865,
+      "overdue90Days": 0
+    }
+  ],
+  "doc_facts": [
+    {
+      "filename": "Certificado GSA.pdf",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Crédito e Inversiones (Bci)",
+      "productos": [
+        {
+          "operacion": "Crédito Hipotecario cuota 44/360",
+          "monto": 49142284,
+          "etiqueta_monto": "Costo Total del Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Total del Prepago 49.142.284",
+          "cita_fecha": "Número de Dividendos Vencidos no Pagados 0 / Monto Total Atrasado 0",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "filename": "Certificado de deuda BCI.pdf",
+      "institucion_asignada": "De Credito e Inversiones",
+      "doc_type": "otro",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco de Crédito e Inversiones (Bci)",
+      "productos": [],
+      "nota_lectura": "PDF de 14 páginas no leído en detalle (probable cartola/detalle del crédito de consumo BCI). El crédito de consumo BCI del CMF ($1.208.081, 90+d $0) no tiene payoff extraído aquí; ver reading_notes."
+    },
+    {
+      "filename": "Linea de credito banco falabella.pdf",
+      "institucion_asignada": "Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella (portal Mis Productos)",
+      "productos": [
+        {
+          "operacion": "Línea de Crédito 2 750 006178 5",
+          "monto": 355000,
+          "etiqueta_monto": "Saldo utilizado",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Línea de Crédito ... $355.000 Saldo utilizado",
+          "cita_fecha": "",
+          "confidence": 0.8
+        }
+      ]
+    },
+    {
+      "filename": "Simulacion cierre cuenta corriente.pdf",
+      "institucion_asignada": "Falabella",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella",
+      "productos": [
+        {
+          "operacion": "Línea Crédito 02-750-006178-5 (cta cte 01-750-006178-0)",
+          "monto": 378211,
+          "etiqueta_monto": "Saldo liquidación",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Utilizado Línea de Crédito $ 355.000 ... Saldo liquidación $ 378.211",
+          "cita_fecha": "",
+          "confidence": 0.82
+        }
+      ]
+    },
+    {
+      "filename": "Solicitud de prepago Total.pdf",
+      "institucion_asignada": "CAT (ex CENCOSUD)",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "81201000-K",
+      "emisor_nombre": "Tarjeta Cencosud Scotiabank (Cencosud Retail S.A.)",
+      "productos": [
+        {
+          "operacion": "Tarjeta MASTERCARD xxxx xxxx xxxx 1129",
+          "monto": 23633619,
+          "etiqueta_monto": "Total a Pagar",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-15",
+          "cita_monto": "Total a Pagar $23.633.619",
+          "cita_fecha": "Certificado Prepago Deuda Total, Fecha de Solicitud 10/1/2025 (CMF 90+d $948.041)",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "WhatsApp Image 2025-10-02 at 3.44.00 PM (1).pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "Banco Falabella / CMR Falabella",
+      "productos": [
+        {
+          "operacion": "CMR Mastercard Elite ....6108",
+          "monto": 3011030,
+          "etiqueta_monto": "TOTAL VALOR PAGO ANTICIPADO",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-15",
+          "cita_monto": "TOTAL VALOR PAGO ANTICIPADO $ 3.011.030",
+          "cita_fecha": "Certificado de Pago Anticipado 30/09/2025",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Estados de cuenta MORA 15_07.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Falabella (Banco Falabella)",
+      "productos": [
+        {
+          "operacion": "CMR Mastercard Elite *6108 (contrato 087810******3379)",
+          "monto": 3009790,
+          "etiqueta_monto": "Costo Monetario Prepago al 29/09/2025",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-15",
+          "cita_monto": "Costo Monetario Prepago al 29/09/2025 **** 3.009.790",
+          "cita_fecha": "AVISO DE COBRANZA: cuotas atrasadas del 15-junio de $397.760, 15-julio, 15-agosto",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "08_2025.pdf",
+      "institucion_asignada": "CMR Falabella",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "CMR Falabella (Banco Falabella)",
+      "productos": [
+        {
+          "operacion": "CMR Mastercard Elite *6108 (dup, estado al 29/08/2025)",
+          "monto": 2949996,
+          "etiqueta_monto": "Costo Monetario Prepago al 29/08/2025",
+          "moneda": "CLP",
+          "fecha_mora": "2025-06-15",
+          "cita_monto": "Costo Monetario Prepago al 29/08/2025 **** 2.949.996",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "09_2025.pdf",
+      "institucion_asignada": "MATIC KARD (MKSA)",
+      "doc_type": "estado_cuenta",
+      "rut_emisor": "",
+      "emisor_nombre": "sbpay VISA (Matic Kard S.A.)",
+      "productos": [
+        {
+          "operacion": "Tarjeta VISA sbpay XXXX-XXXX-XXXX-4340",
+          "monto": 1164950,
+          "etiqueta_monto": "Costo Monetario Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Costo Monetario Prepago * $ 1.164.950",
+          "cita_fecha": "",
+          "confidence": 0.85
+        }
+      ]
+    },
+    {
+      "filename": "Caja los andes_.pdf",
+      "institucion_asignada": "CCAF Los Andes",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "99554560-8",
+      "emisor_nombre": "Caja de Compensación Los Andes (CCAF)",
+      "productos": [
+        {
+          "operacion": "Crédito 63.063CON103776612-2",
+          "monto": 2207904,
+          "etiqueta_monto": "Saldo Prepago",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Saldo Prepago $ 2.207.904",
+          "cita_fecha": "Estado Vigente / Cuotas Morosas 0",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "filename": "WhatsApp Image 2025-10-07 at 11.19.49 AM (1).pdf",
+      "institucion_asignada": "CCAF Los Héroes",
+      "doc_type": "liquidacion_payoff",
+      "rut_emisor": "",
+      "emisor_nombre": "CCAF Los Héroes (via Comercial CCU S.A.)",
+      "productos": [
+        {
+          "operacion": "Nro Operación 105314963",
+          "monto": 1138071,
+          "etiqueta_monto": "Monto de Prepago (liquidación al 20/10/25, fila más reciente)",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "20/10/25  1,138,071.00",
+          "cita_fecha": "Cuotas en proceso de cobro: 40/49 venc 30/09/2025, 41/49 venc 31/10/2025",
+          "confidence": 0.7
+        }
+      ]
+    },
+    {
+      "filename": "CERTIFICADO DEUDA GABRIEL SOTO.pdf",
+      "institucion_asignada": "Comercial CCU S.A. (empleador)",
+      "doc_type": "desglose_por_producto",
+      "rut_emisor": "",
+      "emisor_nombre": "Comercial CCU S.A.",
+      "productos": [
+        {
+          "operacion": "Préstamo Negociación Colectiva",
+          "monto": 659410,
+          "etiqueta_monto": "10 cuotas pendientes de $65.941, total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Préstamo Negociación Colectiva: 10 cuotas pendientes de $65.941, sumando un total de $659.410",
+          "cita_fecha": "",
+          "confidence": 0.9
+        },
+        {
+          "operacion": "Préstamo Contrato Colectivo",
+          "monto": 1440380,
+          "etiqueta_monto": "20 cuotas pendientes de $72.019, total",
+          "moneda": "CLP",
+          "fecha_mora": null,
+          "cita_monto": "Préstamo Contrato Colectivo: 20 cuotas pendientes de $72.019, sumando un total de $1.440.380",
+          "cita_fecha": "",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "expected_declaration": [
+    {
+      "institucion": "CAT (ex CENCOSUD)",
+      "monto": 23633619,
+      "art": 260,
+      "cmf": true,
+      "doc": "Solicitud de prepago Total.pdf",
+      "nota": "CMF 90+d $948.041 → mora >90d acreditada. Certificado Prepago Deuda Total, tarjeta Mastercard *1129, Total a Pagar $23.633.619 (payoff) + vencimiento (mora sostenida, cuotas atrasadas desde jun-2025). Monto cert $23.633.619 vs CMF total $23.687.764 (dif $54.145, ok)."
+    },
+    {
+      "institucion": "CMR Falabella",
+      "monto": 3011030,
+      "art": 260,
+      "cmf": true,
+      "doc": "WhatsApp Image 2025-10-02 at 3.44.00 PM (1).pdf",
+      "nota": "CMF 90+d $397.760 → mora >90d. Certificado de Pago Anticipado 30/09/2025 (doc más autoritativo), CMR Mastercard Elite *6108, TOTAL VALOR PAGO ANTICIPADO $3.011.030 (payoff). Vencimiento acreditado por AVISO DE COBRANZA (cuotas atrasadas 15-jun/jul/ago 2025). Monto cert $3.011.030 vs CMF total $2.936.925 (dif $74.105, ok). Estados de cuenta (Costo Monetario Prepago $3.009.790 al 29/09 y $2.949.996 al 29/08) son el MISMO producto — no duplicar."
+    },
+    {
+      "institucion": "De Credito e Inversiones",
+      "monto": 49142284,
+      "art": 261,
+      "cmf": true,
+      "doc": "Certificado GSA.pdf",
+      "nota": "CMF Vivienda 90+d $0 → al día. Crédito Hipotecario BCI, Costo Total del Prepago $49.142.284 (payoff). Monto cert $49.142.284 vs CMF Vivienda $48.626.998 (dif ~$515k, dentro tolerancia; el prepago incluye costos/seguros). 0 dividendos vencidos → 261."
+    },
+    {
+      "institucion": "Falabella",
+      "monto": 378211,
+      "art": 261,
+      "cmf": true,
+      "doc": "Simulacion cierre cuenta corriente.pdf",
+      "nota": "CMF Consumo (Banco Falabella) 90+d $0 → al día. Línea de Crédito Banco Falabella, Saldo liquidación $378.211 (payoff de la simulación de cierre). Portal muestra saldo utilizado $355.000. Monto vs CMF $383.449 (dif $5.238, ok). NO confundir con CMR Falabella (fila CMF distinta)."
+    },
+    {
+      "institucion": "MATIC KARD (MKSA)",
+      "monto": 1164950,
+      "art": 261,
+      "cmf": true,
+      "doc": "09_2025.pdf",
+      "nota": "CMF 90+d $0 (60-89d $69.195, no llega a 90+d) → 261. sbpay VISA *4340, Costo Monetario Prepago $1.164.950 (payoff). Monto vs CMF total $1.138.865 (dif $26.085, ok). La línea REPACTACION es componente de la tarjeta, no producto aparte."
+    },
+    {
+      "institucion": "CCAF Los Andes",
+      "monto": 2207904,
+      "art": 261,
+      "cmf": false,
+      "doc": "Caja los andes_.pdf",
+      "nota": "NO-CMF (crédito social, RUT empresa 99.554.560-8). Estado Vigente, Cuotas Morosas 0 → al día → 261. Saldo Prepago $2.207.904 (payoff)."
+    },
+    {
+      "institucion": "CCAF Los Héroes",
+      "monto": 1138071,
+      "art": 261,
+      "cmf": false,
+      "doc": "WhatsApp Image 2025-10-07 at 11.19.49 AM (1).pdf",
+      "nota": "NO-CMF (crédito social Los Héroes, Nro Op. 105314963, vía Comercial CCU). Pronóstico de liquidación, Monto de Prepago al 20/10/25 $1.138.071 (fila más reciente). Cuotas 40/41 en proceso de cobro (venc 30/09 y 31/10/2025) — mora <90d → 261 (monto). confidence 0.7 (escaneo)."
+    },
+    {
+      "institucion": "Comercial CCU S.A. (empleador) — Préstamo Negociación Colectiva",
+      "monto": 659410,
+      "art": 261,
+      "cmf": false,
+      "doc": "CERTIFICADO DEUDA GABRIEL SOTO.pdf",
+      "nota": "NO-CMF (préstamo del empleador CCU). Certificado empleador, 10 cuotas pendientes $65.941 = $659.410. Sin morosidad acreditada → 261. Producto 1 de 2 del certificado."
+    },
+    {
+      "institucion": "Comercial CCU S.A. (empleador) — Préstamo Contrato Colectivo",
+      "monto": 1440380,
+      "art": 261,
+      "cmf": false,
+      "doc": "CERTIFICADO DEUDA GABRIEL SOTO.pdf",
+      "nota": "NO-CMF (préstamo del empleador CCU). Certificado empleador, 20 cuotas pendientes $72.019 = $1.440.380. Sin morosidad acreditada → 261. Producto 2 de 2 (deuda total certificado $2.099.790)."
+    }
+  ],
+  "ground_truth_source": "derivado",
+  "reading_notes": [
+    "Dos CMF en la carpeta: se usó el MÁS RECIENTE — CMF/cmf_16.248.217-3.pdf (corte 10/10/2025, emitido 23/10/2025, deuda total $77.982.082). El de SII/CMF.pdf es más viejo (corte 30/09/2025, $78.852.792). Difieren solo en montos vigentes menores; los 90+d son idénticos ($948.041 CAT, $397.760 CMR).",
+    "MATIC KARD (MKSA) 60-89d $69.195 pero 90+d $0 → no califica como 260 por sí solo; se declara 261. En el CMF viejo (30/09) tenía $69.195 en 30-59d; migró a 60-89d al 10/10 — aún no 90+d.",
+    "Elegibilidad OK: 2 productos con mora 90+d (CAT $948.041 + CMR Falabella $397.760), ambos con cert que acredita monto + vencimiento → 260. Suma totalCredito 90+d = $23.687.764 + $2.936.925 = $26.624.689 >> 80 UF.",
+    "CMR Falabella *6108: aparece en 3 docs (Certificado de Pago Anticipado 30/09 $3.011.030; estado cuenta 'MORA 15_07' Costo Monetario Prepago al 29/09 $3.009.790; estado cuenta 08_2025 al 29/08 $2.949.996). ES UN SOLO PRODUCTO — se declara UNA vez usando el certificado de pago anticipado (más autoritativo, más reciente). Los demás docs solo confirman el monto/fecha de mora.",
+    "El archivo 'WhatsApp Image 2025-10-02...' (carpeta CMR) NO es un chat: es un Certificado de Pago Anticipado de Banco Falabella/CMR — SÍ acredita monto. Clasificado por contenido, no por nombre.",
+    "Los folders 'Banco Falabella' y 'CMR Falabella' contienen el MISMO screenshot del portal (Mis Productos). El portal separa: Línea de Crédito (=fila CMF 'Falabella' Consumo $383.449) y CMR Mastercard *6108 (=fila CMF 'CMR Falabella' $2.936.925). Son 2 filas CMF distintas.",
+    "Cuenta Corriente (-$23.600 / -$11.676) y Cuenta Vista ($231) de Banco Falabella: saldos triviales/negativos, NO se declaran.",
+    "Crédito de Consumo BCI ('De Credito e Inversiones' Consumo $1.208.081, 90+d $0): el 'Certificado de deuda BCI.pdf' tiene 14 páginas y NO se leyó en detalle (probable cartola/detalle). NO se emitió fila de declaración para el consumo BCI por falta de payoff confirmado — posible acreedor faltante/omitido. ⚠️ Revisar: si ese cert acredita el saldo del consumo, debería declararse 261 (~$1.208.081).",
+    "BCI Hipotecario: 'Saldo del Crédito $87.871.587' es el saldo insoluto contable; el PAYOFF real es 'Costo Total del Prepago $49.142.284'. Se usó el payoff (no confundir con el saldo del crédito ni con el monto original).",
+    "CAT prepago: 'Monto Deuda Total $23.520.604' + comisión $113.015 = 'Total a Pagar $23.633.619'. Se usó Total a Pagar (payoff con comisión de prepago).",
+    "Fecha de mora estimada 2025-06-15 para CAT y CMR a partir de los AVISO DE COBRANZA (cuotas atrasadas desde 15-junio-2025); coherente con 90+d al corte CMF 10/10/2025.",
+    "CCU: el certificado del empleador cubre 2 préstamos distintos (Negociación Colectiva + Contrato Colectivo) → 2 filas. Son deuda directa del deudor con su empleador (NO-CMF). Total $2.099.790.",
+    "No hay verdad-terreno del abogado; expected_declaration es derivado de las reglas de lectura + reglas 260/261."
+  ]
+}

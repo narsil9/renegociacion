@@ -388,6 +388,13 @@ export function matchAcreedor(
   // Quitar los tokens de tipo de crédito que el parser del CMF inyecta en el nombre,
   // ANTES de buscar alias/catálogo (sino "Banco del Estado de Chile Consum" nunca matchea).
   let target = stripCreditTypeTokens(normalizeText(cmfName));
+  // Cajas de compensación: el CMF imprime el nombre LARGO ("Caja de Compensación de Asignación
+  // Familiar <X>") y por el ancho de columna a veces lo TRUNCA mid-word ("...Famili Los Andes"),
+  // rompiendo el match exacto y dejándolo ambiguo con otras entradas "<X>" (Universidad/IP Los
+  // Andes). El catálogo las nombra "CCAF <X>". Normalizar ese prefijo largo (aunque venga truncado)
+  // a "ccaf" hace que calce exacto con "CCAF <X>" — GENERAL para cualquier caja (Los Andes, Los
+  // Héroes, La Araucana, 18 de Septiembre, Gabriela Mistral).
+  target = target.replace(/caja de compensacion(?: de asignacion famil\w*)?/, 'ccaf').replace(/\s+/g, ' ').trim();
   if (ALIASES[target]) {
     target = ALIASES[target];
   }

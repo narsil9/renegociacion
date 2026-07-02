@@ -6,6 +6,7 @@ import { ReclassifiedCreditor, AdditionalCreditor, Identified261Creditor, DeRecl
 import {
   fetchAcreedoresCatalog,
   matchAcreedor,
+  MatchResult,
   getRegionValue,
   normalizeRut,
   normalizeText,
@@ -16,7 +17,7 @@ import {
   canonicalInstitutionKey,
 } from '../utils/acreedor_matcher';
 import { extractTextFromPdf } from '../utils/pdf_analyzer';
-import { extractCertLineItems } from '../utils/cert_line_items';
+import { extractCertLineItems, normalizeOperationId } from '../utils/cert_line_items';
 import { extractTextWithOcrFallback } from '../utils/ocr_helper';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -100,6 +101,49 @@ const MAX = { nombre: 70, direccion: 100, email: 100, telefono: 20, monto: 12 };
  * the catalog are skipped and reported for manual review.
  */
 /**
+ * Captura de COMPARACIÓN del Paso 3 (robot vs abogada). Guarda en `outputs/step3_comparacion/`:
+ *   - página completa (`paso3_full_<tag>.png`)
+ *   - tabla Obligaciones 260 (`paso3_260_<tag>.png`)
+ *   - tabla Otros Acreedores 261 (`paso3_261_<tag>.png`)
+ * `<tag>` = RUT (si es legible en la página) + timestamp, para no pisar corridas. Se llama con
+ * TODOS los acreedores ya agregados y ANTES de cualquier limpieza, en DRY_RUN y en producción.
+ * Best-effort: cualquier fallo se loguea y NO interrumpe el Paso 3.
+ */
+export async function captureStep3ForComparison(page: Page, log: (m: string) => void): Promise<void> {
+  try {
+    const dir = path.join(process.cwd(), 'outputs', 'step3_comparacion');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    let rut = '';
+    try {
+      const body = await page.locator('body').innerText({ timeout: 3000 });
+      rut = (body.match(/\b\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]\b/) ?? [''])[0].replace(/\./g, '');
+    } catch { /* best-effort: sin RUT legible → solo timestamp */ }
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const tag = `${rut ? rut + '_' : ''}${stamp}`;
+
+    const full = path.join(dir, `paso3_full_${tag}.png`);
+    await page.screenshot({ path: full, fullPage: true });
+    log(`📸 [comparación] Página completa Paso 3: ${full}`);
+
+    for (const [tableId, label] of [['tablaAcreedores', '260'], ['tablaOtrosAcreedores', '261']] as const) {
+      try {
+        const tbl = page.locator(`#${tableId}`);
+        if ((await tbl.count()) === 0) { log(`   ℹ️ Tabla ${label} no presente en la página.`); continue; }
+        await tbl.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+        const shot = path.join(dir, `paso3_${label}_${tag}.png`);
+        await tbl.screenshot({ path: shot });
+        log(`📸 [comparación] Tabla ${label === '260' ? 'Obligaciones 260' : 'Otros Acreedores 261'}: ${shot}`);
+      } catch (err) {
+        log(`   ⚠️ No se pudo capturar la tabla ${label}: ${(err as Error).message.substring(0, 80)}`);
+      }
+    }
+  } catch (err) {
+    log(`   ⚠️ Captura de comparación Paso 3 falló (no bloqueante): ${(err as Error).message.substring(0, 100)}`);
+  }
+}
+
+/**
  * Borra TODOS los acreedores existentes de ambas tablas del Paso 3 (Obligaciones 260
  * y Otros Acreedores) ANTES de llenar. Hace el llenado IDEMPOTENTE: re-correr la
  * automatización REEMPLAZA en vez de APILAR. NO toca el Informe CMF ni los archivos
@@ -127,6 +171,45 @@ async function clearExistingAcreedores(page: Page, log: (m: string) => void): Pr
   }
   if (removed > 0) log(`🧹 Limpieza idempotente: ${removed} acreedor(es) preexistente(s) eliminado(s) antes de llenar.`);
   else log('🧹 Tabla de acreedores vacía (sin preexistentes) — llenado limpio.');
+}
+
+/**
+ * Dedup determinista de `identified261Creditors` (el LLM a veces emite la MISMA deuda dos veces):
+ *  (a) misma Nº de operación normalizada (cross-institución) — ej. una hipoteca cuyo saldo y prepago
+ *      comparten la op, o un producto que el LLM rotula con 2 nombres de banco (Falabella↔CMR);
+ *  (b) mismo banco (looseKey, ignora sufijo país "chile") + AMBOS montos grandes (≥ ~50 UF) + monto
+ *      casi idéntico (≤3%) — ej. una hipoteca leída como "Saldo" ($142,5M) y "Prepago" ($144,7M).
+ * Se conserva UNO por grupo: mayor confianza y, a igualdad, el monto MAYOR (payoff). Es aditivo y
+ * general (no depende del caso); ver L38. Nunca fusiona deudas distintas (op distinta y monto >3%).
+ */
+export function dedupeIdentified261Products(
+  list: Identified261Creditor[],
+  log: (m: string) => void
+): Identified261Creditor[] {
+  const LARGE = 2_000_000; // ~50 UF: umbral para el criterio de "casi idéntico" del mismo banco
+  const bankKey = (r: Identified261Creditor) =>
+    canonicalInstitutionKey(r.bank || r.institucion_cmf).replace(/(?<!\bde)\s+chile$/, '').trim();
+  const conf = (r: Identified261Creditor) => r.evidence?.confidence ?? 0;
+  const kept: Identified261Creditor[] = [];
+  for (const r of list) {
+    const rop = normalizeOperationId(r.evidence?.numero_operacion ?? null);
+    const rbank = bankKey(r);
+    const idx = kept.findIndex((k) => {
+      const kop = normalizeOperationId(k.evidence?.numero_operacion ?? null);
+      if (rop && kop && rop === kop) return true; // (a) misma operación
+      const rel = Math.abs(k.total_credito_clp - r.total_credito_clp) / Math.max(k.total_credito_clp, r.total_credito_clp, 1);
+      const big = r.total_credito_clp >= LARGE && k.total_credito_clp >= LARGE;
+      return bankKey(k) === rbank && big && rel <= 0.03; // (b) mismo banco, grande, ≤3%
+    });
+    if (idx === -1) { kept.push(r); continue; }
+    const k = kept[idx];
+    // Conservar el mejor: mayor confianza; a igualdad, el monto mayor (payoff del crédito).
+    const rWins = conf(r) > conf(k) || (conf(r) === conf(k) && r.total_credito_clp > k.total_credito_clp);
+    const winner = rWins ? r : k, loser = rWins ? k : r;
+    kept[idx] = winner;
+    log(`🔁 Dedup id261 (misma deuda): "${loser.institucion_cmf}" $${loser.total_credito_clp.toLocaleString('es-CL')} ≡ "${winner.institucion_cmf}" $${winner.total_credito_clp.toLocaleString('es-CL')} — se conserva el payoff/mayor confianza.`);
+  }
+  return kept;
 }
 
 export async function fillStep3(
@@ -339,6 +422,9 @@ export async function fillStep3(
     // asignado el monto del cert MANDA (sin guard del 30%): el Centinela es la fuente de verdad
     // por producto. Las filas del CMF que quedan SIN par (líneas remanentes triviales <1 UF
     // sin documento) se filtran luego en el loop principal (no se pierde ninguna deuda real).
+    // Dedup determinista de la MISMA deuda emitida 2 veces por el LLM (op repetida / hipoteca
+    // saldo+prepago) — antes de armar los grupos, para que todo lo de abajo use la lista limpia.
+    const identified261Deduped = dedupeIdentified261Products(identified261Creditors ?? [], log);
     const id261Assignment = new Map<CmfCreditor, Identified261Creditor>();
     // additionalCreditors que en realidad SON una línea del CMF (no un acreedor extra). El
     // Centinela (LLM) es no-determinista al partir productos entre el CMF y los NO-CMF: puede
@@ -358,25 +444,42 @@ export async function fillStep3(
       // tipo al nombre de la institución ("Tarjet Banco de Chile crédit"). Mirar solo
       // tipoCredito perdía la señal → el dedup no emparejaba las tarjetas.
       const isTarjetaCmf = (c: CmfCreditor) => /tarjet/i.test(c.tipoCredito ?? '') || /tarjet/i.test(c.institucion ?? '');
-      const cmf261 = creditors.filter(c =>
-        (c.overdue90Days === 0 && !isReclassifiedTo260(c)) || isDeReclassifiedTo261(c)
+      // Clave que ignora el sufijo de país " chile" ("Banco Itaú Chile" vs "BANCO ITAU") pero NO
+      // "de chile" (Banco de Chile). Sin esto, un additional emitido como "BANCO ITAU" no agrupa
+      // con las filas/ids del CMF "Banco Itaú Chile" → el dedup no ve el duplicado. Testigo: Itaú
+      // $9.511.066 de Miguel (id261 + NO-CMF, mismo producto).
+      const looseKey = (s: string) => canonicalInstitutionKey(s).replace(/(?<!\bde)\s+chile$/, '').trim();
+      const isAlDia = (c: CmfCreditor) => (c.overdue90Days === 0 && !isReclassifiedTo260(c)) || isDeReclassifiedTo261(c);
+      const cmf261 = creditors.filter(isAlDia);
+      // Una fila 90+d SIN override (el cert no acreditó su venc → su payoff se emitió como
+      // identified261) también es RECLAMABLE por ese id261: es la MISMA deuda. Si no se
+      // incluye en el pool de asignación, el id261 (payoff) se ancla a una fila al-día y la
+      // fila 90+d se declara aparte degradada al monto del CMF → DOBLE CONTEO. Testigo:
+      // Santander consumo de Cristian (CMF $6.891.901 90+d / payoff cert $6.985.718). Se
+      // asignan por cercanía de monto junto a las al-día; la naturaleza revolvente/venc NO
+      // cambia (el payoff no acredita venc → 261). El dedup NO-CMF (paso 2) sigue SOLO sobre
+      // al-día (un NO-CMF 261 no debe colapsar contra una deuda morosa genuina).
+      const claimable90 = creditors.filter(c =>
+        c.overdue90Days > 0 && !isReclassifiedTo260(c) && !isDeReclassifiedTo261(c) && !getCmfOverride(c)
       );
-      const groups = new Map<string, { cmf: CmfCreditor[]; ids: Identified261Creditor[] }>();
-      for (const c of cmf261) {
+      const groups = new Map<string, { cmf: CmfCreditor[]; alDia: Set<CmfCreditor>; ids: Identified261Creditor[] }>();
+      for (const c of [...cmf261, ...claimable90]) {
         const k = canonicalInstitutionKey(c.institucion);
         if (!k) continue;
-        const g = groups.get(k) ?? { cmf: [], ids: [] };
+        const g = groups.get(k) ?? { cmf: [], alDia: new Set<CmfCreditor>(), ids: [] };
         g.cmf.push(c);
+        if (isAlDia(c)) g.alDia.add(c);
         groups.set(k, g);
       }
-      for (const r of identified261Creditors ?? []) {
+      for (const r of identified261Deduped) {
         const k = canonicalInstitutionKey(r.institucion_cmf);
         const g = k ? groups.get(k) : undefined;
         if (g) g.ids.push(r);
       }
-      for (const [key, { cmf, ids }] of groups.entries()) {
+      for (const [key, { cmf, alDia, ids }] of groups.entries()) {
         const free = new Set(cmf);
-        // 1) Override del LLM (identified261): emparejamiento 1:1 por cercanía de monto.
+        // 1) Override del LLM (identified261): emparejamiento 1:1 por cercanía de monto
+        //    (incluye filas 90+d sin override: el id261 es su payoff).
         for (const id of [...ids].sort((a, b) => b.total_credito_clp - a.total_credito_clp)) {
           let best: CmfCreditor | undefined;
           for (const c of free) {
@@ -387,6 +490,8 @@ export async function fillStep3(
             free.delete(best);
           }
         }
+        // El dedup NO-CMF (paso 2) solo puede colapsar contra filas AL DÍA libres.
+        for (const c of [...free]) if (!alDia.has(c)) free.delete(c);
         // 2) Dedup NO-CMF→CMF: un additionalCreditor del mismo banco que empareja con una fila
         //    CMF libre del MISMO tipo y monto cercano (≤30%) ES esa línea del CMF, no un extra.
         // Matchear por banco usando AMBOS nombres: el Centinela suele anteponer el tipo de
@@ -397,9 +502,31 @@ export async function fillStep3(
         // (cmf261). Un NO-CMF Art.260 (mora 90+d, ej. "Varios Deudores" $45.798 de Miguel)
         // es deuda morosa genuina y NO debe colapsarse contra una línea al día.
         const sameBankAdditional = (additionalCreditors ?? [])
-          .filter(a => a.categoria_articulo === 261 && [a.bank, a.institucion_cmf].some(n => canonicalInstitutionKey(n) === key))
+          .filter(a => a.categoria_articulo === 261 && [a.bank, a.institucion_cmf].some(n => looseKey(n) === looseKey(key)))
           .sort((a, b) => b.total_credito_clp - a.total_credito_clp);
         for (const a of sameBankAdditional) {
+          // 2a) Duplicado de un id261 YA declarado del mismo banco: el LLM (no-determinista) emitió
+          //     el MISMO producto en identified261 Y en additionalCreditors (split inconsistente).
+          //     No es un acreedor extra → se descarta (evita el doble conteo). Testigo: Itaú
+          //     $9.511.066 de Miguel (id261 + NO-CMF) y $6.756.287≈id261 $7.263.340. Match por
+          //     monto (≤30% relativo o casi idéntico) contra los id261 del mismo banco.
+          const dupId261 = ids.find((id) => {
+            // EXIGIR misma institución específica por institucion_cmf (no por el grupo, que se une
+            // también por a.bank): "Banco Falabella" ≠ "Promotora CMR Falabella" aunque compartan
+            // el grupo. Sin esto, CMR $2.296.733 se descartaba como "dup" de Banco Falabella
+            // $2.988.488 (23%). Regla de oro del catálogo: Banco Falabella≠CMR, Ripley≠CAR.
+            if (looseKey(id.institucion_cmf) !== looseKey(a.institucion_cmf)) return false;
+            // "Duplicado" = MISMO producto en id261 y additional → monto casi idéntico (mismo cert)
+            // o pequeña brecha cert-vs-CMF (≤10%). NO dos préstamos distintos del mismo banco
+            // (ej. BancoEstado $389.848 vs $553.350 = 30% → deudas separadas, no se descarta).
+            const rel = Math.abs(id.total_credito_clp - a.total_credito_clp) / Math.max(id.total_credito_clp, a.total_credito_clp);
+            return rel <= 0.10 || Math.abs(id.total_credito_clp - a.total_credito_clp) <= 2000;
+          });
+          if (dupId261) {
+            dedupedAdditional.add(a);
+            log(`🔁 Dedup NO-CMF↔id261: ${a.bank} $${a.total_credito_clp.toLocaleString('es-CL')} duplica el id261 $${dupId261.total_credito_clp.toLocaleString('es-CL')} del mismo banco (mismo producto en 2 listas del LLM) — se descarta.`);
+            continue;
+          }
           const wantTarjeta = a.product_type === 'tarjeta_credito';
           let best: CmfCreditor | undefined;
           for (const c of free) {
@@ -505,6 +632,39 @@ export async function fillStep3(
     const isMultiProductOverrideInstitution = (c: CmfCreditor): boolean =>
       multiProductBases.has(normalizeText(c.institucion));
 
+    // Multiproducto 261 (2026-07-01) — ESPEJO del multiproducto-260. Un banco cuyos identified261
+    // (productos del cert, Art.261) SUPERAN sus filas al-día del CMF: el CMF no alcanza para
+    // mapearlos 1:1, y los extra representan también sus filas 90+d. Se declaran TODOS sus id261
+    // como filas 261 (bloque dedicado abajo) y se SALTAN sus filas CMF crudas en el loop principal.
+    // Evita el doble conteo (filas 90+d degradadas a 261 al monto CMF + id261 mal-asignados a las
+    // al-día). Testigo: BCI de Alfonso (5 id261 vs 2 líneas al-día). Lógica idéntica a la de la
+    // función pura testeable `planStep3Rows` (step3_classify.ts).
+    const id261ByBankKey = new Map<string, Identified261Creditor[]>();
+    for (const r of identified261Deduped) {
+      const k = canonicalInstitutionKey(r.institucion_cmf);
+      if (k) id261ByBankKey.set(k, [...(id261ByBankKey.get(k) ?? []), r]);
+    }
+    // Denominador = filas del CMF que un id261 PUEDE reclamar: al-día MÁS 90+d SIN override (su
+    // payoff). Un banco es multiproducto-261 solo si sus id261 SUPERAN ese pool (el cert cubre más
+    // productos que filas CMF). Si NO lo supera, el loop principal + el reclamo de filas 90+d por
+    // id261 lo declara bien (y no pierde una línea al-día con su propio NO-CMF). Antes el
+    // denominador era solo al-día → Itaú de Miguel (2 id261, 1 línea al-día + 2 filas 90+d) se
+    // marcaba multiproducto y se comía la línea $500.000. Alfonso/sintético (id261 = pool) siguen
+    // resolviéndose por el loop principal (mismo resultado).
+    const poolCountByBankKey = new Map<string, number>();
+    for (const c of creditors) {
+      const esOtros = (c.overdue90Days === 0 && !isReclassifiedTo260(c)) || isDeReclassifiedTo261(c);
+      const es90SinOverride = c.overdue90Days > 0 && !isReclassifiedTo260(c) && !isDeReclassifiedTo261(c) && !getCmfOverride(c);
+      if (!esOtros && !es90SinOverride) continue;
+      const k = canonicalInstitutionKey(c.institucion);
+      if (k) poolCountByBankKey.set(k, (poolCountByBankKey.get(k) ?? 0) + 1);
+    }
+    const multiProduct261Bases = new Set(
+      [...id261ByBankKey.entries()].filter(([k, arr]) => arr.length > (poolCountByBankKey.get(k) ?? 0)).map(([k]) => k)
+    );
+    const isMultiProduct261Institution = (c: CmfCreditor): boolean =>
+      multiProduct261Bases.has(canonicalInstitutionKey(c.institucion));
+
     const obligaciones260 = creditors.filter((c) => (c.overdue90Days > 0 || isReclassifiedTo260(c)) && !isDeReclassifiedTo261(c));
     const otrosAcreedores = creditors.filter((c) => (c.overdue90Days === 0 && !isReclassifiedTo260(c)) || isDeReclassifiedTo261(c));
     const total90Days = obligaciones260.reduce((sum, c) => sum + c.totalCredito, 0);
@@ -530,7 +690,10 @@ export async function fillStep3(
     // Creditors with overdue90Days === 0 → Otros Acreedores (#btnAgregarEmpresa2)
     // The portal only enables "Subir Documento" buttons once ALL creditors are
     // present in the table. We add all first, then attach documents separately.
-    const addedDocs: { entry: AcreedorCatalogEntry; creditor: CmfCreditor; nonCmfDocFilename?: string }[] = [];
+    // `isOtros` es el valor FINAL usado al declarar (post-degradación 90+d→261, de-reclasificación,
+    // etc.). Se guarda acá para que la fase de adjunción NO lo recompute desde overdue90Days (que
+    // contradice la declaración y sube el cert a la tabla equivocada — invariante del CLAUDE.md).
+    const addedDocs: { entry: AcreedorCatalogEntry; creditor: CmfCreditor; nonCmfDocFilename?: string; isOtros: boolean }[] = [];
 
     // Extract client's RUT from the CMF to ignore it when scanning certificates
     let clientRutClean: string | null = null;
@@ -569,19 +732,54 @@ export async function fillStep3(
       // flujo normal y entra a Otros Acreedores en vez de perderse).
       const esObligacion260 = (creditor.overdue90Days > 0 || isReclassifiedTo260(creditor)) && !isDeReclassifiedTo261(creditor);
       if (isMultiProductOverrideInstitution(creditor) && esObligacion260) continue;
+      // Multiproducto 261: TODAS las filas CMF del banco se declaran desde sus id261 (bloque
+      // dedicado abajo) → saltar acá para no duplicar (90+d degradadas + id261 mal-asignados).
+      if (isMultiProduct261Institution(creditor)) continue;
 
       let entry: AcreedorCatalogEntry | null = null;
 
-      // 1. Try to detect creditor by certificate RUT first
+      // 0. El RUT del emisor que el LLM ya leyó GANA sobre nombre/PDF (confiar en el LLM).
+      //    Resuelve certs imagen (donde `pdftotext` de detectCreditorRutFromDoc falla) y
+      //    nombres del CMF que no matchean el catálogo pero cuyo RUT sí (ej. "Servicios
+      //    Financieros y Adm. de Créditos Comerciales" 77085380-K → "Tarjeta Lider"). El RUT
+      //    viene en el `evidence` del acreedor emitido por el Centinela (id261/reclass/de-recl).
+      // Solo reclassified/identified261 llevan `evidence` (los de-reclasificados 260→261 son
+      // bancos del CMF que resuelven por nombre sin problema).
+      const llmSrc = getReclassifiedMatch(creditor) ?? getIdentified261Match(creditor);
+      const llmRutEmisor = llmSrc?.evidence?.rut_emisor;
+      if (llmRutEmisor) {
+        const byLlmRut = findCatalogEntryByRut([llmRutEmisor], catalog, clientRutClean);
+        if (byLlmRut) {
+          log(`   ✓ Resuelto por RUT del emisor leído por el LLM: ${byLlmRut.rut} (${byLlmRut.nombre}) [gana sobre nombre/PDF].`);
+          entry = byLlmRut;
+        }
+      }
+
+      // 0b. Si el RUT no resolvió, probar el NOMBRE del emisor que leyó el LLM del cert (logo/
+      //     encabezado). Resuelve cuando el nombre del CMF llega mangleado/truncado pero el LLM
+      //     leyó uno limpio (ej. CCAF: el CMF trunca "…Asignación Famili Los Andes", el cert dice
+      //     "Caja Los Andes"). Confía en la lectura del LLM antes que en el nombre del CMF.
+      if (!entry && llmSrc?.evidence?.emisor_nombre) {
+        const byLlmName = matchAcreedor(llmSrc.evidence.emisor_nombre, catalog);
+        if (byLlmName.status === 'matched' && byLlmName.entry) {
+          log(`   ✓ Resuelto por nombre del emisor leído por el LLM: "${llmSrc.evidence.emisor_nombre}" → "${byLlmName.entry.nombre}".`);
+          entry = byLlmName.entry;
+        }
+      }
+
+      // 1. Try to detect creditor by certificate RUT (re-extracción del PDF) — solo si el RUT
+      //    del LLM no resolvió (fallback para el camino monolítico o RUT no leído).
       const creditorDocs = findAcreditacionDocs(creditor.institucion, docs);
-      for (const doc of creditorDocs) {
-        if (doc?.local_path && fs.existsSync(doc.local_path)) {
-          log(`🔍 Escaneando certificado "${path.basename(doc.local_path)}" para identificar RUT del emisor...`);
-          const docMatchedEntry = await detectCreditorRutFromDoc(doc.local_path, clientRutClean, catalog, log);
-          if (docMatchedEntry) {
-            log(`   ✓ Coincidencia por certificado: RUT ${docMatchedEntry.rut} (${docMatchedEntry.nombre}). Sobrescribiendo match de nombre.`);
-            entry = docMatchedEntry;
-            break;
+      if (!entry) {
+        for (const doc of creditorDocs) {
+          if (doc?.local_path && fs.existsSync(doc.local_path)) {
+            log(`🔍 Escaneando certificado "${path.basename(doc.local_path)}" para identificar RUT del emisor...`);
+            const docMatchedEntry = await detectCreditorRutFromDoc(doc.local_path, clientRutClean, catalog, log);
+            if (docMatchedEntry) {
+              log(`   ✓ Coincidencia por certificado: RUT ${docMatchedEntry.rut} (${docMatchedEntry.nombre}). Sobrescribiendo match de nombre.`);
+              entry = docMatchedEntry;
+              break;
+            }
           }
         }
       }
@@ -623,6 +821,16 @@ export async function fillStep3(
         entry = match.entry!;
       }
       let isOtros = (creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor)) || isDeReclassifiedTo261(creditor);
+
+      // Fila 90+d SIN override 260 propio pero cuyo payoff está en identified261 (misma deuda,
+      // anclada por monto en la asignación de arriba): se declara UNA vez como Art.261 al monto
+      // del cert (el payoff no acredita vencimiento). Sin esto, la fila 90+d se degradaría al
+      // monto del CMF Y su id261 se declararía en una fila al-día → DOBLE CONTEO. Testigo:
+      // Santander consumo de Cristian. (Si trae override 260 con venc, queda 260 y no entra acá.)
+      if (!isOtros && !getCmfOverride(creditor) && !isReclassifiedTo260(creditor) && getIdentified261Match(creditor)) {
+        log(`   ↩️ "${creditor.institucion}" 90+d sin venc acreditable pero con payoff en el cert → Art.261 (una fila, evita doble conteo).`);
+        isOtros = true;
+      }
 
       // Monto y vencimiento "según el documento de acreditación" (más actuales que el CMF):
       // los reclasificados traen sus propios datos; los 260 directos del CMF se
@@ -743,7 +951,7 @@ export async function fillStep3(
           monto: creditorEff.totalCredito,
         });
         log(`✓ Acreedor agregado: ${entry.nombre} ($${creditorEff.totalCredito.toLocaleString('es-CL')}).`);
-        addedDocs.push({ entry, creditor: creditorEff });
+        addedDocs.push({ entry, creditor: creditorEff, isOtros });
       } catch (err) {
         const reason = `Error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
         logError(`✗ Falló agregar "${creditor.institucion}" (${entry.nombre}).`, err);
@@ -842,11 +1050,82 @@ export async function fillStep3(
           );
           report.added.push({ institucion: ov.institucion_cmf, nombreCatalogo: entry.nombre, monto: synth.totalCredito });
           log(`✓ Producto agregado (260): ${entry.nombre} ($${synth.totalCredito.toLocaleString('es-CL')}) venc ${fechaVenc ?? '—'}.`);
-          addedDocs.push({ entry, creditor: synth });
+          addedDocs.push({ entry, creditor: synth, isOtros: false });
         } catch (err) {
           const reason = `Multiproducto: error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
           logError(`✗ Falló agregar producto multiproducto "${ov.institucion_cmf}" (${entry.nombre}).`, err);
           report.skipped.push({ institucion: ov.institucion_cmf, reason, code: 'error_portal' });
+          await dismissOpenModal(page).catch(() => {});
+        }
+      }
+    }
+
+    // --- 4a-pre-261. Instituciones MULTIPRODUCTO 261 (espejo del 260) ---------
+    // Un cert de portabilidad/liquidación cubre N productos del mismo banco que van a Otros
+    // Acreedores (Art.261, sin vencimiento acreditable). Se declara UNA fila por identified261
+    // con su monto de cert. Las filas CMF de estos bancos se saltaron en el loop principal (evita
+    // el doble conteo: 90+d degradadas al monto CMF + id261 mal-asignados). Testigo: BCI de Alfonso.
+    for (const base of multiProduct261Bases) {
+      const ids = id261ByBankKey.get(base) ?? [];
+      if (ids.length === 0) continue;
+      const baseName = (ids[0].institucion_cmf || '').replace(/\s*\(.*$/s, '');
+      let entry: AcreedorCatalogEntry | null = null;
+      const idDocs = findAcreditacionDocs(baseName, docs);
+      for (const doc of idDocs) {
+        if (doc?.local_path && fs.existsSync(doc.local_path)) {
+          const e = await detectCreditorRutFromDoc(doc.local_path, clientRutClean, catalog, log);
+          if (e) { entry = e; break; }
+        }
+      }
+      if (!entry) {
+        let match = matchAcreedor(baseName, catalog);
+        if (match.status !== 'matched') {
+          const resolverName = idDocs.map((d) => d.catalogInstitucion).find(Boolean);
+          if (resolverName) { const m = matchAcreedor(resolverName, catalog); if (m.status === 'matched' && m.entry) match = m; }
+        }
+        if (match.status !== 'matched' || !match.entry) {
+          const reason = `Multiproducto 261: "${baseName}" no resoluble en el catálogo (${match.status}).`;
+          log(`⏭️  Saltando multiproducto 261 "${baseName}": ${reason}`);
+          for (const id of ids) report.skipped.push({ institucion: id.institucion_cmf, reason, code: 'sin_catalogo' });
+          continue;
+        }
+        entry = match.entry;
+      }
+      const isPersonaEntry261 = entry.tipo?.toLowerCase().includes('persona') === true;
+      if (!isPersonaEntry261 && entry.comuna && !getRegionValue(entry.comuna)) {
+        const reason = `Comuna sin mapeo a región: "${entry.comuna}" (no recuperable).`;
+        log(`   ⏭️ "${entry.nombre}" (multiproducto 261) omitido: ${reason}`);
+        for (const id of ids) report.skipped.push({ institucion: id.institucion_cmf, reason, code: 'comuna_sin_region' });
+        continue;
+      }
+      log(`→ Institución MULTIPRODUCTO 261 "${entry.nombre}": ${ids.length} producto(s) → ${ids.length} fila(s) en Otros Acreedores.`);
+      for (const id of ids) {
+        const monto = id.total_credito_clp;
+        if (!monto || monto <= 0) { log(`   ⏭️ Producto 261 "${id.institucion_cmf}" sin monto válido — omitiendo.`); continue; }
+        const label = (id.institucion_cmf || '').toLowerCase();
+        if (/co-?deudor|fiador|aval/.test(label)) { log(`   ⏭️ Producto 261 "${id.institucion_cmf}" indirecto (codeudor/fiador/aval de un tercero) — no se declara.`); continue; }
+        // Nota: NO se filtran <1 UF acá — un id261 viene acreditado por documento (la alerta
+        // monto_trivial del Centinela lo marca si corresponde); no es un remanente CMF pelado.
+        const synth: CmfCreditor = { institucion: id.institucion_cmf, tipoCredito: 'otro', totalCredito: monto, vigente: monto, overdue30to59: 0, overdue60to89: 0, overdue90Days: 0, esIndirecta: false };
+        try {
+          await withRetry(
+            async () => {
+              if (await isCreditorAlreadyInTable(page, synth.totalCredito, true, log)) { log(`   ℹ️ Producto 261 "${id.institucion_cmf}" ($${monto.toLocaleString('es-CL')}) ya existe — omitiendo.`); return; }
+              await ensureOnAcreedoresPage(page, log);
+              await dismissOpenModal(page).catch(() => {});
+              await dismissBlockingDialogs(page, log).catch(() => {});
+              if (isPersonaEntry261) await addPersonaAcreedor(page, entry!, synth, log, true);
+              else await addEmpresaAcreedor(page, entry!, synth, log, true);
+            },
+            { attempts: 3, delayMs: 4000, onRetry: (a, e) => log(`⚠️ Reintento ${a}/2 multiproducto 261 "${entry!.nombre}": ${e.message.substring(0, 120)}`) }
+          );
+          report.added.push({ institucion: id.institucion_cmf, nombreCatalogo: entry.nombre, monto });
+          log(`✓ Producto agregado (261): ${entry.nombre} ($${monto.toLocaleString('es-CL')}).`);
+          addedDocs.push({ entry, creditor: synth, isOtros: true });
+        } catch (err) {
+          const reason = `Multiproducto 261: error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
+          logError(`✗ Falló agregar producto 261 "${id.institucion_cmf}" (${entry.nombre}).`, err);
+          report.skipped.push({ institucion: id.institucion_cmf, reason, code: 'error_portal' });
           await dismissOpenModal(page).catch(() => {});
         }
       }
@@ -864,7 +1143,18 @@ export async function fillStep3(
         // NO-CMF creditors may have null/empty institucion_cmf (not in CMF) — usar `||`
         // (no `??`) para que un string vacío también caiga al bank name.
         const institutionName = ac.institucion_cmf || ac.bank;
-        let match = matchAcreedor(institutionName, catalog);
+
+        // 0. RUT del emisor leído por el LLM primero (confiar en el LLM): gana sobre el nombre
+        //    libre del Centinela (que rara vez matchea el catálogo) y sobre el filename.
+        let match: MatchResult;
+        const acLlmRut = ac.evidence?.rut_emisor;
+        const acByLlmRut = acLlmRut ? findCatalogEntryByRut([acLlmRut], catalog, clientRutClean) : null;
+        if (acByLlmRut) {
+          log(`   ✓ NO-CMF resuelto por RUT del emisor leído por el LLM: ${acByLlmRut.rut} (${acByLlmRut.nombre}).`);
+          match = { status: 'matched', cmfName: institutionName, entry: acByLlmRut };
+        } else {
+          match = matchAcreedor(institutionName, catalog);
+        }
 
         // El Centinela puede devolver un nombre COMPUESTO ("La Polar (Inversiones LP
         // S.A.)") que no matchea el catálogo. Reintentar con el bank y quitando el
@@ -953,7 +1243,7 @@ export async function fillStep3(
             monto: synthCreditor.totalCredito,
           });
           log(`✓ Acreedor NO-CMF agregado: ${entry.nombre} ($${synthCreditor.totalCredito.toLocaleString('es-CL')}).`);
-          addedDocs.push({ entry, creditor: synthCreditor, nonCmfDocFilename: ac.document_filename });
+          addedDocs.push({ entry, creditor: synthCreditor, nonCmfDocFilename: ac.document_filename, isOtros });
         } catch (err) {
           const reason = `NO-CMF: error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
           logError(`✗ Falló agregar acreedor NO-CMF "${ac.bank}" (${entry.nombre}).`, err);
@@ -976,7 +1266,7 @@ export async function fillStep3(
       const reservedNonCmfFilenames = new Set(
         additionalToDeclare.map((a) => a.document_filename).filter(Boolean)
       );
-      for (const { entry, creditor, nonCmfDocFilename } of addedDocs) {
+      for (const { entry, creditor, nonCmfDocFilename, isOtros } of addedDocs) {
         // NO-CMF → matchear el documento exacto por filename.
         // CMF    → matchear por institución, excluyendo los reservados a NO-CMF.
         let creditorDocs: AcreditacionDoc[];
@@ -999,7 +1289,9 @@ export async function fillStep3(
         }
         if (creditorDocs.length === 0) continue;
 
-        const isOtros = (creditor.overdue90Days === 0 && !isReclassifiedTo260(creditor)) || isDeReclassifiedTo261(creditor);
+        // `isOtros` viene del addedDocs (el valor FINAL con que se DECLARÓ la fila, post-degradación
+        // 90+d→261). NO se recomputa desde overdue90Days: hacerlo mandaba un producto degradado a
+        // 261 a buscar su fila en la tabla 260 (equivocada) → el cert no quedaba en la fila 261.
         // Art. 260 → acredita MONTO (22) Y VENCIMIENTO (23): se sube el MISMO documento
         // DOS veces, una por cada tipo (así lo hace el abogado), NO como tipo 24 ni doble monto.
         // Art. 261 → solo MONTO (22).
@@ -1037,6 +1329,10 @@ export async function fillStep3(
     log(`📊 Resumen Paso 3: ${report.added.length} acreedor(es) agregado(s), ${report.skipped.length} saltado(s).`);
     report.skipped.forEach((s) => log(`   ⚠️ ${s.institucion}: ${s.reason}`));
     log('───────────────────────────────────────────');
+
+    // Captura de comparación (robot vs abogada): página completa + tabla 260 + tabla 261, con
+    // TODOS los acreedores ya cargados y ANTES de limpiar. Corre en DRY_RUN y en producción.
+    await captureStep3ForComparison(page, log);
 
     const outputDir = path.join(process.cwd(), 'outputs');
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
