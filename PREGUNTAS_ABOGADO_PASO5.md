@@ -180,3 +180,26 @@ Hay 3 clientes con boletas de honorarios Y liquidaciones de sueldo. La situació
   clienta el certificado **sin contraseña** (o la clave) antes de presentar.
 - **Vigencia 30 días:** revisar que las liquidaciones y el certificado de cotizaciones estén dentro de los
   30 días al momento de presentar (varios certificados del lote son de fechas anteriores).
+
+---
+
+## P9 — Docente/público: ¿base LÍQUIDO o GROSS-ish? + bonos "Única Vez" (Yasmin Silva, RUT 18.424.396-2)
+
+> **1er caso con verdad-terreno REAL que CONTRADICE la regla del líquido** (Alfonso confirmó líquido; Yasmin no).
+> Documentos: `casos_comparacion_abogada-paso5/02 - Yasmin.../` (3 liquidaciones docente + screenshots del portal).
+
+- **Qué declaró la abogada:** Remuneración **$1.035.208** Mensual + 3 bonos como **"Única Vez"**
+  (ley 19410 $102.165, ley 19933 $90.525, Reconoc. Profes. L.20.158 $98.692). Promedio Mensual = $1.035.208.
+- **Los números de la liquidación:** líquido a pago ~$789.602 (prom. 3 meses); imponible ~$1.197.495;
+  Renta Tributable (imponible − previsional) ~$979.790; "Descuento por Crédito" $189.934/mes.
+- **El problema:** su $1.035.208 **no es el líquido** (regla del proyecto) **ni** un valor limpio derivable
+  (queda entre el líquido+crédito $979.536 y el imponible). Y **sacó los bonos proporcionales aparte**
+  como "Única Vez" (no promediados), justificados con la misma liquidación.
+- **Qué hace hoy el robot:** Remuneración = **$789.602** (líquido) + **alerta** el "Descuento por Crédito"
+  (ambiguo → si es redirigible, sube a $979.536). NO separa bonos.
+- **Preguntas concretas:**
+  - **(A)** Para docentes/público (o en general), ¿la base es el **líquido** o un valor **gross-ish**
+    (≈ Renta Tributable / imponible − previsional)? ¿De qué depende?
+  - **(B)** Bonos/asignaciones **proporcionales o no recurrentes** → ¿se declaran como **"Única Vez"**
+    aparte (no promediar) o van dentro del sueldo mensual?
+  - **(C)** "Descuento por Crédito" $189.934 → ¿**redirigible** (sumar de vuelta) o **gasto** (no sumar)?

@@ -426,6 +426,25 @@ ningún doc de ingreso, el flujo completo (step:0) ahora emite una `automation_a
 `needs_review`) para que el abogado cargue el respaldo y declare manual (antes se omitía sin avisar).
 Type-check `tsconfig.build.json` limpio; regresión Paso 5 intacta (132 unit · 5/5 · 11/11 · 28/31).
 
+### L36 — Docente/público: la abogada declara base GROSS-ish + bonos "Única Vez" (contradice a Alfonso) ⚠️ criterio
+**2º caso con verdad-terreno real (Yasmin Silva, docente, 2026-07-02).** Al revés de Alfonso (líquido =
+declarado, exacto), acá la abogada:
+1. **Declaró Remuneración $1.035.208** — por ENCIMA del líquido ($789.602) y del líquido+crédito
+   ($979.536), cerca del imponible−previsional (Renta Tributable ~$979.790) pero ~$56k más. **NO usó
+   "líquido a pagar".**
+2. **Sacó los 3 bonos proporcionales** (ley 19410 $102.165, ley 19933 $90.525, Reconoc. Profes. L.20.158
+   $98.692) como **"Única Vez"** → fuera del promedio mensual, justificados con la misma liquidación
+   resaltada (los 3 PDFs `BONO*` = la liquidación de Mayo con cada bono marcado, NO documentos nuevos).
+3. La liquidación trae **"Descuento por Crédito" $189.934/mes** (redirigible probable).
+
+**El motor hizo lo CORRECTO por nuestras reglas** (Remuneración = promedio líquido $789.602 + alerta del
+"Descuento por Credito" ambiguo → verificar/redirigir). **NO se ajustó el motor** a este caso: cambiar la
+base a gross rompería Alfonso y viola "el líquido manda". Queda como **conflicto de criterio abierto**
+(¿la base gross-ish + bonos Única Vez es propia del sector docente/público o del estilo de esta abogada?).
+→ Preguntas A/B/C en `PREGUNTAS_ABOGADO_PASO5.md` y en el `COMPARACION.md` del caso. Regla operativa hoy:
+el motor declara líquido y **alerta** los bonos/asignaciones no recurrentes y los descuentos ambiguos; el
+abogado decide la base y qué va como "Única Vez".
+
 ## Pendientes / decisiones abiertas (requieren verdad-terreno del abogado)
 
 > Lo mecánico/estructural quedó en L8–L13 (validado por análisis del lote `casos-paso5`). Acá quedan
