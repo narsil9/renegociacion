@@ -1,9 +1,0 @@
-{
-  "name": "Ingrid Urzua Correa",
-  "rut": "15401469-1",
-  "docs": [],
-  "cotizaciones": { "filename": "Certificado_UNO (2).pdf", "fecha_emision": "2025-10-08", "rut_entidad_pagadora": "61808000-5" },
-  "expectedIncomes": [],
-  "expectAlertSubstrings": [],
-  "notes": "Sin documentos de ingreso. La carpeta NO contiene liquidaciones de sueldo, boletas/informe de honorarios, licencia medica, arriendo ni pension. El unico doc previsional es 'Certificado_UNO (2).pdf' = Certificado de Cotizaciones Previsionales de AFP UNO (periodo 10/2024-10/2025, emitido 08/10/2025) -> va en 'cotizaciones', NO es ingreso. El Rut Pagador de las cotizaciones es 61.808.000-5 (mismo empleador que aparece como 'RUT Empresa' en los creditos de Caja Los Andes -> parece ser un empleador publico/municipal). El 'Agente Retenedores.pdf' (SII, 27 pags) es captura de agente retenedor SII -> NO es ingreso. No hay monto de sueldo acreditable en la carpeta -> expectedIncomes vacio."
-}
