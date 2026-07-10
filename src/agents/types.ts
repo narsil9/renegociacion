@@ -121,6 +121,8 @@ export interface IngresosOutput {
   alerts: string[];
   /** Fecha de emisión del cert de cotizaciones (YYYY-MM-DD) y su antigüedad. */
   cotizacionesAgeDays?: number | null;
+  /** Señales anti-error sobre la lectura de Claude (cita/confianza). Informativo. */
+  claudeReadIssues?: import('../utils/income_extractor').IncomeReadIssue[];
 }
 
 // ---------------------------------------------------------------------------

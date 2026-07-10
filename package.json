@@ -9,7 +9,7 @@
     "worker": "ts-node src/worker.ts",
     "automate": "ts-node tools/index.ts",
     "dev": "ts-node tools/index.ts",
-    "test": "echo \"No tests yet\" && exit 0"
+    "test": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\"}' ts-node --transpile-only casos/paso5_pruebas/unit_tests.ts && TS_NODE_COMPILER_OPTIONS='{\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\"}' ts-node --transpile-only casos/paso5_pruebas/run_deterministic.ts && TS_NODE_COMPILER_OPTIONS='{\"module\":\"NodeNext\",\"moduleResolution\":\"NodeNext\"}' ts-node --transpile-only casos/paso5_pruebas/run_renegociacion_docs.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",

@@ -236,12 +236,13 @@ const COTIZACIONES_FILENAME_KEYWORDS = ['cotizacion', 'cotización', 'cotizacion
 async function gatherStep5Input(
   client: any,
   tempDir: string,
-  logger: RunnerLogger
+  logger: RunnerLogger,
+  jobId?: string
 ): Promise<Step5Input | null> {
   try {
     const { data: docs, error } = await supabase
       .from('client_documents')
-      .select('filename, storage_path')
+      .select('filename, storage_path, document_type, acreditacion_tipo, institucion_cmf')
       .eq('client_id', client.id);
     if (error) {
       logger.error('⚠️ [Paso 5] No se pudo leer client_documents:', error.message);
@@ -251,9 +252,35 @@ async function gatherStep5Input(
     const isCotiz = (f: string) => COTIZACIONES_FILENAME_KEYWORDS.some((k) => f.toLowerCase().includes(k));
     const isIncome = (f: string) => INCOME_FILENAME_KEYWORDS.some((k) => f.toLowerCase().includes(k));
 
-    const incomeRows = rows.filter((d: any) => isIncome(d.filename) || isCotiz(d.filename));
+    // Un cert de acreedor (Paso 3) se reconoce por su METADATA, no por el filename: institucion_cmf
+    // poblado, acreditacion_tipo monto/vencimiento, o document_type 22/23. Los docs de ingreso quedan
+    // con la metadata genérica del dashboard (institucion_cmf '', acreditacion_tipo 'general',
+    // document_type 24). Regla GENERAL (L35): candidato a ingreso = TODO lo que NO es cert de acreedor,
+    // para NO depender del nombre del archivo (un 'ilovepdf_merged.pdf' o 'scan1.pdf' se perdía y el
+    // Paso 5 se omitía en silencio). Un cert mal-resuelto (institucion_cmf vacío) que se cuele lo
+    // descarta aguas abajo el LLM (paso "0)" del prompt → category 'otro'); nunca declara un ingreso falso.
+    const isAcreedorCert = (d: any): boolean => {
+      const inst = (d?.institucion_cmf ?? '').toString().trim();
+      const tipo = (d?.acreditacion_tipo ?? '').toString().trim().toLowerCase();
+      const dt = Number(d?.document_type);
+      return inst.length > 0 || tipo === 'monto' || tipo === 'vencimiento' || dt === 22 || dt === 23;
+    };
+
+    const incomeRows = rows.filter((d: any) => isCotiz(d.filename) || isIncome(d.filename) || !isAcreedorCert(d));
     if (incomeRows.length === 0) {
       logger.log('ℹ️ [Paso 5] No se encontraron documentos de ingreso en client_documents — se omite el Paso 5.');
+      if (jobId) {
+        const { error: alertErr } = await supabase.from('automation_alerts').insert({
+          job_id: jobId,
+          client_id: client.id,
+          step: 5,
+          alert_type: 'needs_review',
+          description:
+            'Paso 5 (Ingresos) omitido: el cliente no tiene ningún documento de ingreso cargado ' +
+            '(liquidaciones, pensión, honorarios, etc.). Cargar el respaldo y declarar el ingreso manualmente.',
+        });
+        if (alertErr) logger.error('⚠️ [Paso 5] No se pudo registrar la alerta de omisión:', alertErr.message);
+      }
       return null;
     }
 
@@ -891,7 +918,7 @@ async function processJob(job: any): Promise<void> {
         // Paso 5 (Ingresos): reunir docs de ingreso + correr el agente. Best-effort:
         // si no hay docs de ingreso → null → all_steps omite el Paso 5 (flujo 1→4 igual).
         await reportProgress(job.id, 'Revisando los ingresos del cliente (Paso 5)…');
-        const step5Input = await gatherStep5Input(client, path.join(process.cwd(), 'outputs'), logger);
+        const step5Input = await gatherStep5Input(client, path.join(process.cwd(), 'outputs'), logger, job.id);
 
         step3Report = await fillAllSteps(
           page,
@@ -916,7 +943,7 @@ async function processJob(job: any): Promise<void> {
         logger.log('📝 Navegando e ingresando información de Paso 5 (Ingresos)...');
         await reportProgress(job.id, 'Declarando los ingresos del cliente (Paso 5)…');
 
-        const step5Input = await gatherStep5Input(client, path.join(process.cwd(), 'outputs'), logger);
+        const step5Input = await gatherStep5Input(client, path.join(process.cwd(), 'outputs'), logger, job.id);
         if (!step5Input || (step5Input.incomes.length === 0 && !step5Input.cotizacionesPath)) {
           throw new Error('Paso 5: no se encontraron documentos de ingreso para este cliente.');
         }

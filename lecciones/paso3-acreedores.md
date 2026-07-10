@@ -658,3 +658,97 @@ confidence:0.9}]. Con eso el producto tiene monto+venc → **Art. 260** (y coinc
 del 05/03/2026 a la fecha son >90 días). *(Testigo: en la corrida del 2026-07-02 Claude leyó el PDF NATIVO y
 sacó el monto bien, pero dejó `fecha_mora` vacío por no conocer esta regla → el producto cayó a 261. La
 abogada lo declaró en 260 con venc 05/03/2026, leído justo de esa página.)*
+
+
+---
+
+## Lecciones de LECTURA del lote `casos_constanza_mulchi` (30 casos, 2026-07-01)
+
+> Lectura nativa actuando como el Centinela sobre los PDF de Paso 3 de 30 clientes reales (1 CMF + 10–50
+> certs c/u). Arnés determinista (`assembleRawFromDocFacts → applyDeterministicBackstops`): 11/30 exacto.
+> ⚠️ Sin verdad-terreno del abogado → el resto de las divergencias son **lectura** (estas reglas) o
+> **juicio** (declarar-todo-el-cert vs solo-mora). Estas reglas están ancladas al TEXTO del PDF (válidas
+> sin verdad-terreno). Numeración local `LC-n` para no colisionar con la rama paso-3.
+> **El Paso 3 de este lote lo ejecuta otra sesión (worktree `paso-3`); estas lecciones son mi aporte de lectura.**
+
+### LC-1 — Certs BCI / de liquidación-portabilidad RASTERIZAN EN BLANCO pero tienen capa de texto (CRÍTICO)
+El hallazgo más recurrente y de mayor impacto en producción. Muchos "Certificado de Liquidación/prepago"
+(sobre todo **BCI**, también algunos Santander/BancoEstado) se renderizan como **páginas en blanco** al
+leerlos como imagen nativa (solo el logo + tablas con celdas vacías, 15-17 págs), pero **SÍ tienen capa de
+texto extraíble** con `pdftotext -layout`. El lector nativo que solo "mira" el PDF **pierde el payoff**.
+Regla: ante un PDF que renderiza vacío, **intentar SIEMPRE la capa de texto antes de darlo por ilegible**.
+El sufijo `_unlocked` es señal de esto. *(Testigos: BCI-40567938/40895812/41423808-certificado-prepago
+(Geraldine/Alejandro/Juan Pablo G.), Certificado de Deuda BCI (Alejandro/Gabriel), BCI Consumo/Hipotecario
+de Camilo, cotizaciones con "cajitas XXXX".)* · **validada** (recurrente en ~8 casos).
+
+### LC-2 — Payoff = "Costo Monetario Prepago" / "Saldo Insoluto", NUNCA "Saldo del Crédito" ni la cuota del mes
+Trampa clásica y ubicua. En certs de consumo BdCh coexisten **"Saldo del Crédito"** (mayor, ~15% arriba) y
+**"Costo Total de Prepago"** (el payoff real) → usar el prepago. En tarjetas, el payoff es **"Costo
+Monetario Prepago"**, NO "Monto Total Facturado a Pagar"/"Monto Mínimo" (cuota del mes). En Santander
+Consumer/automotriz a veces solo hay **"Monto Cursado"** (monto original, NO saldo) → confidence baja +
+usar CMF. *(Testigos: BdCh consumo de Fernando/Juan Pablo R./Eileen; CMR de casi todos; Santander Consumer
+de William.)* · **validada**.
+
+### LC-3 — Capturas de portal "Pagar mi Crédito"/"MORA" = solo FECHA de mora, NO payoff
+Un pantallazo del portal que muestra "Monto Total Cuota"/"Total a Pagar" de la **cuota vencida** aporta la
+**fecha de mora**, no el saldo total. Casarlo por Nº de operación con el cert de monto; NO emitirlo como
+producto (doble conteo) ni tomar esa cifra como payoff (sub-declara). ⚠️ Distinto de una captura de "Mis
+Productos"/"Saldo utilizado" que SÍ acredita saldo (LC-3 aplica solo a la vista de pago de cuota).
+*(Testigos: BdCh `#### MORA` de Guillermo/Matías Garrido/Fernando; Itaú `MORA_.png` de William/Patricio.)* · **validada**.
+
+### LC-4 — Un producto = una operación, aunque aparezca en cert + estado de cuenta con montos distintos
+Fuente principal del sobre-conteo. El mismo crédito/tarjeta suele venir en un **certificado de deuda** Y en
+un **estado de cuenta/cartola** con cifras algo distintas (fechas de corte distintas). Emitir **UN** producto
+(el del cert/constancia formal, payoff autoritativo) y anotar la discrepancia; **NO** emitir ambos.
+*(Testigos: Matías Holtheuer — cert Santander $25.926.800 vs Cartotal $26.187.259 misma Op 650046641668,
+emitió ambos → TS declaró 11 en vez de 6; Cinthia CAT; Guillermo SOCOFIN vs tarjetas.)* Mejora de TS
+asociada: `normalizeOperationId` ahora extrae el Nº tras "Op."/"N°" para deduplicar el mismo número descrito
+distinto (**LC-9**). · **validada** (recurrente).
+
+### LC-5 — El CMF consolida multiproducto en 1 fila por banco; los certs lo desglosan → declarar por producto
+Ubicuo (BdCh, Santander, Itaú, Banco Estado). El CMF muestra "Banco X Consumo $N" pero los certs revelan 3-5
+productos (consumo + tarjeta + línea). Se declara **una fila por producto** con su payoff; la suma reconcilia
+(±tolerancia) con la fila CMF. *(Testigos: Irene BdCh 5 productos, Carlos Itaú 3, Eileen Santander 9.)* · **validada**.
+
+### LC-6 — Documentos de OTRA persona traspapelados en la carpeta → identificar por RUT y descartar
+Hazard de producción real y recurrente. Aparecen CMF/constancias/cotizaciones de un tercero mezcladas en la
+carpeta del cliente. **Verificar el RUT** de cada documento contra el del cliente antes de usarlo.
+*(Testigos: Cristian — `SII/CMF 02-09.pdf` era de CORTÉS CÁCERES 13.253.905-7; Jaime — cotizaciones AFP de
+NICOLÁS BASCUÑÁN + hoja hipotecaria de Caroline Tapia; Geraldine/Carlos — `CONSTANCIAS1.pdf` de Itaú mezcla
+2 clientes; Alejandro — cert ZOFRI con nombre "Freddy Flores" pero RUT correcto.)* · **validada**.
+
+### LC-7 — Cartera vencida/castigada SIN fecha de mora acreditable → Art. 261 (no 260)
+El 260 exige monto **Y** vencimiento acreditables. Muchos certs marcan "cartera vencida"/"castigada"/"Mora 1"
+pero NO imprimen la fecha de inicio de mora → clasificar **261** (solo monto) + alerta. Los "Reporte de Deuda"
+(Scotiabank) dicen explícitamente "no tiene carácter de certificado de prepago" → 261. *(Testigos: Itaú de
+Javiera/Eileen; Scotiabank de Ingrid/Juan Pablo R.; CMR "Vigente" de Cinthia.)* · **validada**.
+
+### LC-8 — UF con columna en pesos → usar la columna $ (no reconvertir); formato chileno "." miles / "," decimal
+Los hipotecarios vienen en UF pero el reporte trae **"Saldo Actual $"/"Total a pagar $"** ya convertido →
+usar ESE valor en CLP. Solo si está expresado en UF sin columna en pesos, reportar `moneda:"UF"`. "2.243,9113
+UF" = 2243.91 UF (no 22.439.113). *(Testigos: Scotiabank de William/Natalia/Rodrigo; Santander/BancoEstado
+hipotecarios de Camilo/Felipe.)* · **validada**.
+
+### LC-9 (TS) — `normalizeOperationId` extrae el Nº tras "Op."/"N°" para dedup entre documentos
+Mejora de robustez aplicada en `src/utils/cert_line_items.ts` (worktree paso-3, **pasa la batería golden
+6/6**): cuando el LLM emite el mismo Nº de operación descrito distinto ("Prestamos de consumo **Op.**
+650046641668" vs "Credito de Consumo **Op.** 650046641668"), la clave canónica es el número tras el marcador
+"Op."/"N°" → los duplica-por-descripción colapsan. NO toca códigos alfanuméricos (CRE-000..., D06...) ni
+tarjetas enmascaradas (*5197). No es dedup por monto (prohibido: 2 créditos distintos pueden tener igual
+monto). ⚠️ Reconciliar con la sesión que trabaja el worktree paso-3. · **aplicada + golden 6/6**.
+
+### Hallazgos varios (para el LLM lector)
+- **Banco Falabella (LC cuenta corriente) ≠ CMR Falabella (tarjeta)**: 2 acreedores CMF distintos. **MATIC
+  KARD** = tarjeta sbpay VISA (Scotiabank), a veces mora 60-89d → 261 (no 260 por venir en carpeta "Acreedores").
+- **FORUM: overflow int32** — la tabla "Saldo Capital" muestra `2.147.483.647` (=2³¹−1, dato corrupto) →
+  no usar; pedir cert de saldo limpio. *(Viviana.)*
+- **rut_emisor casi nunca impreso** en los certs (L3 confirmada en los 30) → NO inventarlo del catálogo
+  (algunos lectores lo hicieron = riesgo de cross-check falso). Mejor `null` + fallback por filename/keyword.
+- **Préstamo del empleador** (descuento de nómina, DJ de autorización) NO es acreedor del Paso 3 → es
+  descuento voluntario del Paso 5. *(Cristian Bonatti, Fernando, Camilo, Alejandro ZOFRI.)*
+
+### Juicio abierto (sin verdad-terreno del abogado)
+- **Declarar TODOS los productos acreditados por el cert (261 al día incluidos) vs solo los en mora**: el
+  robot es más completo (declara todo lo acreditable, regla `260_declarar_todos_acreditables`); varios
+  "esperados" del lector fueron conservadores. Sin la declaración real del abogado no se puede fijar el
+  conteo "correcto" — es criterio. Las divergencias `declarado > esperado` del arnés son mayormente esto.

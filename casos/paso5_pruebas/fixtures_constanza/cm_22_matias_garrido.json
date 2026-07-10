@@ -1,0 +1,52 @@
+{
+  "name": "Matias Garrido Orrego",
+  "rut": "19089846-6",
+  "docs": [
+    {
+      "filename": "liquidacion-Septiembre.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "76740220-1",
+      "periods": [
+        { "period_label": "Septiembre 2025", "liquido_a_pagar": 1679993, "dias_trabajados": 30,
+          "deductions": [],
+          "moneda": "CLP", "evidence": { "cita_monto": "ALCANCE LÍQUIDO: $1.679.993", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "liquidacion-Octubre.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "76740220-1",
+      "periods": [
+        { "period_label": "Octubre 2025", "liquido_a_pagar": 1775568, "dias_trabajados": 29,
+          "deductions": [],
+          "moneda": "CLP", "evidence": { "cita_monto": "ALCANCE LÍQUIDO: $1.775.568", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "Liquidacion.19.089.846-6.noviembre-2025.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "76740220-1",
+      "periods": [
+        { "period_label": "Noviembre 2025", "liquido_a_pagar": 1674135, "dias_trabajados": 30,
+          "deductions": [],
+          "moneda": "CLP", "evidence": { "cita_monto": "ALCANCE LÍQUIDO: $1.674.135", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "liquidacion-19.089.846-6-2025-12 (1).pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "76740220-1",
+      "periods": [
+        { "period_label": "Diciembre 2025", "liquido_a_pagar": 2008846, "dias_trabajados": 30,
+          "deductions": [],
+          "moneda": "CLP", "evidence": { "cita_monto": "ALCANCE LÍQUIDO: $2.008.846", "confidence": 0.95 } }
+      ]
+    }
+  ],
+  "cotizaciones": { "filename": "cotizaciones (8).pdf", "fecha_emision": "2025-11-19", "rut_entidad_pagadora": "76740220-1" },
+  "expectedIncomes": [
+    { "tipoIngreso": 1, "label": "Remuneración", "montoMin": 1750000, "montoMax": 1900000 }
+  ],
+  "expectAlertSubstrings": [],
+  "notes": "Unico empleador: Empresa de Servicios Transitorios Human Net Ltda (RUT 76.740.220-1). 4 liquidaciones (Sep-Dic 2025). Formato Talana/HumanNet: la UNICA cifra de neto final es 'ALCANCE LÍQUIDO' (no hay 'Liquido a pagar' menor aparte) -> por L19 ese es el liquido a declarar. Sin descuentos voluntarios (solo AFP/Salud/Impuesto legales; 'Otros Descuentos' vacio). Todos los meses completos (dias>=28; Octubre 29 trab + 2 ausencia). Promedio ultimos 3 meses (Oct 1.775.568 + Nov 1.674.135 + Dic 2.008.846)/3 = 1.819.516. Diciembre tiene horas extra altas (29h) que suben el neto pero es un mes completo valido -> se incluye. Sueldo base y estructura estables. tipoIngreso 1 (Remuneracion), periodicidad Mensual. Sin honorarios (SII sin BHE en 12 meses)."
+}

@@ -1,0 +1,42 @@
+{
+  "name": "Alfonso Froilan Martinez Herrera",
+  "rut": "16554875-2",
+  "docs": [
+    {
+      "filename": "ilovepdf_merged (11).pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "71633300-0",
+      "periods": [
+        { "period_label": "Marzo 2026", "liquido_a_pagar": 2033284, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Cotiz. Previ. Obligatoria", "amount": 286727 },
+            { "label": "Cotiz. Salud Obligatoria", "amount": 175445 },
+            { "label": "Seguro Cesantía", "amount": 15038 },
+            { "label": "Impuesto Único", "amount": 43426 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "LÍQUIDO A RECIBIR: $ 2.033.284", "confidence": 0.98 } },
+        { "period_label": "Abril 2026", "liquido_a_pagar": 2033284, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Cotiz. Previ. Obligatoria", "amount": 286727 },
+            { "label": "Cotiz. Salud Obligatoria", "amount": 175445 },
+            { "label": "Seguro Cesantía", "amount": 15038 },
+            { "label": "Impuesto Único", "amount": 43426 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "LÍQUIDO A RECIBIR: $ 2.033.284", "confidence": 0.98 } },
+        { "period_label": "Mayo 2026", "liquido_a_pagar": 2033662, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Cotiz. Previ. Obligatoria", "amount": 286727 },
+            { "label": "Cotiz. Salud Obligatoria", "amount": 175445 },
+            { "label": "Seguro Cesantía", "amount": 15038 },
+            { "label": "Impuesto Único", "amount": 43048 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "LÍQUIDO A RECIBIR: $ 2.033.662", "confidence": 0.98 } }
+      ]
+    }
+  ],
+  "cotizaciones": { "filename": "cotizaciones ultimos 12 meses.pdf", "fecha_emision": "2026-05-25", "rut_entidad_pagadora": "98001000-7" },
+  "expectedIncomes": [
+    { "tipoIngreso": 1, "label": "Remuneración", "montoMin": 2033405, "montoMax": 2033415 }
+  ],
+  "notes": "VERDAD-TERRENO ABOGADA (screenshots Paso 5): Remuneración $2.033.410 mensual. 3 liquidaciones Buk de UNIVERSIDAD AUTÓNOMA DE CHILE (71.633.300-0), empleador único. LÍQUIDO A RECIBIR (sinónimo válido): Mar 2.033.284, Abr 2.033.284, May 2.033.662. Promedio = 6.100.230/3 = 2.033.410 → COINCIDE EXACTO con la abogada. Descuentos: TODOS legales (Cotiz. Previ./Salud Obligatoria, Seguro Cesantía, Impuesto Único); OTROS DESCUENTOS $0 → sin voluntarios, sin add-back. Los 3 meses 30 días (sin mes parcial). Cert cotizaciones AFP CUPRUM emitido 25/05/2026. NOTA: la carpeta comparación traía además un 'agente_retenedor_2026.pdf' (resumen SII/F22, renta imponible) que NO es el doc que usó la abogada — usó las 3 liquidaciones (líquido). Confirma L-nueva: liquidación (líquido) manda sobre el resumen SII (imponible)."
+}

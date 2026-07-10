@@ -46,3 +46,7 @@ src/utils/verify_*.ts
 # Artefactos del arnés de validación (salidas del Centinela + cache LLM con datos de deuda)
 _validacion/
 casos/*/_validacion/
+
+# Documentos reales de cliente para pruebas locales (PII: RUT/sueldo/screenshots) — NO commitear.
+prueba-alfonso/
+prueba-casos-abogada/

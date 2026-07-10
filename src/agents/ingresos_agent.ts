@@ -89,177 +89,211 @@ function pdfText(localPath: string): string {
 type ContentBlock = Anthropic.Messages.ContentBlockParam;
 
 /**
- * Construye los bloques de contenido para Claude: por cada documento, un bloque
- * `document` (PDF nativo) o `image`, precedido de un texto que lo identifica por
- * índice y filename. Adjunta el texto de la capa digital como apoyo cuando existe.
+ * Bloques de contenido para Claude de UN SOLO documento (regla #1 del handoff Paso 3:
+ * una llamada por documento → atención total → lectura estable). PDF nativo o imagen,
+ * con la capa de texto como apoyo cuando existe.
  */
-function buildDocBlocks(docs: IncomeDocInput[], log: (m: string) => void): ContentBlock[] {
-  const blocks: ContentBlock[] = [];
-  docs.forEach((doc, i) => {
-    const stat = fs.statSync(doc.localPath);
-    if (stat.size > MAX_DOC_MB * 1024 * 1024) {
-      throw new Error(`Documento "${doc.filename}" excede ${MAX_DOC_MB} MB para lectura nativa.`);
-    }
-    const ext = path.extname(doc.localPath).toLowerCase();
-    const b64 = fs.readFileSync(doc.localPath).toString('base64');
-
-    blocks.push({ type: 'text', text: `\n===== DOCUMENTO #${i} — filename: "${doc.filename}" =====` });
-
-    if (IMAGE_EXT[ext]) {
-      blocks.push({
-        type: 'image',
-        source: { type: 'base64', media_type: IMAGE_EXT[ext] as any, data: b64 },
-      });
-      log(`🖼️  Doc #${i} "${doc.filename}" → imagen nativa (${(stat.size / 1024).toFixed(0)} KB).`);
+function buildSingleDocBlocks(doc: IncomeDocInput, log: (m: string) => void): ContentBlock[] {
+  const stat = fs.statSync(doc.localPath);
+  if (stat.size > MAX_DOC_MB * 1024 * 1024) {
+    throw new Error(`Documento "${doc.filename}" excede ${MAX_DOC_MB} MB para lectura nativa.`);
+  }
+  const ext = path.extname(doc.localPath).toLowerCase();
+  const b64 = fs.readFileSync(doc.localPath).toString('base64');
+  const blocks: ContentBlock[] = [
+    { type: 'text', text: `Documento a analizar — filename: "${doc.filename}"` },
+  ];
+  if (IMAGE_EXT[ext]) {
+    blocks.push({ type: 'image', source: { type: 'base64', media_type: IMAGE_EXT[ext] as any, data: b64 } });
+    log(`🖼️  "${doc.filename}" → imagen nativa (${(stat.size / 1024).toFixed(0)} KB).`);
+  } else {
+    // PDF nativo SIEMPRE (el layout importa: "Líquido a pagar" vs "Alcance Líquido").
+    blocks.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } });
+    const txt = pdfText(doc.localPath).trim();
+    if (txt.length >= 50) {
+      blocks.push({ type: 'text', text: `Texto digital de apoyo:\n${txt.slice(0, 12000)}` });
+      log(`📄 "${doc.filename}" → PDF nativo + texto de apoyo (${txt.length} chars).`);
     } else {
-      // PDF: adjuntar nativo SIEMPRE (el layout importa: "Líquido a pagar" vs
-      // "Alcance Líquido"). Si hay capa de texto, va como apoyo.
-      blocks.push({
-        type: 'document',
-        source: { type: 'base64', media_type: 'application/pdf', data: b64 },
-      });
-      const txt = pdfText(doc.localPath).trim();
-      if (txt.length >= 50) {
-        blocks.push({ type: 'text', text: `Texto digital del doc #${i} (apoyo):\n${txt.slice(0, 8000)}` });
-        log(`📄 Doc #${i} "${doc.filename}" → PDF nativo + texto de apoyo (${txt.length} chars).`);
-      } else {
-        log(`🖼️  Doc #${i} "${doc.filename}" → PDF nativo (escaneo, ${txt.length} chars de texto).`);
-      }
+      log(`🖼️  "${doc.filename}" → PDF nativo (escaneo, ${txt.length} chars de texto).`);
     }
-  });
+  }
   return blocks;
 }
 
-function buildPrompt(today: string): string {
+/** Prompt para leer UN documento aislado (regla #1). El LLM solo reporta hechos. */
+function buildSingleDocPrompt(today: string): string {
   return `Eres un asistente experto en documentos de ingreso chilenos para una solicitud de
-Renegociación de la Persona Deudora (Superir). Analiza CADA documento adjunto (numerado por #).
+Renegociación de la Persona Deudora (Superir). Analiza el ÚNICO documento adjunto y reporta SOLO lo que
+dice (NO decidas la estructura: no promedies, no sumes, no clasifiques descuentos — eso lo hace otro
+sistema). Hoy es ${today}.
 
-Para CADA documento, determina su **categoría** (una de estas, exactamente):
-- "liquidacion_sueldo"        → liquidación de sueldo / remuneración con contrato
-- "comprobante_pension"       → comprobante de pensión, jubilación o montepío
-- "licencia_medica"           → comprobante de pago por licencia médica
-- "aporte_terceros_deudas"    → declaración jurada de aporte de un tercero para PAGAR DEUDAS
-- "aporte_terceros_gastos"    → declaración jurada de aporte de un tercero para gastos
-- "comprobante_arriendo"      → comprobante de ingreso por arriendo de un inmueble
-- "retiro_sociedades"         → comprobante/declaración de retiro de utilidades de una sociedad
-- "honorarios"                → documentación de boletas de honorarios
-- "esporadico"                → ingreso esporádico/informal puntual
-- "otro"                      → ingreso que no encaja en lo anterior
-- "certificado_cotizaciones"  → Certificado de Cotizaciones Previsionales (AFP/IPS). NO es un ingreso.
+**0) ¿Es un documento de ingreso?** Si el documento NO acredita un ingreso del deudor, clasifícalo
+"category":"otro" con "periods" vacío (otro sistema lo descarta). NO son ingreso: la **cédula de
+identidad**, las **capturas del SII / agente retenedor** (respaldo cruzado, no es el cert de cotizaciones),
+la **hoja resumen / contrato de un crédito** (es una DEUDA, no un ingreso — ¡y ojo si el titular es OTRA
+persona!, en ese caso descártalo), el **padrón de vehículos**, un **contrato de trabajo** (solo respalda si
+no hay liquidaciones). ⚠️ Verifica que el documento sea del deudor (RUT) y no de un tercero traspapelado.
 
-**Extracción de montos (CRÍTICO — reglas exactas):**
-1. Para liquidaciones de sueldo / pensión / arriendo: por cada período (mes), extrae el campo
-   **"Líquido a pagar"** (lo que efectivamente recibe la persona). Si el documento también muestra
-   un "Alcance Líquido" u otra cifra, IGNÓRALA: usa SIEMPRE "Líquido a pagar".
-2. Por cada período, lista TODAS las líneas de la columna de **Descuentos** con su etiqueta textual
-   y su monto (ej. "Cotizacion AFP", "Salud", "Seguro de Cesantia", "Impuesto", "Préstamo empleador",
-   "Cuota Caja de Compensación"). No clasifiques tú: solo transcribe etiqueta + monto.
-3. Para aportes de terceros / retiro de sociedades / esporádicos: extrae el **monto mensual**
-   declarado en "monto_mensual_declarado" (si el documento lo expresa).
-4. Todos los montos como ENTEROS en CLP, sin puntos ni símbolos (ej. 2161887).
+**1) Clasifica el documento:**
+- "doc_type": "liquidacion_mensual" | "comprobante_subsidio" | "boleta_honorarios" |
+  "certificado_anual_resumen" | "comprobante_pago" | "cartola" | "declaracion_jurada" |
+  "certificado_cotizaciones" | "otro".
+- "category" (EXACTA): "liquidacion_sueldo" | "comprobante_pension" | "licencia_medica" |
+  "aporte_terceros_deudas" | "aporte_terceros_gastos" | "comprobante_arriendo" | "retiro_sociedades" |
+  "honorarios" | "esporadico" | "otro" | "certificado_cotizaciones" (este último NO es un ingreso).
 
-**Para el Certificado de Cotizaciones** (si hay uno): extrae su **fecha de emisión** (YYYY-MM-DD) y el
-**RUT de la entidad pagadora** (empleador o AFP) en "cotizaciones". Hoy es ${today}.
+**2) Extrae según el tipo:**
+- Liquidación de sueldo/pensión/arriendo: por cada período (mes), "liquido_a_pagar" = el NETO FINAL que la
+  persona RECIBE (tras TODOS los descuentos). Rótulos: "Líquido a Pagar", "Líquido a Cobrar", "Líquido a
+  Recibir", "Rem. Neta", "Monto Líquido", "Líq. a Pago". REGLAS para elegir bien:
+    · Si coexisten "Alcance Líquido" y un "Líquido a Pagar"/"Líq. a Pago" MENOR → usa el MENOR.
+    · Si la ÚNICA cifra de neto final es "Alcance Líquido" (formatos Buk simples: = Total Haberes − Total
+      Descuentos) → USA "Alcance Líquido". (No lo descartes: es el líquido en esos formatos.)
+    · NUNCA uses "Imponible", "Tributable", "Total Haberes" ni "Sueldo Base".
+  Lista TODAS las líneas de descuento (etiqueta textual EXACTA + monto), sin clasificarlas — otro sistema
+  las clasifica; tú solo transcribe el rótulo tal cual (ej. "A.P.V.I. EN AFP", "PRESTAMO CAJA LOS ANDES",
+  "Cotiz. Prev. Voluntaria", "Ahorro Caja Los Andes", "Anticipo Aguinaldo"). "rut_pagador" = RUT del
+  empleador/pagador (búscalo; a veces solo está en el cert de cotizaciones, no en la liquidación).
+  "dias_trabajados" = días trabajados del mes si aparecen ("Días Trab. 30", "(-) Días Licencia 18",
+  ingreso/egreso a mitad de mes) — es CLAVE para detectar un mes parcial (líquido anormalmente bajo).
+  MULTI-PAGO: si un mes trae VARIAS liquidaciones (sueldo + aguinaldo/retroactivo/planilla accesoria en
+  planilla aparte), reporta CADA una como un período con el MISMO "period_label" del mes (no las sumes tú).
+- Comprobante de subsidio (licencia médica): un período por pago, "period_label" = el MES cubierto
+  (YYYY-MM), "liquido_a_pagar" = el "Monto Líquido" del pago. NO uses el "Promedio mensual" impreso (es
+  la base de cálculo, no lo percibido). "rut_pagador" = RUT del pagador (ISAPRE/Compin/Caja).
+- Boleta de honorarios (Informe Anual de Boletas SII): un período por boleta con emisión, "period_label" =
+  mes de emisión, "monto_bruto" + "retencion". IGNORA meses en $0 y las boletas ANULADAS (la tabla las separa).
+- Aporte de terceros / retiro de sociedades / esporádico: "monto_mensual_declarado".
+- Certificado de cotizaciones: "cotizaciones" = { "fecha_emision":"YYYY-MM-DD", "rut_entidad_pagadora" }.
+- **Resumen global** (solo totales anuales/semestrales, sin desglose mensual): NO inventes períodos
+  mensuales; deja "periods" vacío. Un total anual NO es una liquidación mensual.
 
-**RESPONDE ÚNICAMENTE con este bloque JSON entre etiquetas <json>:**
+**3) Reglas:**
+- Montos ENTEROS en CLP, sin puntos ni símbolos. Declara "moneda" ("CLP" o "UF") de cada monto.
+- Si un valor es > 0, NO lo bajes a 0 ni lo omitas. Ante la duda, repórtalo igual (otro sistema decide).
+- "evidence" por período (OBLIGATORIO): "cita_monto" = copia VERBATIM del fragmento del documento de
+  donde sacaste la cifra (rótulo + cifra exactos); "confidence" 0..1 (baja si el escaneo está borroso).
+
+**RESPONDE SOLO con este JSON entre <json>:**
 <json>
-{
-  "documentos": [
-    {
-      "doc_index": 0,
-      "filename": "...",
-      "category": "liquidacion_sueldo",
-      "periods": [
-        { "period_label": "Mayo-2025", "liquido_a_pagar": 2161887,
-          "deductions": [ { "label": "Cotizacion AFP", "amount": 319832 }, { "label": "Impuesto", "amount": 57820 } ] }
-      ],
-      "monto_mensual_declarado": null,
-      "notes": ""
-    }
-  ],
-  "cotizaciones": { "filename": "...", "fecha_emision": "2025-05-22", "rut_entidad_pagadora": "59212930-2" }
-}
+{ "doc_type":"liquidacion_mensual", "category":"liquidacion_sueldo", "rut_pagador":"77612410-9",
+  "periods":[ {"period_label":"Mayo 2026","liquido_a_pagar":1990721,"moneda":"CLP","dias_trabajados":30,
+    "deductions":[{"label":"Cotizacion AFP","amount":236674},{"label":"Seguro Vida","amount":4743}],
+    "evidence":{"cita_monto":"Liquido a Pagar 1.990.721","confidence":0.97}} ],
+  "monto_mensual_declarado":null, "cotizaciones":null, "notes":"" }
 </json>
-Si no hay certificado de cotizaciones entre los documentos, "cotizaciones" = null.
 No incluyas texto fuera de las etiquetas <json>.`;
 }
 
-interface ClaudeDocOut {
-  doc_index?: number;
-  filename?: string;
-  category?: string;
-  periods?: unknown;
-  monto_mensual_declarado?: number | null;
-  notes?: string;
-}
-
-function coerceExtractedDocs(parsed: any, docs: IncomeDocInput[]): {
-  extracted: ExtractedIncomeDoc[];
+/** Coerciona la respuesta de Claude de UN documento a los tipos del extractor. */
+function coerceSingleDoc(parsed: any, doc: IncomeDocInput): {
+  extracted: ExtractedIncomeDoc | null;
   cotizaciones: CotizacionesCertFacts | null;
 } {
-  const out: ExtractedIncomeDoc[] = [];
-  const arr: ClaudeDocOut[] = Array.isArray(parsed?.documentos) ? parsed.documentos : [];
+  const num = (v: any): number | null => (typeof v === 'number' && isFinite(v) ? v : null);
+  const category = (VALID_CATEGORIES as string[]).includes(parsed?.category || '')
+    ? (parsed.category as IncomeCategory)
+    : 'otro';
 
-  for (const d of arr) {
-    const filename =
-      (typeof d.filename === 'string' && d.filename) ||
-      (typeof d.doc_index === 'number' && docs[d.doc_index]?.filename) ||
-      '';
-    const category = (VALID_CATEGORIES as string[]).includes(d.category || '')
-      ? (d.category as IncomeCategory)
-      : 'otro';
+  const periods = Array.isArray(parsed?.periods)
+    ? parsed.periods.map((p: any) => ({
+        period_label: String(p?.period_label ?? ''),
+        liquido_a_pagar: num(p?.liquido_a_pagar),
+        monto_bruto: num(p?.monto_bruto),
+        retencion: num(p?.retencion),
+        dias_trabajados: num(p?.dias_trabajados), // L16/L29: días para detectar mes parcial
 
-    const periods = Array.isArray(d.periods)
-      ? d.periods
-          .map((p: any) => ({
-            period_label: String(p?.period_label ?? ''),
-            liquido_a_pagar:
-              typeof p?.liquido_a_pagar === 'number' && isFinite(p.liquido_a_pagar)
-                ? p.liquido_a_pagar
-                : null,
-            deductions: Array.isArray(p?.deductions)
-              ? p.deductions
-                  .filter((x: any) => x && typeof x.amount === 'number')
-                  .map((x: any) => ({ label: String(x.label ?? ''), amount: Math.abs(x.amount) }))
-              : [],
-          }))
-      : undefined;
+        deductions: Array.isArray(p?.deductions)
+          ? p.deductions
+              .filter((x: any) => x && typeof x.amount === 'number')
+              .map((x: any) => ({ label: String(x.label ?? ''), amount: Math.abs(x.amount) }))
+          : [],
+        moneda: p?.moneda === 'UF' ? 'UF' : p?.moneda === 'CLP' ? 'CLP' : undefined,
+        evidence:
+          p?.evidence && typeof p.evidence === 'object'
+            ? {
+                cita_monto: typeof p.evidence.cita_monto === 'string' ? p.evidence.cita_monto : undefined,
+                confidence: num(p.evidence.confidence) ?? undefined,
+              }
+            : undefined,
+      }))
+    : undefined;
 
-    out.push({
-      filename,
-      category,
-      periods: periods && periods.length ? periods : undefined,
-      monto_mensual_declarado:
-        typeof d.monto_mensual_declarado === 'number' ? d.monto_mensual_declarado : null,
-      notes: typeof d.notes === 'string' ? d.notes : undefined,
-    });
-  }
-
+  // Cotizaciones de ESTE documento (si lo es).
   let cotizaciones: CotizacionesCertFacts | null = null;
   const c = parsed?.cotizaciones;
   if (c && typeof c === 'object') {
     cotizaciones = {
-      filename: String(c.filename ?? ''),
+      filename: doc.filename,
       fecha_emision: typeof c.fecha_emision === 'string' ? c.fecha_emision : null,
       rut_entidad_pagadora: typeof c.rut_entidad_pagadora === 'string' ? c.rut_entidad_pagadora : null,
     };
-  }
-  // Fallback: si el LLM clasificó un doc como certificado_cotizaciones pero no
-  // pobló "cotizaciones", sintetizar el registro para no perder el cert.
-  if (!cotizaciones) {
-    const certDoc = out.find((o) => o.category === 'certificado_cotizaciones');
-    if (certDoc) {
-      cotizaciones = { filename: certDoc.filename, fecha_emision: null, rut_entidad_pagadora: null };
-    }
+  } else if (category === 'certificado_cotizaciones') {
+    cotizaciones = { filename: doc.filename, fecha_emision: null, rut_entidad_pagadora: null };
   }
 
-  return { extracted: out, cotizaciones };
+  // El cert de cotizaciones NO es un ingreso declarable.
+  if (category === 'certificado_cotizaciones') return { extracted: null, cotizaciones };
+
+  const rutPagador =
+    typeof parsed?.rut_pagador === 'string' && parsed.rut_pagador.trim() ? parsed.rut_pagador.trim() : null;
+
+  const docType = typeof parsed?.doc_type === 'string' ? parsed.doc_type : '';
+  const notes = [docType ? `doc_type=${docType}` : '', typeof parsed?.notes === 'string' ? parsed.notes : '']
+    .filter(Boolean).join(' | ') || undefined;
+  const extracted: ExtractedIncomeDoc = {
+    filename: doc.filename,
+    category,
+    source_key: rutPagador, // L9: separa fuentes por empleador/pagador
+    periods: periods && periods.length ? periods : undefined,
+    monto_mensual_declarado: num(parsed?.monto_mensual_declarado),
+    notes,
+  };
+  return { extracted, cotizaciones };
 }
 
 /**
- * Lectura NATIVA por Claude: adjunta los documentos de ingreso y extrae los HECHOS
- * (categoría, líquidos por período, descuentos, metadatos del cert de cotizaciones).
- * Sin DB ni persistencia — reusable por el agente y por tests aislados.
+ * Llama a Claude para UN documento, con reintento ante respuesta vacía (regla #8 del
+ * handoff: "vacío" = error reintentable, no "no hay datos" — si no, se pierde el doc).
+ */
+async function callClaudeForDoc(
+  anthropic: Anthropic,
+  doc: IncomeDocInput,
+  today: string,
+  log: (m: string) => void
+): Promise<unknown> {
+  const content: ContentBlock[] = [
+    { type: 'text', text: buildSingleDocPrompt(today) },
+    ...buildSingleDocBlocks(doc, log),
+  ];
+  const MAX_ATTEMPTS = 3;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-opus-4-8',
+        max_tokens: 4096,
+        thinking: { type: 'adaptive' },
+        messages: [{ role: 'user', content }],
+      });
+      const textBlock = response.content.find((b) => b.type === 'text');
+      const text = textBlock && textBlock.type === 'text' ? textBlock.text.trim() : '';
+      if (!text) throw new Error(`respuesta vacía (stop_reason: ${response.stop_reason})`);
+      return extractJsonFromText(text);
+    } catch (err) {
+      lastErr = err;
+      log(`   ↻ "${doc.filename}" intento ${attempt}/${MAX_ATTEMPTS} falló: ${err instanceof Error ? err.message : String(err)}`);
+      if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 2000 * attempt));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+/**
+ * Lectura NATIVA por Claude — UNA LLAMADA POR DOCUMENTO (regla #1 del handoff Paso 3:
+ * atención total por doc = lectura estable y completa; la mega-llamada con N documentos
+ * era la causa raíz de la inestabilidad entre corridas). Cada doc se lee aislado y TS
+ * arma la estructura aguas abajo. Sin DB ni persistencia — reusable por agente y tests.
  */
 export async function extractIncomeFactsNative(
   docs: IncomeDocInput[],
@@ -272,25 +306,17 @@ export async function extractIncomeFactsNative(
   const today = getCurrentChileDate().toISOString().slice(0, 10);
   const anthropic = new Anthropic({ apiKey });
 
-  const content: ContentBlock[] = [
-    { type: 'text', text: buildPrompt(today) },
-    ...buildDocBlocks(docs, log),
-  ];
+  const extracted: ExtractedIncomeDoc[] = [];
+  let cotizaciones: CotizacionesCertFacts | null = null;
 
-  log('🤖 Enviando documentos de ingreso a Claude (lectura nativa)...');
-  const response = await anthropic.messages.create({
-    model: 'claude-opus-4-8',
-    max_tokens: 4096,
-    thinking: { type: 'adaptive' },
-    messages: [{ role: 'user', content }],
-  });
-
-  const textBlock = response.content.find((b) => b.type === 'text');
-  if (!textBlock || textBlock.type !== 'text') {
-    throw new Error(`Claude no devolvió texto (stop_reason: ${response.stop_reason})`);
+  log(`🤖 Leyendo ${docs.length} documento(s) de ingreso con Claude (una llamada por documento)...`);
+  for (const doc of docs) {
+    const parsed = await callClaudeForDoc(anthropic, doc, today, log);
+    const r = coerceSingleDoc(parsed, doc);
+    if (r.extracted) extracted.push(r.extracted);
+    if (r.cotizaciones && !cotizaciones) cotizaciones = r.cotizaciones;
   }
-  const parsed = extractJsonFromText(textBlock.text);
-  return coerceExtractedDocs(parsed, docs);
+  return { extracted, cotizaciones };
 }
 
 /**
@@ -357,12 +383,18 @@ export async function runIngresosAgent(
       for (const a of inc.alerts) alerts.push(`[${inc.tipoIngresoLabel}] ${a}`);
     }
 
+    // Señales anti-error de la lectura de Claude → al pool global (informativo).
+    for (const issue of computation.claudeReadIssues) {
+      alerts.push(`[lectura:${issue.tipo}] ${issue.filename} (${issue.period_label}): ${issue.detalle}`);
+    }
+
     const output: IngresosOutput = {
       incomes: computation.incomes,
       cotizacionesCert: computation.cotizacionesCert,
       extractedDocs: extracted,
       alerts,
       cotizacionesAgeDays,
+      claudeReadIssues: computation.claudeReadIssues,
     };
 
     // Revisión del abogado si hay alertas estructurales (faltantes, dudas de descuento).
