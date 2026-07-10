@@ -15,10 +15,14 @@ scratch/
 informe_deudas_*.pdf
 src/automation/html_samples/
 
-# Carpetas de documentos de clientes (PDFs con datos personales)
+# Casos de clientes reales (test scaffolding + PDFs + screenshots con datos personales) — no van al repo
+casos/
+# Carpetas de documentos de clientes sueltas
 Abigail Cornejo Abarca*/
 JORGE ANDRES ROMERO*/
-casos/*/documentos/
+# Salidas de corridas (screenshots/HTML/PDF/logs) — solo se versiona el placeholder .gitkeep
+outputs/*
+!outputs/.gitkeep
 outputs/verify_tmp/
 
 # Screenshots/PDFs sueltos en el root (datos de clientes, no van a git)
@@ -33,23 +37,10 @@ CHANGES_MADE.md
 .codex/
 AGENTS.md
 
-# Scripts de diagnóstico/prueba en tools/ (deuda técnica, no se commitean).
-# (Antes vivían en src/utils/; se movieron a tools/ para dejar src/ solo con producción.)
-tools/analyze_*.ts
-tools/check_*.ts
-tools/debug_*.ts
-tools/get_view_definition.ts
-tools/insert_*.ts
-tools/inspect_*.ts
-tools/list_*.ts
-tools/migrate_*.ts
-tools/monitor_*.ts
-tools/queue_*.ts
-tools/reload_*.ts
-tools/run_*.ts
-tools/scan_*.ts
-tools/test_*.ts
-tools/upload_*.ts
+# tools/ = scripts dev/diagnóstico/one-off — NO producción. Solo se versiona la
+# herramienta de validación del Paso 3 (batería determinista + fixtures).
+tools/*
+!tools/paso3_validacion/
 src/utils/verify_*.ts
 
 # Artefactos del arnés de validación (salidas del Centinela + cache LLM con datos de deuda)
