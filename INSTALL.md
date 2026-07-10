@@ -1,46 +1,44 @@
-# INSTALL — Correr la automatización en otro computador
+# INSTALL — Dejar el worker corriendo en una máquina
 
-Guía para instalar y dejar corriendo el **worker** de la automatización Superir en una
-máquina nueva (Mac Mini de producción u otro equipo).
+Guía para instalar y dejar corriendo el **worker** de la automatización Superir en una máquina
+(un Mac Mini, un servidor Linux, o tu laptop para probar).
 
-> **Qué se instala acá:** solo el **worker** (este repo, `renegociacion`) — el daemon que
-> pollea la cola y ejecuta la automatización (cadena de agentes → Playwright Pasos 1→4).
+> **Qué se instala acá:** solo el **worker** — el daemon (un proceso) que pollea la cola
+> `automation_jobs` en Supabase y ejecuta la automatización (cadena de agentes → Playwright
+> Pasos 1→5). El **dashboard** (tu UI) es aparte y solo necesita hablar con la misma base
+> Supabase — ver [`docs/integracion/dashboard-externo.md`](docs/integracion/dashboard-externo.md).
 >
-> **Qué NO se instala acá:** el **dashboard** (`rp_carga_documentos`) vive en **Vercel**; el
-> abogado lo usa desde el navegador. Esta máquina solo necesita internet para alcanzar
-> **Supabase + portal Superir + Anthropic** (todo HTTPS).
+> La máquina solo necesita internet para alcanzar **Supabase + portal Superir + Anthropic** (HTTPS).
 
 ---
 
-## Arquitectura (para ubicarse)
+## 0. Base de datos (una sola vez, antes de todo)
 
-```
-Abogado → Dashboard (Vercel, always-on) → Supabase sandbox (clients + automation_jobs + Storage)
-                                                  ↑ pollea cada 5s
-                            Worker daemon (ESTA máquina) → portal Superir (Pasos 1→4)
-```
+Creá un proyecto en [supabase.com](https://supabase.com) y, en su **SQL Editor**, pegá y corré
+[`supabase/setup.sql`](supabase/setup.sql). Crea todas las tablas y los buckets de Storage que el
+worker necesita. Es idempotente (podés re-correrlo). Guardá `SUPABASE_URL` y la `service_role key`
+(Project Settings → API) para el `.env`.
 
 ---
 
-## 1. Requisitos del sistema (una sola vez por máquina)
+## 1. Requisitos del sistema (una vez por máquina)
 
-Node.js 18+, git y los binarios de PDF/OCR que usa la automatización
-(**poppler** = `pdftotext`/`pdftoppm`, **tesseract** con español, **ghostscript**).
+Node.js 18+, git y los binarios de PDF que usa la automatización (**poppler** = `pdftotext`/`pdftoppm`,
+**ghostscript** para comprimir PDFs). No se necesita OCR (el LLM lee los PDF de forma nativa).
 
-**macOS** (Mac Mini):
+**macOS:**
 ```bash
-brew install node git poppler tesseract tesseract-lang ghostscript
+brew install node git poppler ghostscript
 ```
 
-**Ubuntu / Debian**:
+**Ubuntu / Debian:**
 ```bash
-sudo apt update && sudo apt install -y nodejs npm git poppler-utils \
-  tesseract-ocr tesseract-ocr-spa ghostscript
+sudo apt update && sudo apt install -y nodejs npm git poppler-utils ghostscript
 ```
 
 Verificar:
 ```bash
-node -v && pdftotext -v && tesseract --version && gs --version
+node -v && pdftotext -v && gs --version
 ```
 
 ---
@@ -56,27 +54,26 @@ npx playwright install chromium          # en Linux además: npx playwright inst
 
 ---
 
-## 3. Crear el archivo `.env` (NO está en git — hay que crearlo a mano)
+## 3. Crear el `.env` (no está en git)
 
-En la raíz del repo, un archivo `.env` con (mínimo de producción):
+En la raíz del repo, un `.env` con el mínimo de producción:
 
 ```
-SUPABASE_URL=https://fnzdruyojclfannkwyqe.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<service_role key del sandbox>
+SUPABASE_URL=https://<tu-proyecto>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service_role key>
 ANTHROPIC_API_KEY=sk-ant-...
 HEADLESS=true
 ```
 
-Reglas importantes:
-- **NO** poner en producción: `BYPASS_DATE_CHECK`, `BYPASS_DATE_VALIDATION`, `BYPASS_RUT_CHECK`,
-  `DISABLE_SENTINEL`, `FORCE_VISION_MAPEADOR` (desactivan validaciones críticas; el worker
-  avisa ruidoso si detecta alguna activa).
-- `PROD_SUPABASE_URL` / `PROD_SUPABASE_SERVICE_ROLE_KEY`: solo si se van a leer credenciales
-  desde `renegociacion_overrides` del proyecto del abogado. En sandbox-como-producción no hacen falta.
-- `CLAVE_UNICA_RUT` / `CLAVE_UNICA_PASSWORD`: solo para el cliente de prueba `21917363-6`.
-  Los clientes reales traen su propia ClaveÚnica en la tabla `clients` (la carga el dashboard).
-- Forma más simple y segura: **copiar el `.env` de la máquina actual** al nuevo equipo por un
-  canal seguro (no commitearlo nunca).
+Reglas:
+- **NUNCA en producción:** `DRY_RUN`, `BYPASS_DATE_CHECK`, `BYPASS_DATE_VALIDATION`,
+  `BYPASS_RUT_CHECK`, `DISABLE_SENTINEL`, `FORCE_VISION_MAPEADOR` (desactivan validaciones
+  críticas; el worker avisa ruidoso si detecta alguna activa). El modo prueba se controla
+  **por job** con `automation_jobs.dry_run`, no con variables de entorno.
+- Opcionales: `WORKER_CONCURRENCY` (jobs en paralelo, default 1); `PROD_SUPABASE_URL` /
+  `PROD_SUPABASE_SERVICE_ROLE_KEY` (solo si leés credenciales de un sistema externo por `airtable_id`).
+- Las credenciales ClaveÚnica de cada cliente van en la tabla `clients` (las carga tu dashboard),
+  no en el `.env`. Ver `.env.example` para la lista completa.
 
 ---
 
@@ -86,22 +83,22 @@ Reglas importantes:
 bash scripts/sistema.sh start
 ```
 
-El script es idempotente y portátil: instala dependencias si faltan, corre
-`playwright install chromium`, valida que exista `.env`, y arranca el worker — con **pm2**
-si está instalado (auto-restart + arranque al boot) o con `nohup` en background si no.
+Idempotente y portátil: instala dependencias si faltan, corre `playwright install chromium`,
+valida que exista `.env`, y arranca el worker — con **pm2** si está instalado (auto-restart +
+arranque al boot) o con `nohup` en background si no.
 
 ---
 
 ## 5. Que sobreviva reinicios y no se duerma
 
 ```bash
-npm i -g pm2     # opcional pero recomendado en el servidor
-pm2 startup      # seguir la instrucción que imprime (1 sola vez) → el worker arranca al bootear
+npm i -g pm2     # recomendado en un servidor
+pm2 startup      # seguir la instrucción que imprime (1 vez) → el worker arranca al bootear
 ```
 
-- La máquina debe quedar **encendida, con internet y SIN dormir**:
-  - macOS: `caffeinate -dimsu` (o Ajustes → Energía → nunca dormir).
-  - Linux: deshabilitar suspensión.
+La máquina debe quedar **encendida, con internet y SIN dormir**:
+- macOS: `caffeinate -dimsu` (o Ajustes → Energía → nunca dormir).
+- Linux: deshabilitar suspensión.
 
 ---
 
@@ -113,29 +110,21 @@ bash scripts/sistema.sh logs      # seguir el log en vivo
 bash scripts/sistema.sh stop      # apagar el worker
 ```
 
-Cuando el abogado cargue un caso desde el dashboard, el worker (corriendo acá) lo toma de la
-cola `automation_jobs` en pocos segundos y ejecuta los Pasos 1→4 en el portal.
+Cuando tu dashboard encole un job (fila en `automation_jobs`), el worker lo toma en pocos segundos
+y ejecuta los Pasos 1→5 en el portal. El resultado vuelve en `automation_jobs.status` /
+`automation_alerts` (ver el contrato de integración).
 
 ---
 
 ## Build de producción (opcional)
 
-Para generar un artefacto compilado solo-producción (sin los scripts dev de `tools/`):
 ```bash
-npm run build:prod      # compila el grafo de src/worker.ts → dist/
+npm run build:prod      # compila solo el grafo de src/worker.ts → dist/
 ```
-El worker se corre normalmente con `bash scripts/sistema.sh start` (usa `ts-node`); el build
-es útil si se quiere deployar `dist/` ya compilado.
+El worker corre normalmente con `bash scripts/sistema.sh start` (usa `ts-node`); el build es útil
+si querés deployar `dist/` ya compilado.
 
 ---
-
-## Estructura del repo (referencia)
-
-- `src/` — **código de producción** (worker + automation + agents + 13 utils del grafo del worker).
-- `tools/` — scripts dev/diagnóstico/one-off (NO producción).
-- `casos/` — pruebas por cliente.
-- `scripts/sistema.sh` — encender/apagar/estado del worker.
-- `supabase/` — migraciones (`migration_sandbox_v4.sql`) y `portal_select_values.json`.
 
 ## Problemas comunes
 
@@ -143,6 +132,7 @@ es útil si se quiere deployar `dist/` ya compilado.
 |---|---|---|
 | `Missing SUPABASE_URL...` | falta `.env` o las claves | crear `.env` (paso 3) |
 | Falla al lanzar el navegador | falta el binario de Playwright | `npx playwright install chromium` (Linux: `install-deps`) |
-| OCR/PDF falla | falta poppler/tesseract/ghostscript | reinstalar requisitos del sistema (paso 1) |
+| Error leyendo/comprimiendo PDF | falta poppler/ghostscript | reinstalar requisitos (paso 1) |
 | Jobs quedan en `pending` y no pasa nada | el worker no está corriendo | `bash scripts/sistema.sh start` |
-| Login al portal falla | ClaveÚnica inválida del cliente | revisar `clients.clave_unica_password` (o `.env` para el cliente de prueba) |
+| Login al portal falla | ClaveÚnica inválida del cliente | revisar `clients.clave_unica_password` |
+| El caso queda `blocked` | no cumple un requisito de fondo (ver alerta) | revisar `automation_alerts` — no es un error del worker |

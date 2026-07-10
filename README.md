@@ -1,143 +1,163 @@
-# Superintendencia Renegociación - Automatización Híbrida
+# Automatización — Renegociación Superir
 
-> Sistema de automatización modular para solicitudes de renegociación de deudas en la Superintendencia de Insolvencia y Reemprendimiento (Superir), diseñado para abogados y ejecutado en un servidor Mac Mini remoto.
+Robot que **llena la solicitud de renegociación de deudas** en el portal de la Superintendencia
+de Insolvencia y Reemprendimiento (Superir, Chile) por un cliente. Lee sus documentos
+(Informe CMF, Carpeta Tributaria, certificados de deuda, liquidaciones de sueldo), decide qué
+declarar y completa los **Pasos 1→5** del portal con Playwright.
 
----
+Está pensado para conectarse a **tu propio dashboard**: tu UI carga los datos y documentos del
+cliente en una base **Supabase** y encola un trabajo; este worker lo toma y ejecuta la
+automatización. Este repo **no** trae dashboard — expone un contrato de base de datos para que
+conectes el tuyo.
 
-## Arquitectura del Sistema
-
-```
-┌──────────────────────┐      ┌──────────────────┐      ┌──────────────────────┐
-│  Dashboard del       │◀────▶│ Supabase (DB)    │◀────▶│   Mac Mini Bot       │
-│  Abogado (externo)   │      │ & Storage        │      │  (Node + Playwright) │
-└──────────────────────┘      └──────────────────┘      └──────────────────────┘
-```
-
-- **Dashboard Web** (repo separado `rp_renegociaciones`): Panel del abogado para cargar documentos (`/subir-caso`) y encolar jobs. No vive en este repo.
-- **Supabase**: Fuente de verdad de clientes, credenciales, cola de trabajos (`pato_prueba_automation_jobs`), documentos de acreditación (`client_documents`) y Storage de PDFs.
-- **Mac Mini Bot**: Worker Node.js que consume la cola, ejecuta los pasos de Playwright, y escribe resultados/capturas de pantalla de vuelta a Supabase.
-
----
-
-## Componentes Clave
-
-| Componente | Archivo | Descripción |
-|---|---|---|
-| Worker daemon | `src/index.ts` | Polling de `pato_prueba_automation_jobs`; despacha pasos |
-| Sentinel (API #1) | `src/utils/sentinel.ts` | Pre-valida mora y reclasifica acreedores usando documentos del banco |
-| Orquestador Cognitivo | `src/utils/cognitive_orchestrator.ts` | Mapea certificados de acreditación a acreedores (Claude + thinking) |
-| Analizador CMF | `src/utils/cmf_analyzer.ts` | Extrae deudas estructuradas del informe CMF en PDF |
-| Analizador PDF | `src/utils/pdf_analyzer.ts` | Categoría tributaria, F29, extracción de texto |
-| Matcher de acreedores | `src/utils/acreedor_matcher.ts` | Normalización de nombres y lookup de RUT en catálogo |
-| Paso 1 | `src/automation/step1_personal.ts` | Información personal (con bypass de modal Bootstrap) |
-| Paso 2 | `src/automation/step2_declaraciones.ts` | Declaraciones tributarias (subida de PDFs, auto-cleanup en dry-run) |
-| Paso 3 | `src/automation/step3_acreedores.ts` | Acreedores Art. 260 / 261, adjunta documentos de acreditación |
-| Paso 4 | `src/automation/step4_apoderado.ts` | Datos del apoderado |
+> **Principio rector.** El LLM (Claude) **lee cada documento por separado** y extrae los *hechos*
+> (montos, fechas, RUT, morosidad). El **TypeScript determinista** decide la *estructura* de la
+> declaración (qué acreedor va en Art. 260 vs 261, cómo se mapea cada certificado, cómo se
+> promedian los ingresos). El LLM nunca decide la estructura: así el resultado es reproducible y
+> auditable, no depende de la variabilidad del modelo.
 
 ---
 
-## Directorio del Proyecto
+## Cómo encaja con tu dashboard
 
 ```
-renegociacion/
-├── CLAUDE.md                          # Arquitectura, reglas críticas y tablas DB
-├── task.md                            # Tareas pendientes y completadas
-├── src/
-│   ├── index.ts                       # Worker daemon (cola → despacha pasos)
-│   ├── automation/                    # Scripts modulares de Playwright
-│   │   ├── login.ts
-│   │   ├── step1_personal.ts
-│   │   ├── step2_declaraciones.ts
-│   │   ├── step3_acreedores.ts
-│   │   ├── step4_apoderado.ts
-│   │   └── all_steps.ts
-│   └── utils/                         # Módulos reutilizables (todos los casos)
-│       ├── cognitive_orchestrator.ts  # IA → mapeo de certificados
-│       ├── sentinel.ts                # IA → pre-validación de mora
-│       ├── cmf_analyzer.ts
-│       ├── pdf_analyzer.ts
-│       ├── acreedor_matcher.ts
-│       ├── pdf_optimizer.ts
-│       ├── date_helper.ts
-│       ├── logger.ts
-│       ├── limpieza_total.ts          # Limpia borrador del portal (Pasos 2 y 3)
-│       └── browser.ts / supabase.ts / supabaseWorker.ts
-├── casos/                             # Carpeta por cliente (multi-cliente)
-│   ├── claudia_silva/
-│   │   ├── documentos/                # PDFs del cliente (CMF, acreditaciones, SII)
-│   │   ├── analisis_deudas.md         # Análisis de elegibilidad y estado de acreditación
-│   │   ├── instrucciones_sentinel.md  # Instrucciones específicas para el Sentinel
-│   │   ├── instrucciones_orchestrator.md
-│   │   ├── test_mapping.md
-│   │   ├── setup_test.ts              # Sube documentos del caso al perfil de prueba en Supabase
-│   │   ├── upload_documents.ts
-│   │   ├── upload_acreedores.ts
-│   │   └── test_step3.ts
-│   └── alejandra_espinoza/
-│       ├── documentos/
-│       ├── análisis_deudas.md
-│       └── setup_test.ts
-├── outputs/                           # Capturas de pantalla, HTML y logs de ejecución
-│   └── acreditaciones_tmp/            # PDFs de certificados descargados temporalmente
-└── .claude/
-    ├── commands/prime.md              # /prime — carga contexto al inicio de sesión
-    ├── commands/session-sync.md       # /session-sync — actualiza docs al fin de sesión
-    └── skills/renegociacion-automation/SKILL.md
+   TU DASHBOARD (tu UI)                 SUPABASE                  ESTE WORKER (tu Mac/servidor)
+ ┌──────────────────────┐        ┌───────────────────┐        ┌───────────────────────────────┐
+ │ 1. sube docs + datos │──────▶ │ Storage: documentos│ ◀──────│ pollea automation_jobs cada 5s │
+ │    del cliente       │        │ clients            │        │ por cada job:                  │
+ │ 2. inserta un job    │──────▶ │ client_documents   │        │  · agentes (Claude lee c/doc)  │
+ │    (botón "Ejecutar")│        │ automation_jobs ───┼───────▶│  · Playwright → portal Superir │
+ │ 3. lee estado/alertas│ ◀──────│ automation_alerts  │ ◀──────│  · escribe status + capturas   │
+ └──────────────────────┘        └───────────────────┘        └───────────────────────────────┘
 ```
+
+- **Tu dashboard escribe** en Supabase (tabla `clients`, `client_documents`, Storage `documentos`)
+  y **encola** insertando una fila en `automation_jobs`.
+- **El worker** (este repo) es **un solo proceso daemon**. Pollea la cola y, por cada job, corre
+  toda la cadena y el portal. **No hay procesos separados de "centinela" o "mapeador"** — son
+  etapas internas del worker (ver abajo).
+- **Devuelve** estado (`automation_jobs.status`, `progress_message`), capturas
+  (`screenshot_url`) y alertas al abogado (`automation_alerts`), que tu dashboard muestra.
+
+👉 **Contrato exacto (qué tabla/columna escribir, cómo encolar, cómo leer el resultado):**
+[`docs/integracion/dashboard-externo.md`](docs/integracion/dashboard-externo.md).
 
 ---
 
-## Estructura Multi-Cliente
-
-Cada cliente tiene su carpeta en `casos/[nombre]/` con sus documentos, scripts de setup y análisis. La BD sandbox usa `rut UNIQUE` como identificador de fila — cada cliente real tiene su propia fila. Las pruebas del portal siempre usan las credenciales ClaveÚnica de Pato (`.env`), independientemente del cliente.
+## Qué hace el worker por cada job (una sola cadena)
 
 ```
-# Claudia Silva → perfil BD: Patricio Martini (client_id: a9ddf715-...)
-# Alejandra Espinoza → perfil BD: fila propia con RUT 18.738.680-2
+Job (client_id, step, dry_run)
+  │
+  ├─ Agente Tributario  → lee la Carpeta Tributaria (categoría, F29). Bloquea si Primera Categoría activa.
+  ├─ Analizador CMF     → extrae las deudas del Informe CMF (determinista).
+  ├─ Centinela          → Claude lee CADA certificado y aporta hechos; TS clasifica 260/261,
+  │                       detecta acreedores NO-CMF (TGR, cajas, fintechs) y aplica backstops.
+  ├─ Mapeador           → asocia cada certificado a su acreedor (determinista).
+  ├─ Agente Ingresos    → Claude lee CADA liquidación/documento de ingreso; TS calcula el monto.
+  │
+  └─ Playwright         → login ClaveÚnica → Pasos 1→5 en el portal → borrador cargado.
 ```
+
+Con `dry_run=true` el worker **llena el borrador pero nunca envía** (no radica la solicitud) — es
+el modo de prueba. Con `dry_run=false` deja el borrador vivo listo para que el abogado lo revise
+y envíe manualmente.
 
 ---
 
-## Comandos Principales
+## Puesta en marcha (resumen)
+
+1. **Base de datos:** creá un proyecto Supabase y corré [`supabase/setup.sql`](supabase/setup.sql)
+   en su SQL Editor (crea todas las tablas + buckets, idempotente).
+2. **Worker:** cloná el repo, `npm install`, creá el `.env`, y arrancá el daemon.
+   Guía completa paso a paso: **[INSTALL.md](INSTALL.md)**.
+3. **Dashboard:** conectá tu UI a la misma base siguiendo el contrato
+   [`docs/integracion/dashboard-externo.md`](docs/integracion/dashboard-externo.md).
 
 ```bash
-# Correr un paso para un RUT específico (modo manual)
-npm run automate -- --rut=12345678-9 --step=2
-
-# Iniciar el worker daemon (modo producción/cola)
-npm run worker
-
-# Compilar TypeScript
-npm run build
-
-# Setup de un caso en Supabase (subir CMF y tributaria)
-npx ts-node -r dotenv/config casos/claudia_silva/setup_test.ts
-npx ts-node -r dotenv/config casos/alejandra_espinoza/setup_test.ts
-
-# Subir certificados de acreditación de un caso
-npx ts-node -r dotenv/config casos/claudia_silva/upload_acreedores.ts
-
-# Test Paso 3 hardcodeado (sin worker ni créditos de API reales)
-BYPASS_DATE_CHECK=true npx ts-node --transpile-only -r dotenv/config casos/claudia_silva/test_step3.ts
-
-# Limpieza total del borrador del portal (antes de re-testear)
-npx ts-node -r dotenv/config src/utils/limpieza_total.ts
+git clone <URL_DEL_REPO> renegociacion && cd renegociacion
+npm install
+npx playwright install chromium
+cp .env.example .env    # y completá SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY
+bash scripts/sistema.sh start     # arranca el worker (pm2 si está, si no nohup)
 ```
 
 ---
 
-## Variables de Entorno (`.env`)
+## Superficie de producción
+
+El **único entrypoint** de producción es **[`src/worker.ts`](src/worker.ts)** (el daemon). Todo
+lo que corre en producción es su grafo de imports:
+
+| Área | Ubicación |
+|---|---|
+| Daemon / cola | `src/worker.ts` |
+| Pasos del portal (Playwright) | `src/automation/` (`login.ts`, `step1..step5`, `all_steps.ts`) |
+| Cadena de agentes (Claude) | `src/agents/` (`tributario`, `centinela`, `mapeador`, `ingresos`) |
+| Lógica determinista | `src/utils/` (CMF, backstops, matcher, income, PDF, etc.) |
+
+```bash
+npm run worker        # corre el daemon (ts-node) — igual que scripts/sistema.sh start
+npm run build         # compila todo a dist/
+npm run build:prod    # compila SOLO el grafo del worker → dist/ (deploy)
+npm test              # baterías deterministas (Paso 5 ingresos)
+```
+
+`tools/` y `casos/` son **herramientas de desarrollo/validación** (no producción). La batería
+determinista del Paso 3 vive en `tools/paso3_validacion/` (`npx ts-node tools/paso3_validacion/run_all.ts`).
+
+---
+
+## Estructura del repo
 
 ```
-HEADLESS=false                  # false = browser visible (MacBook Air)
-DRY_RUN=true                    # true = no guardar formularios
-CLAVE_UNICA_RUT=21917363-6      # RUT del perfil de prueba en el portal
-CLAVE_UNICA_PASSWORD=...
-SUPABASE_URL=...                # Sandbox
-SUPABASE_SERVICE_ROLE_KEY=...
-PROD_SUPABASE_URL=...           # Producción (solo lectura)
-PROD_SUPABASE_SERVICE_ROLE_KEY=...
-ANTHROPIC_API_KEY=...           # Claude (Sentinel + Orquestador)
-ENABLE_SENTINEL=false           # true = activar pre-validación IA
-BYPASS_DATE_CHECK=true          # Omite chequeo de antigüedad de docs (solo tests)
+src/                     CÓDIGO DE PRODUCCIÓN (el grafo del worker)
+  worker.ts              daemon: pollea automation_jobs y despacha cada job
+  automation/            Playwright: login + Pasos 1→5 del portal
+  agents/                cadena de agentes Claude (lectura nativa por documento)
+  utils/                 lógica determinista (CMF, sentinel/backstops, matcher, income, PDF…)
+supabase/
+  setup.sql              ⭐ esquema completo (corré esto una vez)
+  portal_select_values.json   enums del portal (region/comuna/estado_civil/profesión…)
+  migration_*.sql        historial de migraciones (referencia; setup.sql ya las incluye)
+scripts/sistema.sh       encender / apagar / estado / logs del worker
+docs/integracion/        cómo conectar tu dashboard + mapa de fuentes de datos
+lecciones/               conocimiento del dominio (se inyecta en los prompts de los agentes)
+tools/, casos/           herramientas de dev y validación (NO producción)
+INSTALL.md               instalación completa en una máquina
+CLAUDE.md                arquitectura detallada y reglas de negocio (referencia profunda)
 ```
+
+---
+
+## Variables de entorno (`.env`)
+
+Mínimo de producción:
+
+```
+SUPABASE_URL=https://<tu-proyecto>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service_role key>
+ANTHROPIC_API_KEY=sk-ant-...        # Claude lee los documentos (Centinela + Ingresos)
+HEADLESS=true                        # true en servidor; false para ver el navegador
+```
+
+Opcionales: `WORKER_CONCURRENCY` (jobs en paralelo, default 1), `CENTINELA_PER_DOC` (lectura por
+documento; **activada por defecto**, `=false` para desactivar), `PROD_SUPABASE_URL` /
+`PROD_SUPABASE_SERVICE_ROLE_KEY` (solo si leés credenciales desde un sistema externo).
+
+⚠️ **Nunca en producción** (desactivan validaciones críticas; son solo para pruebas):
+`DRY_RUN`, `BYPASS_DATE_CHECK`, `BYPASS_DATE_VALIDATION`, `BYPASS_RUT_CHECK`,
+`DISABLE_SENTINEL`, `FORCE_VISION_MAPEADOR`. En producción, `dry_run` se controla **por job**
+(columna de `automation_jobs`), no por variable de entorno.
+
+Detalle de todas las variables (incluidos los datos del cliente de prueba) en
+[`.env.example`](.env.example).
+
+---
+
+## Requisitos legales del portal (los aplica el worker)
+
+Para que un caso califique, el worker exige: **≥2 productos con mora ≥91 días**, **sin Primera
+Categoría con actividad F29** (últimos 24 meses), e **Informe CMF vigente (<30 días)**. Si no
+califica, el job queda `blocked` con una alerta explicativa (no `failed`). Detalle y matices en
+[CLAUDE.md](CLAUDE.md) y `docs/integracion/dashboard-externo.md`.

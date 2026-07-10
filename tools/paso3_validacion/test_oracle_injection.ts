@@ -15,7 +15,7 @@ import { canonicalInstitutionKey } from '../../src/utils/acreedor_matcher';
 // Conteo por institución que declaró la abogada (de los screenshots). Clave = canónica (+ alias Tenpo).
 const ABOGADA: Record<string, Record<string, number>> = {
   cristian_mancilla: { 'banco estado': 3, 'ccaf los andes': 2, 'banco santander': 2, 'promotora cmr falabella s a': 1, 'tesoreria general de la republica': 2 },
-  miguel_lugo: { 'banco de chile': 4, 'banco itau chile': 3, 'ccaf los andes': 3, 'banco de credito e inversiones': 2, 'tenpo': 1 },
+  miguel_lugo: { 'banco de chile': 4, 'banco itau': 3, 'ccaf los andes': 3, 'banco de credito e inversiones': 2, 'tenpo': 1 },
   nector_ruiz: { 'banco de chile': 5, 'banco estado': 3, 'banco falabella': 1, 'promotora cmr falabella s a': 1, 'ccaf la araucana': 1, 'cencosud administradora de tarjetas s a': 1 },
 };
 const aliasKey = (k: string): string => (k.startsWith('tenpo') ? 'tenpo' : k);

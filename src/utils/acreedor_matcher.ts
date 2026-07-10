@@ -455,7 +455,15 @@ export function canonicalInstitutionKey(name: string | null | undefined): string
   const base = name.replace(/\s+[—–/-]\s+.*$/s, '').replace(/\s*\(.*$/s, '');
   const norm = stripCreditTypeTokens(normalizeText(base));
   // Aliases-como-dato del catálogo (nombres_alternativos) primero, luego el mapa estático.
-  return catalogAliasRegistry[norm] ?? ALIASES[norm] ?? norm;
+  const aliased = catalogAliasRegistry[norm] ?? ALIASES[norm];
+  if (aliased) return aliased;
+  // Sufijo país " chile" redundante en nombres de banco: el CMF lo agrega ("Banco Itaú Chile",
+  // "Scotiabank Chile") pero el certificado suele omitirlo ("Banco Itaú") → sin quitarlo, el cert
+  // NO ancla a su fila del CMF (queda "0 líneas CMF" y se degrada al monto del CMF sin documento).
+  // Se quita SALVO cuando "chile" es parte del nombre ("Banco de Chile": el lookbehind (?<!\bde) lo
+  // protege). Se reaplican los aliases sobre la forma sin país. (Misma regla que el looseKey de step3.)
+  const noCountry = norm.replace(/(?<!\bde)\s+chile$/, '');
+  return catalogAliasRegistry[noCountry] ?? ALIASES[noCountry] ?? noCountry;
 }
 
 /**

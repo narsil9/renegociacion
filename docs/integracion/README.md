@@ -1,14 +1,19 @@
-# docs/integracion/ — Convergencia con el dashboard del supervisor
+# docs/integracion/ — Conectar un dashboard a la automatización
 
-Documentos de la **integración** entre nuestra automatización Superir (ejecutor, aguas abajo)
-y el dashboard del supervisor `rp_renegociaciones-auth-admin` (recolección/clasificación, aguas
-arriba, prod Supabase `ton…`). Visión general en `CLAUDE.md` → "🔗 Integración futura".
+**Empezá acá:**
 
-| Documento | Qué es | Cuándo leerlo |
-|---|---|---|
-| [`mapa-fuentes-produccion.md`](./mapa-fuentes-produccion.md) | **Mapa verificado** de dónde vive cada dato/documento en la DB de producción `ton…` (tabla por tabla, columnas reales, cobertura, buckets). | **Siempre que haya que leer algo de `ton…`** — andá al "Índice rápido" y vas directo a la tabla correcta. |
-| [`contrato-superir-mapeo-inputs.md`](./contrato-superir-mapeo-inputs.md) | El contrato de integración original (su equipo): qué inputs necesita nuestro robot → dónde viven en `ton…`. | Contexto / origen del mapa. |
+| Documento | Qué es |
+|---|---|
+| ⭐ [`dashboard-externo.md`](./dashboard-externo.md) | **El contrato para conectar TU dashboard.** Qué tabla/columna de Supabase escribir, cómo subir documentos, cómo encolar un job y cómo leer el resultado. Es lo único que necesitás para integrar una UI nueva. |
 
-**Regla de oro:** sobre `ton…` **solo lectura** (SELECT/GET), nunca escritura. Ver CLAUDE.md.
+**Referencia (integración específica con el dashboard del abogado, sobre prod `ton…`):**
 
-**Re-verificar el mapa:** `npx ts-node --transpile-only -r dotenv/config tools/audit_prod_sources.ts`
+| Documento | Qué es |
+|---|---|
+| [`contrato-conexion-ejecutar.md`](./contrato-conexion-ejecutar.md) | Propuesta del trigger "Ejecutar" + gate de precondiciones para el dashboard del supervisor. |
+| [`mapa-fuentes-produccion.md`](./mapa-fuentes-produccion.md) | Mapa verificado de dónde vive cada dato/documento en `ton…` (tabla por tabla). |
+| [`contrato-superir-mapeo-inputs.md`](./contrato-superir-mapeo-inputs.md) | Contrato de inputs original (qué necesita el robot → dónde vive en `ton…`). |
+
+> Los tres de "Referencia" describen una integración concreta con un sistema externo preexistente
+> (`ton…`, solo lectura). Si integrás un dashboard nuevo, seguí `dashboard-externo.md` y usalos
+> solo como ejemplo.

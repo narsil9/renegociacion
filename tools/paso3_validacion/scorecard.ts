@@ -35,7 +35,7 @@ const CASES: Caso[] = [
   },
   {
     dir: 'miguel_lugo', rut: '26.625.555-1', label: 'Miguel Lugo', total: 13,
-    perInst: { 'banco de chile': 4, 'banco itau chile': 3, 'ccaf los andes': 3, 'banco de credito e inversiones': 2, 'tenpo payments s a': 1 },
+    perInst: { 'banco de chile': 4, 'banco itau': 3, 'ccaf los andes': 3, 'banco de credito e inversiones': 2, 'tenpo payments s a': 1 },
   },
   {
     dir: 'nector_ruiz', rut: '15.420.073-8', label: 'Néctor Ruiz', total: 12,
