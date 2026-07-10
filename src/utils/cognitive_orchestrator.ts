@@ -522,19 +522,18 @@ export async function runCognitiveOrchestrator(
         const fullText = await extractTextFromPdf(localPath);
         const TEXT_THRESHOLD = 50; // chars — below this = scanned/image PDF
         if (fullText.trim().length < TEXT_THRESHOLD) {
-          // OCR multi-página (Tesseract) reemplaza GS+Vision: lee todas las páginas
-          log(`📄 ${doc.filename}: PDF escaneado (${fullText.trim().length} chars). Ejecutando OCR local...`);
-          const { extractTextWithOcrFallback } = await import('./ocr_helper');
-          const { text: ocrText } = await extractTextWithOcrFallback(localPath, TEXT_THRESHOLD);
-          if (ocrText.trim().length > 30) {
-            doc.isImageDoc = false;
-            doc.textContent = ocrText.substring(0, 4000);
-            log(`📄 OCR: ${doc.filename} (${doc.textContent.length} chars, todas las páginas)`);
+          // Tesseract ELIMINADO: un PDF escaneado (sin capa de texto) se lee NATIVAMENTE con
+          // Claude (adjunto como documento base64), igual que el Centinela — mejor que el OCR.
+          const NATIVE_PDF_MAX_BYTES = 6 * 1024 * 1024;
+          const sizeBytes = fs.statSync(localPath).size;
+          doc.isImageDoc = false;
+          if (sizeBytes <= NATIVE_PDF_MAX_BYTES) {
+            doc.nativePdfBase64 = fs.readFileSync(localPath).toString('base64');
+            doc.textContent = '[PDF escaneado sin capa de texto. Claude lo lee NATIVAMENTE desde el documento adjunto.]';
+            log(`🖼️ ${doc.filename}: PDF escaneado (${fullText.trim().length} chars) → Claude PDF nativo (${(sizeBytes / 1024).toFixed(0)} KB).`);
           } else {
-            // OCR también falló — sin contenido útil
-            doc.isImageDoc = false;
-            doc.textContent = '[PDF PROTEGIDO O NO CONVERTIBLE: sin texto extraíble. Verificar contraseña o calidad del archivo.]';
-            log(`⚠️ ${doc.filename}: OCR no produjo texto suficiente. Placeholder enviado a Claude.`);
+            doc.textContent = '[PDF escaneado sin texto y demasiado grande para lectura nativa. Requiere revisión/carga manual.]';
+            log(`⚠️ ${doc.filename}: escaneado y ${(sizeBytes / 1024 / 1024).toFixed(1)} MB > tope nativo 6 MB. Placeholder enviado a Claude.`);
           }
         } else {
           // Normal text PDF
@@ -906,7 +905,7 @@ export async function runCognitiveOrchestrator(
   // 6. Construct the prompt for Claude with double-verification guidelines
   // Text-only docs go in the JSON payload; image docs get inline image blocks
   const textDocsPayload = documents
-    .filter(d => !d.isImageDoc)
+    .filter(d => !d.isImageDoc && !d.nativePdfBase64)
     .map(d => ({
       filename: d.filename,
       document_type: d.document_type,
@@ -998,7 +997,8 @@ Esquema JSON esperado:
   // Build the user message as a multi-part content array (text + inline images)
   type AnthropicContentBlock =
     | { type: 'text'; text: string }
-    | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
+    | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+    | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string } };
 
   const userMessageParts: AnthropicContentBlock[] = [];
 
@@ -1053,14 +1053,33 @@ Esquema JSON esperado:
     }
   }
 
+  // Part 5 — Scanned PDFs (no text layer): sent as NATIVE document blocks (Tesseract eliminado).
+  const nativePdfDocs = documents.filter(d => d.nativePdfBase64);
+  if (nativePdfDocs.length > 0) {
+    userMessageParts.push({
+      type: 'text',
+      text: `\nCertificados en PDF ESCANEADO (sin capa de texto). TypeScript no pudo extraer texto; se adjuntan los PDF para que los leas NATIVAMENTE. Por cada uno verifica: 1) fecha de emisión ≤ 30 días desde hoy (${todayStr}), 2) RUT del emisor coincide con el acreedor indicado, 3) monto o vencimiento legible y válido.`
+    });
+    for (const doc of nativePdfDocs) {
+      userMessageParts.push({
+        type: 'text',
+        text: `\n📎 PDF nativo del certificado: "${doc.filename}" | Acreedor: ${doc.institucion_cmf ?? 'No especificado'} | Tipo: ${doc.acreditacion_tipo}`
+      });
+      userMessageParts.push({
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: doc.nativePdfBase64! }
+      });
+    }
+  }
+
   // Final instruction
   userMessageParts.push({
     type: 'text',
-    text: `\nPor favor realiza la auditoría y doble-verificación de todos los documentos (texto e imagen), y retorna el JSON mapeado dentro de las etiquetas <json> y </json>.\n\nIMPORTANTE para documentos imagen: si la imagen está ilegible o borrosa, incluye una alerta de tipo 'other' con mensaje claro indicando qué certificado no pudo leerse, pero NO bloquees el flujo si los demás documentos del mismo acreedor son válidos.`
+    text: `\nPor favor realiza la auditoría y doble-verificación de todos los documentos (texto, imagen y PDF nativo), y retorna el JSON mapeado dentro de las etiquetas <json> y </json>.\n\nIMPORTANTE para documentos imagen/PDF nativo: si está ilegible o borroso, incluye una alerta de tipo 'other' con mensaje claro indicando qué certificado no pudo leerse, pero NO bloquees el flujo si los demás documentos del mismo acreedor son válidos.`
   });
 
   const imageDocs = documents.filter(d => d.isImageDoc);
-  log(`Enviando análisis cognitivo a Claude Sonnet 4.6 (${textDocsPayload.length} PDF(s) texto + ${imageDocs.length} imagen(es))...`);
+  log(`Enviando análisis cognitivo a Claude (${textDocsPayload.length} PDF(s) texto + ${imageDocs.length} imagen(es) + ${nativePdfDocs.length} PDF(s) nativo(s))...`);
   try {
     // Usar streaming — requerido cuando la respuesta supera los 10 min (muchos docs + thinking).
     // budget_tokens fijo para que Claude no consuma todo el espacio en thinking y no deje espacio al JSON.

@@ -37,10 +37,12 @@ CHANGES_MADE.md
 .codex/
 AGENTS.md
 
-# tools/ = scripts dev/diagnóstico/one-off — NO producción. Solo se versiona la
-# herramienta de validación del Paso 3 (batería determinista + fixtures).
+# tools/ = scripts dev/diagnóstico/one-off — NO producción. Solo se versionan los
+# subdirectorios curados: la batería de validación del Paso 3 y las herramientas
+# reutilizables de prueba/mantenimiento. El resto (inspect_*/check_*/migrate_*/...) queda ignorado.
 tools/*
 !tools/paso3_validacion/
+!tools/mantenimiento/
 src/utils/verify_*.ts
 
 # Artefactos del arnés de validación (salidas del Centinela + cache LLM con datos de deuda)
