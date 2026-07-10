@@ -31,6 +31,7 @@ import {
   computeIncomes,
 } from '../utils/income_extractor';
 import { getCurrentChileDate, parseDateString, getDaysDifference } from '../utils/date_helper';
+import { loadReaderLessons } from '../utils/lessons_loader';
 
 const MAX_DOC_MB = 30; // límite de la API de Anthropic para documentos base64
 const VALID_CATEGORIES: IncomeCategory[] = [
@@ -182,7 +183,7 @@ no hay liquidaciones). ⚠️ Verifica que el documento sea del deudor (RUT) y n
     "evidence":{"cita_monto":"Liquido a Pagar 1.990.721","confidence":0.97}} ],
   "monto_mensual_declarado":null, "cotizaciones":null, "notes":"" }
 </json>
-No incluyas texto fuera de las etiquetas <json>.`;
+No incluyas texto fuera de las etiquetas <json>.${loadReaderLessons('paso5')}`;
 }
 
 /** Coerciona la respuesta de Claude de UN documento a los tipos del extractor. */
@@ -262,10 +263,7 @@ async function callClaudeForDoc(
   today: string,
   log: (m: string) => void
 ): Promise<unknown> {
-  const content: ContentBlock[] = [
-    { type: 'text', text: buildSingleDocPrompt(today) },
-    ...buildSingleDocBlocks(doc, log),
-  ];
+  const content: ContentBlock[] = buildSingleDocBlocks(doc, log);
   const MAX_ATTEMPTS = 3;
   let lastErr: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -274,6 +272,10 @@ async function callClaudeForDoc(
         model: 'claude-opus-4-8',
         max_tokens: 4096,
         thinking: { type: 'adaptive' },
+        // System idéntico en todas las llamadas por-doc del caso (playbook + lecciones vivas del
+        // Paso 5) → cache_control ephemeral: se paga una vez por run, no por documento. Igual que
+        // el Centinela per-doc del Paso 3. Ver lessons_loader.ts.
+        system: [{ type: 'text', text: buildSingleDocPrompt(today), cache_control: { type: 'ephemeral' } }],
         messages: [{ role: 'user', content }],
       });
       const textBlock = response.content.find((b) => b.type === 'text');
