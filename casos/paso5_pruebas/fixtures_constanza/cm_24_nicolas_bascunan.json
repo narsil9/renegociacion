@@ -1,0 +1,61 @@
+{
+  "name": "Nicolas Bascunan Quiroga",
+  "rut": "18755318-0",
+  "docs": [
+    {
+      "filename": "Liquidacion Agosto (4).pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "99147000-K",
+      "periods": [
+        { "period_label": "Agosto 2025", "liquido_a_pagar": 1953845, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Seguro De Vida Descuento", "amount": 85057 },
+            { "label": "Estacionamiento", "amount": 23334 },
+            { "label": "Socio Bienestar", "amount": 6000 },
+            { "label": "Credito Personal Caja Los Andes Cuota 1/1", "amount": 164183 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "LIQUIDO A RECIBIR: $ 1.953.845", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "liquidacion Septiembre.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "99147000-K",
+      "periods": [
+        { "period_label": "Septiembre 2025", "liquido_a_pagar": 1612843, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Socio Bienestar", "amount": 6000 },
+            { "label": "Anticipo Aguinaldo", "amount": 150000 },
+            { "label": "Seguro De Vida Descuento", "amount": 85822 },
+            { "label": "Abastible", "amount": 138950 },
+            { "label": "Estacionamiento", "amount": 32928 },
+            { "label": "Credito Personal Caja Los Andes Cuota 1/1", "amount": 164183 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "LIQUIDO A RECIBIR: $ 1.612.843", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "liquidacion Octubre.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "99147000-K",
+      "periods": [
+        { "period_label": "Octubre 2025", "liquido_a_pagar": 1639488, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Socio Bienestar", "amount": 6000 },
+            { "label": "Seguro De Vida Descuento", "amount": 85822 },
+            { "label": "Abastible", "amount": 138040 },
+            { "label": "Campana Solidaria", "amount": 30000 },
+            { "label": "Estacionamiento", "amount": 6530 },
+            { "label": "Credito Personal Caja Los Andes Cuota 1/1", "amount": 164183 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "LIQUIDO A RECIBIR: $ 1.639.488", "confidence": 0.95 } }
+      ]
+    }
+  ],
+  "cotizaciones": { "filename": "Cotizaciones 12 Meses.pdf", "fecha_emision": "2025-08-10", "rut_entidad_pagadora": "99147000-K" },
+  "expectedIncomes": [
+    { "tipoIngreso": 1, "label": "Remuneracion", "montoMin": 1730000, "montoMax": 1905000 }
+  ],
+  "expectAlertSubstrings": ["Caja Los Andes"],
+  "notes": "Un solo empleador: Bci Seguros Generales, RUT 99.147.000-K (source_key unico). Permanente -> promedio 3 meses mas recientes: Agosto $1.953.845, Septiembre $1.612.843, Octubre $1.639.488 -> promedio liquido = $1.735.392. Los 3 meses son completos (30 dias). Descuento voluntario redirigible presente los 3 meses: 'Credito Personal Caja Los Andes Cuota 1/1' $164.183 (prestamo). Si TS lo re-suma al liquido, el ingreso real ~ $1.899.575. El rango min/max cubre ambas interpretaciones (con y sin re-suma del prestamo). Descuentos NO redirigibles: Socio Bienestar, Seguro De Vida Descuento, Abastible, Estacionamiento, Campana Solidaria, Anticipo Aguinaldo (anticipo, no se re-suma). Sin honorarios (el SII AG 2025/2024 es solo el resumen de agentes retenedores codigo 1887 sueldos/pensiones, no boletas de honorarios). Certificado de cotizaciones ProVida AFP emitido 10-ago-2025, entidad pagadora BCI Seguros Generales 99.147.000-K."
+}

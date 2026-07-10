@@ -1,0 +1,60 @@
+{
+  "name": "Camilo Ramirez Espinoza",
+  "rut": "15936582-4",
+  "docs": [
+    {
+      "filename": "Junio.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "77.099.010-6",
+      "periods": [
+        { "period_label": "Junio 2025", "liquido_a_pagar": 3943170, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Descto. Ptmo Empresa UF", "amount": 572435 },
+            { "label": "Cuota Adherente Sindicato", "amount": 9375 },
+            { "label": "Cotizacion Adicional Isapre", "amount": 345511 },
+            { "label": "Seguro de Vida", "amount": 4602 },
+            { "label": "Seguro Dental", "amount": 31414 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "SUELDO LIQUIDO 3.943.170", "confidence": 0.97 } }
+      ]
+    },
+    {
+      "filename": "Julio.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "77.099.010-6",
+      "periods": [
+        { "period_label": "Julio 2025", "liquido_a_pagar": 4055529, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Descto. Ptmo Empresa UF", "amount": 571152 },
+            { "label": "Cuota Adherente Sindicato", "amount": 9375 },
+            { "label": "Cotizacion Adicional Isapre", "amount": 344736 },
+            { "label": "Seguro de Vida", "amount": 4592 },
+            { "label": "Seguro Dental", "amount": 31347 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "SUELDO LIQUIDO 4.055.529", "confidence": 0.97 } }
+      ]
+    },
+    {
+      "filename": "Agosto.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "77.099.010-6",
+      "periods": [
+        { "period_label": "Agosto 2025", "liquido_a_pagar": 4028378, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "Descto. Ptmo Empresa UF", "amount": 574126 },
+            { "label": "Cuota Adherente Sindicato", "amount": 9375 },
+            { "label": "Cotizacion Adicional Isapre", "amount": 346532 },
+            { "label": "Seguro de Vida", "amount": 4614 },
+            { "label": "Seguro Dental", "amount": 31497 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "SUELDO LIQUIDO 4.028.378", "confidence": 0.97 } }
+      ]
+    }
+  ],
+  "cotizaciones": { "filename": "cotizaciones (2).pdf", "fecha_emision": "2025-08-30", "rut_entidad_pagadora": "77.099.010-6" },
+  "expectedIncomes": [
+    { "tipoIngreso": 1, "label": "Remuneracion", "montoMin": 4500000, "montoMax": 4680000 }
+  ],
+  "expectAlertSubstrings": ["Descto. Ptmo Empresa UF"],
+  "notes": "Un solo empleador: Seguros Falabella Corredores Ltda. (RUT 77.099.010-6). 3 liquidaciones (Jun/Jul/Ago 2025), todas 30 dias trabajados (sin licencia/ausencia). Ingreso real = liquido + descuento voluntario redirigible 'Descto. Ptmo Empresa UF' (prestamo del empleador, ~$571k-574k/mes): Jun 3.943.170+572.435=4.515.605; Jul 4.055.529+571.152=4.626.681; Ago 4.028.378+574.126=4.602.504. Promedio 3 meses = 4.581.597 (rango 4.5M-4.68M). NO sumo: Cuota Adherente Sindicato, Seguro de Vida/Dental ni Cotizacion Adicional Isapre (voluntario de salud, no redirigible tipico). El Descto Ptmo Empresa es el mismo prestamo del ANEXO N2 (Seguros Falabella 524,82 UF) y la declaracion jurada del Paso 3. NO hay honorarios: el SII Agente Retenedor 2024 solo muestra rentas Art.42 N1 (sueldos), sin boletas. Certificado de cotizaciones AFP Capital emitido 30/08/2025, RUT pagador (empleador) 77.099.010-6, periodo 08-2024 a 08-2025."
+}

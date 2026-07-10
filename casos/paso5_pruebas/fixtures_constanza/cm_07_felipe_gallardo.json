@@ -1,0 +1,46 @@
+{
+  "name": "Felipe Gallardo Ivanovic",
+  "rut": "16369172-8",
+  "docs": [
+    {
+      "filename": "FGALLARDO 07_2025.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "77441870-9",
+      "periods": [
+        { "period_label": "Julio 2025", "liquido_a_pagar": 1849914, "dias_trabajados": 30,
+          "deductions": [ { "label": "APORTE TRAB SEQUOIA", "amount": 106667 } ],
+          "moneda": "CLP", "evidence": { "cita_monto": "Líquido a Pago 1.849.914", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "FGALLARDO 08_2025.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "77441870-9",
+      "periods": [
+        { "period_label": "Agosto 2025", "liquido_a_pagar": 1835973, "dias_trabajados": 30,
+          "deductions": [ { "label": "APORTE TRAB SEQUOIA", "amount": 106667 } ],
+          "moneda": "CLP", "evidence": { "cita_monto": "Líquido a Pago 1.835.973", "confidence": 0.95 } }
+      ]
+    },
+    {
+      "filename": "FGALLARDO 09_2025.pdf",
+      "category": "liquidacion_sueldo",
+      "source_key": "77441870-9",
+      "periods": [
+        { "period_label": "Septiembre 2025", "liquido_a_pagar": 1842699, "dias_trabajados": 30,
+          "deductions": [
+            { "label": "ANTICIPO DE AGUINALDO CORP", "amount": 125400 },
+            { "label": "DECTO APORTE EMPL SEQUOIA CORP", "amount": 320000 },
+            { "label": "APORTE TRAB SEQUOIA", "amount": 106667 }
+          ],
+          "moneda": "CLP", "evidence": { "cita_monto": "Líquido a Pago 1.842.699", "confidence": 0.95 } }
+      ]
+    }
+  ],
+  "cotizaciones": { "filename": "FGI 12 cotizaciones.pdf", "fecha_emision": "2025-10-13", "rut_entidad_pagadora": "77441870-9" },
+  "expectedIncomes": [
+    { "tipoIngreso": 1, "label": "Remuneración", "montoMin": 1820000, "montoMax": 1870000 }
+  ],
+  "expectAlertSubstrings": ["APORTE TRAB SEQUOIA"],
+  "notes": "Único empleador VEOLIA SOLUCIONES AMBIENTALES CHILE S.A (RUT 77441870-9). 3 liquidaciones consecutivas Jul/Ago/Sep 2025, 30 días trabajados cada una, sin licencia ni mes parcial. Promedio líquido = (1.849.914 + 1.835.973 + 1.842.699)/3 = 1.842.862 → rango 1.82M-1.87M. NO sumé descuentos voluntarios al ingreso porque 'APORTE TRAB/EMPL SEQUOIA' es ambiguo (programa de ahorro/inversión Sequoia, sin etiqueta 'PRESTAMO' → no claramente redirigible) y 'ANTICIPO DE AGUINALDO' no es voluntario redirigible → los dejo como alerta, no como suma. Sin honorarios (Agentes Retenedores muestra solo F1887 sueldos de Veolia, sin F1879). Cotizaciones AFP Capital 12m, emitido 13/10/2025, pagador Veolia."
+}
