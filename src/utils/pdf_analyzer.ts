@@ -363,8 +363,8 @@ export async function detectContribucionesDeuda(
 
   log(`🏠 Detectando deudas por contribuciones en: ${pdfPath}...`);
 
-  // For scanned PDFs, preExtractedText (OCR) is accepted; otherwise use pdftotext -layout
-  // to preserve column alignment needed for the property table.
+  // If a caller passes preExtractedText it is used as-is; otherwise use pdftotext -layout
+  // to preserve the column alignment needed for the property table (no OCR: Tesseract eliminado).
   const text = preExtractedText ?? await extractTextFromPdfLayout(pdfPath);
   const propSectionIdx = text.search(/propiedades\s+y\s+bienes\s+ra[íi]ces/i);
 

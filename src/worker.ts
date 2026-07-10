@@ -321,6 +321,30 @@ async function gatherStep5Input(
       (filename) => filenameToPath.get(filename) || null
     );
 
+    // Propagar las alertas del agente de ingresos al dashboard (G2: nunca en silencio). Antes se
+    // descartaban acá y solo quedaban en agent_runs/logs — inconsistente con el Paso 3, que sí las
+    // emite. Informativo: NO bloquea, el borrador se llena igual. (Consolida las alertas del agente
+    // —UF, conflicto sueldo↔licencia, cert de cotizaciones vencido, falta cert— más las señales
+    // anti-error de la lectura de Claude.)
+    if (jobId) {
+      // `ingresosOutput.alerts` ya consolida TODO lo que el abogado debe revisar: alertas por ingreso
+      // (UF, conflicto sueldo↔licencia, cert de cotizaciones vencido/faltante) MÁS las señales anti-error
+      // de la lectura de Claude (líneas `[lectura:...]`, ver ingresos_agent.ts). Se emiten tal cual.
+      const alertLines: string[] = ingresosOutput.alerts || [];
+      if (alertLines.length > 0) {
+        const { error: alertErr } = await supabase.from('automation_alerts').insert({
+          job_id: jobId,
+          client_id: client.id,
+          step: 5,
+          alert_type: 'needs_review',
+          description:
+            'Paso 5 (Ingresos) — revisar antes de presentar (el ingreso se declaró igual):\n' +
+            alertLines.map((a) => `• ${a}`).join('\n'),
+        });
+        if (alertErr) logger.error('⚠️ [Paso 5] No se pudo registrar la alerta de revisión:', alertErr.message);
+      }
+    }
+
     return { incomes: ingresosOutput.incomes, justificativos, cotizacionesPath };
   } catch (err: any) {
     logger.error('⚠️ [Paso 5] Excepción al preparar el Paso 5 (se omite):', err?.message || err);
@@ -364,9 +388,9 @@ async function processJob(job: any): Promise<void> {
     logger.log(`⚠️⚠️ FLAGS DE BYPASS ACTIVOS (solo para pruebas, NO producción): ${activeBypass.join(', ')}`);
   }
 
-  // Support steps 0, 1, 2, 3, and 4
-  if (job.step !== 0 && job.step !== 1 && job.step !== 2 && job.step !== 3 && job.step !== 4) {
-    const errorMsg = `Paso ${job.step} no está soportado. Actualmente solo se automatizan Pasos 0, 1, 2, 3 y 4.`;
+  // Support steps 0, 1, 2, 3, 4, and 5 (el Paso 5 individual existe para PRUEBAS; producción usa step 0).
+  if (job.step !== 0 && job.step !== 1 && job.step !== 2 && job.step !== 3 && job.step !== 4 && job.step !== 5) {
+    const errorMsg = `Paso ${job.step} no está soportado. Actualmente solo se automatizan Pasos 0, 1, 2, 3, 4 y 5.`;
     logger.error(errorMsg);
     await supabase
       .from(JOBS_TABLE)

@@ -28,7 +28,6 @@ import {
   extractCarpetaTributariaMetadata,
   extractTextFromPdf,
 } from '../utils/pdf_analyzer';
-import { extractTextWithOcrFallback } from '../utils/ocr_helper';
 
 // PDFs escaneados devuelven <500 chars de texto útil con pdftotext
 const SCANNED_THRESHOLD = 500;
@@ -203,31 +202,10 @@ export async function runTributarioAgent(
     const isScanned = textLen < SCANNED_THRESHOLD;
 
     if (isScanned) {
-      log(`⚠️  Texto insuficiente (${textLen} chars) — intentando OCR local (Tesseract)...`);
-      const { text: ocrText, usedOcr } = await extractTextWithOcrFallback(tributariaPdfPath, 500);
-
-      if (usedOcr && ocrText.trim().length > 100) {
-        log(`📄 OCR exitoso (${ocrText.trim().length} chars) — usando análisis determinista sobre texto OCR.`);
-        const categoria = await analyzeTaxCategory(tributariaPdfPath, logger, ocrText);
-        let f29Meses: string[] = [];
-        if (categoria === 'primera') {
-          const f29 = await detectF29ActivityLast24Months(tributariaPdfPath, logger, ocrText);
-          f29Meses = f29.activeMonths;
-        }
-        const contribuciones = await detectContribucionesDeuda(tributariaPdfPath, logger, ocrText);
-        const ctMeta = await extractCarpetaTributariaMetadata(tributariaPdfPath, logger, ocrText);
-        output = {
-          categoria,
-          f29_meses_con_actividad: f29Meses,
-          contribuciones_deuda: contribuciones.propiedadesMorosas,
-          fecha_generacion_ct: ctMeta.fechaGeneracion,
-          ingreso_mensual_boletas: ctMeta.ingresoMensualPromedio,
-          boletas_ultimos_12_meses: ctMeta.boletasUltimos12Meses,
-        };
-      } else {
-        log(`⚠️  OCR insuficiente (${ocrText.trim().length} chars) — fallback a Claude Opus Vision.`);
-        output = await extractViaVision(tributariaPdfPath, log);
-      }
+      // Tesseract ELIMINADO: la lectura NATIVA de Claude leyó mejor que el OCR (escaneos/tablas).
+      // Un PDF escaneado (sin capa de texto) va directo a visión Opus 4.8.
+      log(`⚠️  Texto insuficiente (${textLen} chars) — PDF escaneado. Lectura NATIVA por Claude Opus 4.8 (visión).`);
+      output = await extractViaVision(tributariaPdfPath, log);
     } else {
       log(`📝 PDF de texto (${textLen} chars) — usando análisis determinista.`);
       const categoria = await analyzeTaxCategory(tributariaPdfPath, logger);

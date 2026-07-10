@@ -18,7 +18,6 @@ import {
 } from '../utils/acreedor_matcher';
 import { extractTextFromPdf } from '../utils/pdf_analyzer';
 import { extractCertLineItems, normalizeOperationId } from '../utils/cert_line_items';
-import { extractTextWithOcrFallback } from '../utils/ocr_helper';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -557,7 +556,7 @@ export async function fillStep3(
     // Una deuda se declara SOLO con un documento que acredite su monto. Un producto del CMF
     // AL DÍA (Art.261) que NO viene de un documento (sin reclasificación / override / id261 /
     // de-reclasificación) se declara únicamente si algún CERTIFICADO del cliente acredita SU
-    // monto — verificado por CONTENIDO (montos extraídos del texto/OCR), no por nombre de
+    // monto — verificado por CONTENIDO (montos extraídos de la capa de texto del PDF), no por nombre de
     // banco. Sin esto, step3 declaraba el producto con la cifra del CMF y le adjuntaba un
     // certificado de OTRO producto del mismo banco (caso Cristian: tarjetas/líneas que la
     // abogada omitió por no tener certificado). `certifiedAmounts` se construye una sola vez
@@ -576,7 +575,10 @@ export async function fillStep3(
       for (const d of docs) {
         if (!d.local_path || !fs.existsSync(d.local_path)) continue;
         let text = '';
-        try { text = (await extractTextWithOcrFallback(d.local_path)).text || ''; } catch { /* doc ilegible */ }
+        // Tesseract ELIMINADO: solo capa de texto (pdftotext). Los montos de certs escaneados los
+        // acredita el Centinela por lectura NATIVA (override/id261/additional); el Gate I2 solo
+        // dispara sobre productos CMF "pelados" (sin reclasificación/override/id261/de-reclass).
+        try { text = await extractTextFromPdf(d.local_path); } catch { /* doc ilegible / sin capa de texto */ }
         if (!text) continue;
         // (1) cert_line_items: payoffs inequívocos (PDFs de texto con etiqueta/tabla).
         const lineItems = extractCertLineItems(text).map((it) => it.amount).filter((a) => a > 0);

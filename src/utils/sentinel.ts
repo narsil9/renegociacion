@@ -898,12 +898,14 @@ Esquema JSON esperado:
 ${loadReaderLessons('paso3')}
 `;
 
-    // --- Camino POR-DOCUMENTO (flag CENTINELA_PER_DOC) ---
+    // --- Camino POR-DOCUMENTO (default en producción; desactivable con CENTINELA_PER_DOC=false) ---
     // Una llamada por certificado (solo extracción) + ensamblador determinista en TS, en vez de la
     // mega-llamada con todos los docs. Produce el mismo objeto `raw` (5 listas) que el LLM, y los
-    // backstops post-LLM de abajo lo refinan igual. Ataca la causa raíz de la inestabilidad (L14).
+    // backstops post-LLM de abajo lo refinan igual. Ataca la causa raíz de la inestabilidad (L14):
+    // leer un doc a la vez da atención total y lectura estable. La mega-llamada queda como fallback
+    // explícito (CENTINELA_PER_DOC=false).
     let raw: any;
-    const perDocMode = process.env.CENTINELA_PER_DOC === 'true';
+    const perDocMode = process.env.CENTINELA_PER_DOC !== 'false';
     if (perDocMode) {
       const perDocModel = process.env.CENTINELA_PER_DOC_MODEL || 'claude-opus-4-8';
       raw = await runPerDocExtraction(
