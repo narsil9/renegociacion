@@ -60,6 +60,7 @@ export interface DocFacts {
   emisor_nombre?: string;
   rut_emisor?: string;
   emision?: string;                        // fecha de emisión del documento (YYYY-MM-DD), resuelta híbrida (determinista→Claude)
+  n_periodos?: number;                      // cuántos períodos/estados de cuenta distintos trae el doc (estado_cuenta/cartola). 1 por defecto. Un PDF con los últimos 4 estados unidos = 4 → se prefiere sobre el estado suelto en el dedup.
   totales_por_moneda?: { moneda: 'CLP' | 'UF' | 'USD'; monto: number; cita: string }[];
   productos: DocProduct[];
   // true si el doc es un AVISO DE COBRANZA por CONTENIDO (días de mora / deuda castigada / cobranza
@@ -122,7 +123,7 @@ Devuelve un objeto JSON encerrado en <json>...</json> con esta forma:
   "emisor_nombre": razón social del emisor tal como aparece impresa,
   "rut_emisor": RUT del EMISOR (la institución acreedora), formato XXXXXXXX-X. NO el RUT del cliente/deudor. Búscalo en encabezado/pie.
   "emision": "YYYY-MM-DD" (fecha de EMISIÓN o generación del documento — cuándo se emitió/imprimió; NO la fecha de mora ni la del correo. null si no aparece),
-  "totales_por_moneda": SOLO si doc_type="resumen_global": [{ "moneda": "CLP"|"UF"|"USD", "monto": number, "cita": "texto verbatim" }],
+  "n_periodos": number (SOLO para doc_type "estado_cuenta"/"cartola": cuántos ESTADOS DE CUENTA / períodos mensuales DISTINTOS contiene el archivo — un PDF con los últimos 3 o 4 estados unidos = 3 o 4; un solo estado = 1. Cuéntalos por la cantidad de fechas de facturación/corte ("PAGAR HASTA"/"VENCE"/"Período") distintas. Para cualquier otro doc_type o si no aplica, 1), SOLO si doc_type="resumen_global": [{ "moneda": "CLP"|"UF"|"USD", "monto": number, "cita": "texto verbatim" }],
   "productos": [ { "operacion": "Nº operación/CRE/contrato/tarjeta si está", "monto": number (entero en su moneda, sin separadores), "etiqueta_monto": "rótulo verbatim del monto", "moneda": "CLP"|"UF", "product_type": "tarjeta_credito"|"credito_consumo"|"linea_credito"|"hipotecario"|"otro", "fecha_mora": "YYYY-MM-DD" (inicio de mora / cobranza judicial / 1ª cuota impaga, SOLO si el documento la indica), "cita_monto": "fragmento textual verbatim de donde sacaste el monto", "cita_fecha": "verbatim de la fecha", "confidence": 0.0-1.0 } ]
 }
 
@@ -270,7 +271,9 @@ export async function extractDocFacts(
         ? extractEmissionDateFromText(doc.textContent, todayDate).date
         : null;
       facts.emision = resolveEmision(deterministic, raw.emision ? String(raw.emision) : undefined);
-      log(`${doc.filename}: doc_type=${facts.doc_type}, ${productos.length} producto(s)${facts.rut_emisor ? `, rut_emisor=${facts.rut_emisor}` : ''}.`);
+      const np = Math.floor(Number(raw.n_periodos));
+      facts.n_periodos = Number.isFinite(np) && np > 0 ? np : 1;
+      log(`${doc.filename}: doc_type=${facts.doc_type}, ${productos.length} producto(s)${facts.n_periodos > 1 ? `, ${facts.n_periodos} períodos` : ''}${facts.rut_emisor ? `, rut_emisor=${facts.rut_emisor}` : ''}.`);
       return facts;
     } catch (err: any) {
       log(`⚠️ ${doc.filename}: error de extracción (intento ${attempt}): ${err?.message || err}`);
@@ -429,6 +432,31 @@ export function dedupOplessProducts<T extends OplessItem>(items: T[]): T[] {
   return out;
 }
 
+/** Escala de autoridad del doc_type para elegir la FUENTE del monto de un producto. */
+export function docTypeAuthority(t: DocType): number {
+  return t === 'liquidacion_payoff' ? 3 : t === 'desglose_por_producto' ? 2 : t === 'estado_cuenta' ? 1 : 0;
+}
+
+/**
+ * ¿`a` es al menos tan autoritativo como `b` como fuente del MISMO producto (mismo banco + Nº operación)?
+ * Escalera: doc_type (payoff > desglose > estado_cuenta) → entre el MISMO doc_type, el que cubre más
+ * períodos/estados (el PDF con los últimos 3-4 estados unidos le gana al estado suelto: se necesita la
+ * serie completa para acreditar la mora 90+d) → mayor confianza → mayor monto. La preferencia por
+ * períodos NO cruza doc_type (un consolidado NO le gana a una liquidación/desglose): la elige el escalón 1.
+ */
+export function atLeastAsAuthoritative(
+  a: { docType: DocType; periodos?: number; confidence: number; clp: number },
+  b: { docType: DocType; periodos?: number; confidence: number; clp: number },
+): boolean {
+  const sa = docTypeAuthority(a.docType), sb = docTypeAuthority(b.docType);
+  if (sa !== sb) return sa > sb;
+  const pa = a.periodos ?? 1, pb = b.periodos ?? 1;
+  if (pa !== pb) return pa > pb;
+  const ca = a.confidence ?? 0, cb = b.confidence ?? 0;
+  if (Math.abs(ca - cb) > 0.001) return ca > cb;
+  return a.clp >= b.clp;
+}
+
 /**
  * Construye el objeto raw-shaped (mismas 5 listas que el LLM) desde los DocFacts por documento,
  * ANCLANDO el número de productos al CMF (L11). El LLM ya extrajo hechos; acá TS decide la estructura.
@@ -459,7 +487,7 @@ export function assembleRawFromDocFacts(
   }
 
   // Producto enriquecido con su origen
-  interface PP { p: DocProduct; clp: number; filename: string; bankName: string; bankKey: string; rutEmisor?: string; emisorNombre?: string; inCmf: boolean; docType: DocType; emision?: string; }
+  interface PP { p: DocProduct; clp: number; filename: string; bankName: string; bankKey: string; rutEmisor?: string; emisorNombre?: string; inCmf: boolean; docType: DocType; emision?: string; periodos?: number; }
 
   // Repartir los productos extraídos: por banco del CMF (in-CMF) vs NO-CMF (additionalCreditors)
   const productsByBank = new Map<string, PP[]>();
@@ -480,7 +508,7 @@ export function assembleRawFromDocFacts(
     for (const p of facts.productos) {
       const clp = toClp(p);
       if (!(clp > 0)) continue; // $0 / negativo → no es un producto a declarar
-      gathered.push({ p, clp, filename: facts.filename, bankName, bankKey, rutEmisor: facts.rut_emisor, emisorNombre: facts.emisor_nombre, inCmf, docType: facts.doc_type, emision: facts.emision });
+      gathered.push({ p, clp, filename: facts.filename, bankName, bankKey, rutEmisor: facts.rut_emisor, emisorNombre: facts.emisor_nombre, inCmf, docType: facts.doc_type, emision: facts.emision, periodos: facts.n_periodos });
     }
   }
 
@@ -488,18 +516,16 @@ export function assembleRawFromDocFacts(
   //    de varios documentos (estado de cuenta mensual + pantallazo de mora + certificado de
   //    liquidación) → sin esto, cada doc se vuelve un "producto" y el banco se sobre-declara
   //    (ej. Itaú op 60451478 en 3 docs, BdCh op 20933 en 2). Se conserva UN producto por
-  //    operación: prioridad liquidacion_payoff > desglose_por_producto > estado_cuenta, luego
-  //    mayor confianza, luego mayor monto; y se hereda la fecha_mora de cualquiera del grupo
+  //    operación: prioridad liquidacion_payoff > desglose_por_producto > estado_cuenta, luego (entre
+  //    el mismo doc_type) el que cubre MÁS períodos/estados (consolidado > suelto), luego mayor
+  //    confianza, luego mayor monto; y se hereda la fecha_mora de cualquiera del grupo
   //    (un doc puede traer el monto y otro la fecha). Productos SIN operación no se deduplican
   //    (no hay clave fiable; un banco con 2 créditos de monto similar son 2 productos reales).
-  const docTypeScore = (t: DocType): number => (t === 'liquidacion_payoff' ? 3 : t === 'desglose_por_producto' ? 2 : t === 'estado_cuenta' ? 1 : 0);
-  const better = (a: PP, b: PP): PP => {
-    const sa = docTypeScore(a.docType), sb = docTypeScore(b.docType);
-    if (sa !== sb) return sa > sb ? a : b;
-    const ca = a.p.confidence ?? 0, cb = b.p.confidence ?? 0;
-    if (Math.abs(ca - cb) > 0.001) return ca > cb ? a : b;
-    return a.clp >= b.clp ? a : b;
-  };
+  const better = (a: PP, b: PP): PP =>
+    atLeastAsAuthoritative(
+      { docType: a.docType, periodos: a.periodos, confidence: a.p.confidence ?? 0, clp: a.clp },
+      { docType: b.docType, periodos: b.periodos, confidence: b.p.confidence ?? 0, clp: b.clp },
+    ) ? a : b;
   const byOp = new Map<string, PP>();
   const products: PP[] = [];
   // Registro de descartes del dedup con monto MATERIALMENTE distinto: el mismo Nº de operación con
