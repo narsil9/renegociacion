@@ -96,7 +96,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts: number, delayMs: num
 }
 
 /** Nº de filas de datos en una tabla del paso (excluye la fila placeholder). */
-async function dataRowCount(page: Page, tableId: string): Promise<number> {
+export async function dataRowCount(page: Page, tableId: string): Promise<number> {
   return page.evaluate((id) => {
     const t = document.getElementById(id);
     if (!t) return 0;

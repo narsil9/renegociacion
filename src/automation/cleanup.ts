@@ -12,6 +12,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { Page } from 'playwright';
+import { dataRowCount } from './step5_ingresos';
 
 interface SimpleLogger {
   log(msg: string): void;
@@ -124,6 +125,71 @@ export async function cleanupDraft(page: Page, logger: SimpleLogger): Promise<vo
       await page.locator(deleteCMFSelector).waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
       log('   ✓ Informe CMF eliminado.');
       await page.waitForTimeout(1000);
+    }
+
+    // --- 3. Clean Step 5 (Ingresos) -----------------------------------------
+    // ponytail: ids de tabla (tablaIngresos, tablaDocumentos) confirmados en
+    // step5_ingresos.ts; los selectores de borrado (botón tacho por fila + modal
+    // #btnConfirmarModal / #dlgConfirmar) están derivados por analogía al Paso 3;
+    // verificar contra el DOM real en la próxima corrida.
+    const step5Url = `${baseUrl}/miSuperir/autenticado/renegociacion/verIngresos`;
+    log(`→ Navegando a Paso 5 para limpiar ingresos declarados y justificativos: ${step5Url}`);
+    await page.goto(step5Url, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+
+    // Delete all declared incomes and all supporting documents from both tables
+    for (const tableId of ['tablaIngresos', 'tablaDocumentos']) {
+      log(`   🗑️  Buscando filas en "${tableId}" para eliminar...`);
+
+      // A) Detección de falso-éxito: hay filas de datos pero el selector de tacho no matchea.
+      const filasReales = await dataRowCount(page, tableId);
+      const tieneBotonBorrado =
+        (await page
+          .locator(`#${tableId} tbody tr button[title*="liminar"], #${tableId} tbody tr a[title*="liminar"]`)
+          .count()) > 0;
+      if (filasReales > 0 && !tieneBotonBorrado) {
+        log(
+          `   ⚠️ Paso 5: la tabla "${tableId}" tiene ${filasReales} fila(s) pero no se encontró botón de eliminar (selector de tacho no matcheó) — NO se limpió; verificar DOM de verIngresos.`
+        );
+        continue;
+      }
+
+      for (let i = 0; i < 30; i++) {
+        const deleteBtn = page
+          .locator(`#${tableId} tbody tr button[title*="liminar"], #${tableId} tbody tr a[title*="liminar"]`)
+          .first();
+        if ((await deleteBtn.count()) === 0) break;
+
+        const antes = await dataRowCount(page, tableId);
+
+        log(`      🗑️  Eliminando fila ${i + 1} de "${tableId}"...`);
+        await deleteBtn.click();
+
+        const confirm = page.locator('#btnConfirmarModal');
+        await confirm.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+        if (await confirm.isVisible().catch(() => false)) {
+          await confirm.click();
+          await page.locator('#dlgConfirmar').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+        }
+        await page.waitForLoadState('load').catch(() => {});
+        await page.waitForSelector('#ingresosRenegociacionForm', { timeout: 15000 }).catch(() => {});
+        await page.waitForTimeout(1500);
+
+        // B) Break por no-progreso: si el conteo no bajó, no re-clickear la misma fila.
+        if ((await dataRowCount(page, tableId)) >= antes) {
+          log(
+            `   ⚠️ Paso 5: el borrado no redujo las filas de "${tableId}" (${antes} fila(s)) — corto para no reintentar la misma fila; verificar flujo de borrado.`
+          );
+          break;
+        }
+      }
+    }
+
+    // El ✓ final solo si efectivamente no quedan filas de datos en ninguna tabla.
+    const filasRestantesStep5 =
+      (await dataRowCount(page, 'tablaIngresos')) + (await dataRowCount(page, 'tablaDocumentos'));
+    if (filasRestantesStep5 === 0) {
+      log('   ✓ Todos los ingresos declarados y documentos justificativos eliminados del borrador.');
     }
 
     log('🎉 ¡El borrador del portal ha sido completamente limpiado!');
