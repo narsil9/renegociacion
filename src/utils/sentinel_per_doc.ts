@@ -21,6 +21,8 @@ import {
 } from './acreedor_matcher';
 import { normalizeOperationId } from './cert_line_items';
 import { loadReaderLessons } from './lessons_loader';
+import { extractEmissionDateFromText } from './cognitive_orchestrator';
+import { getCurrentChileDate, parseDateString } from './date_helper';
 
 // --- Tipos de extracción (lo único que devuelve el LLM, por documento) ---
 
@@ -57,6 +59,7 @@ export interface DocFacts {
   doc_type: DocType;
   emisor_nombre?: string;
   rut_emisor?: string;
+  emision?: string;                        // fecha de emisión del documento (YYYY-MM-DD), resuelta híbrida (determinista→Claude)
   totales_por_moneda?: { moneda: 'CLP' | 'UF' | 'USD'; monto: number; cita: string }[];
   productos: DocProduct[];
   // true si el doc es un AVISO DE COBRANZA por CONTENIDO (días de mora / deuda castigada / cobranza
@@ -76,6 +79,17 @@ export function isCollectionNotice(text?: string | null): boolean {
   return /\bd[ií]as?\s+de\s+mora\b/.test(t)
     || /deuda\s+castigada|cartera\s+vencida/.test(t)
     || /cobranza\s+(judicial|prejudicial|extrajudicial)/.test(t);
+}
+
+/**
+ * Política HÍBRIDA de fecha de emisión de un documento:
+ *  - si el extractor determinista (sobre el texto del PDF) obtuvo una fecha → gana esa;
+ *  - si no (imagen/escaneo sin texto, o texto sin fecha reconocible) → la que devolvió Claude leyendo nativo.
+ * Devuelve YYYY-MM-DD o undefined si ninguna fuente dio fecha.
+ */
+export function resolveEmision(deterministic: Date | null, claudeEmision: string | undefined): string | undefined {
+  if (deterministic) return deterministic.toISOString().split('T')[0];
+  return claudeEmision && claudeEmision.trim() ? claudeEmision.trim() : undefined;
 }
 
 /** Estructura mínima de un documento del Centinela que el extractor necesita. */
@@ -107,6 +121,7 @@ Devuelve un objeto JSON encerrado en <json>...</json> con esta forma:
   "doc_type": uno de: "desglose_por_producto" | "resumen_global" | "liquidacion_payoff" | "estado_cuenta" | "comprobante_pago" | "cartola" | "chat" | "otro",
   "emisor_nombre": razón social del emisor tal como aparece impresa,
   "rut_emisor": RUT del EMISOR (la institución acreedora), formato XXXXXXXX-X. NO el RUT del cliente/deudor. Búscalo en encabezado/pie.
+  "emision": "YYYY-MM-DD" (fecha de EMISIÓN o generación del documento — cuándo se emitió/imprimió; NO la fecha de mora ni la del correo. null si no aparece),
   "totales_por_moneda": SOLO si doc_type="resumen_global": [{ "moneda": "CLP"|"UF"|"USD", "monto": number, "cita": "texto verbatim" }],
   "productos": [ { "operacion": "Nº operación/CRE/contrato/tarjeta si está", "monto": number (entero en su moneda, sin separadores), "etiqueta_monto": "rótulo verbatim del monto", "moneda": "CLP"|"UF", "product_type": "tarjeta_credito"|"credito_consumo"|"linea_credito"|"hipotecario"|"otro", "fecha_mora": "YYYY-MM-DD" (inicio de mora / cobranza judicial / 1ª cuota impaga, SOLO si el documento la indica), "cita_monto": "fragmento textual verbatim de donde sacaste el monto", "cita_fecha": "verbatim de la fecha", "confidence": 0.0-1.0 } ]
 }
@@ -250,6 +265,11 @@ export async function extractDocFacts(
         productos,
         es_cobranza: isCollectionNotice(doc.textContent),
       };
+      const todayDate = parseDateString(todayStr) ?? getCurrentChileDate();
+      const deterministic = (!doc.isImageDoc && doc.textContent)
+        ? extractEmissionDateFromText(doc.textContent, todayDate).date
+        : null;
+      facts.emision = resolveEmision(deterministic, raw.emision ? String(raw.emision) : undefined);
       log(`${doc.filename}: doc_type=${facts.doc_type}, ${productos.length} producto(s)${facts.rut_emisor ? `, rut_emisor=${facts.rut_emisor}` : ''}.`);
       return facts;
     } catch (err: any) {
