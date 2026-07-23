@@ -22,6 +22,8 @@ export function toIsoDate(fecha: string | null | undefined): string | null {
   const m = /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/.exec(fecha.trim());
   if (!m) return null;
   const [, d, mo, y] = m;
+  const dn = +d, mn = +mo;
+  if (mn < 1 || mn > 12 || dn < 1 || dn > 31) return null;
   return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
 }
 
@@ -59,10 +61,12 @@ export async function enrichEstadosCuentaConMora(
       const iso = toIsoDate(card?.fecha_inicio_mora);
       if (!card || !iso) continue;
       p.fecha_mora = iso;
+      const [cy, cm, cd] = iso.split('-');
+      const canon = `${cd}/${cm}/${cy}`; // DD/MM/YYYY canónico → siempre corrobora la Capa 2
       // Cita que ACREDITA el vencimiento para la Capa 2 de Centinela: lleva la fecha literal
       // (DD/MM/YYYY) — la evidencia es el recorrido de períodos de la calculadora, no un renglón suelto.
-      p.cita_fecha = `${card.fecha_inicio_mora} — inicio de mora (calculadora Ley 20.720, ${card.dias_mora} días de mora al análisis)`;
-      log(`📅 ${facts.filename}: fecha_mora=${iso} por calculadora (${card.dias_mora}d) → ${p.operacion ?? p.etiqueta_monto}`);
+      p.cita_fecha = `${canon} — inicio de mora (calculadora Ley 20.720, ${card.dias_mora} días de mora al análisis)`;
+      log(`📅 ${facts.filename}: fecha_mora=${iso} por calculadora (${card.dias_mora}d) → ${p.operacion ?? p.etiqueta_monto}. Motivo: ${(card.explicacion ?? '').slice(0, 200)}`);
     }
   }
   return factsList;

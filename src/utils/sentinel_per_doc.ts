@@ -533,7 +533,7 @@ export function assembleRawFromDocFacts(
     const prev = byOp.get(key);
     if (!prev) { byOp.set(key, pp); products.push(pp); continue; }
     const win = better(prev, pp), lose = win === prev ? pp : prev;
-    if (!win.p.fecha_mora && lose.p.fecha_mora) win.p.fecha_mora = lose.p.fecha_mora; // heredar fecha
+    if (!win.p.fecha_mora && lose.p.fecha_mora) { win.p.fecha_mora = lose.p.fecha_mora; win.p.cita_fecha = lose.p.cita_fecha; } // heredar fecha + cita
     if (win !== prev) { byOp.set(key, win); const i = products.indexOf(prev); if (i >= 0) products[i] = win; }
     if (materiallyDifferent(win.clp, lose.clp)) {
       dedupDrops.push({ bank: pp.bankName, op, kept: win.clp, dropped: lose.clp, keptFile: win.filename, droppedFile: lose.filename });
