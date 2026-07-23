@@ -384,6 +384,8 @@ export interface OplessItem {
   emision?: string;      // YYYY-MM-DD
   docTypeScore: number;
   confidence: number;
+  fechaMora?: string;    // YYYY-MM-DD — se hereda al colapsar si el sobreviviente no la trae
+  citaFecha?: string;
 }
 
 /**
@@ -418,6 +420,8 @@ export function dedupOplessProducts<T extends OplessItem>(items: T[]): T[] {
       const twin = kept.find((k) => !materiallyDifferent(k.clp, item.clp));
       if (!twin) { kept.push(item); continue; }        // monto distinto → producto distinto real
       const win = newer(twin, item);
+      const lose = win === twin ? item : twin;
+      if (!win.fechaMora && lose.fechaMora) { win.fechaMora = lose.fechaMora; win.citaFecha = lose.citaFecha; } // heredar fecha
       if (win !== twin) kept[kept.indexOf(twin)] = win; // gana el más nuevo
     }
     out.push(...kept);
@@ -537,10 +541,18 @@ export function assembleRawFromDocFacts(
       emision: pp.emision,
       docTypeScore: docTypeScoreOf(pp.docType),
       confidence: pp.p.confidence ?? 0,
+      fechaMora: pp.p.fecha_mora,
+      citaFecha: pp.p.cita_fecha,
       __pp: pp,
     }))
   );
-  for (const d of oplessDedup) products.push((d as any).__pp as PP);
+  for (const d of oplessDedup) {
+    const pp = (d as any).__pp as PP;
+    // La fecha heredada por dedupOplessProducts vive en `d` (wrapper), no en __pp.p → volcarla acá
+    // para que is260/citaCorroboratesVenc aguas abajo la vean (mismo patrón que el dedup por operación).
+    if (!pp.p.fecha_mora && d.fechaMora) { pp.p.fecha_mora = d.fechaMora; pp.p.cita_fecha = d.citaFecha; }
+    products.push(pp);
+  }
   if (oplessPPs.length !== oplessDedup.length) {
     log(`🧹 Dedup por identidad (sin operación): ${oplessPPs.length} → ${oplessDedup.length} producto(s) tras colapsar duplicados de mismo banco+producto+mes.`);
   }

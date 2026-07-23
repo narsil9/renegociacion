@@ -35,5 +35,14 @@ check('montos distintos → 2', dedupOplessProducts([it({ clp: 100000 }), it({ c
 // 5) sin emisión → no se puede fechar → se conservan todos (conservador)
 check('sin emisión → no colapsa', dedupOplessProducts([it({ emision: undefined }), it({ emision: undefined })]).length === 2);
 
+// 6) el sobreviviente (emisión más nueva) NO trae fecha_mora, pero el gemelo colapsado SÍ →
+//    hereda fecha_mora (no se pierde la mora corroborada por cita al colapsar)
+{
+  const older = it({ emision: '2026-06-05', fechaMora: '2026-04-01' });
+  const newer = it({ emision: '2026-06-18', fechaMora: undefined });
+  const r = dedupOplessProducts([older, newer]);
+  check('hereda fecha_mora del gemelo colapsado', r.length === 1 && r[0].fechaMora === '2026-04-01');
+}
+
 console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
 process.exit(fail === 0 ? 0 : 1);
