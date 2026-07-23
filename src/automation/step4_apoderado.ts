@@ -1,3 +1,11 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// MIGRACIÓN PORTAL SUPERIR v6.0.1 — Paso 4 · Apoderado  ✅ CERRADO — SIN CAMBIOS (2026-07-22)
+// ───────────────────────────────────────────────────────────────────────────────
+// Verificado por Pato contra el HTML real de v6.0.1: este paso NO cambió ningún
+// selector (incluido #apoderadoRenegociacionForm, que se mantiene). Igual al worker
+// original. Auditoría: context/superir-v601-auditoria-selectores.md
+// ═══════════════════════════════════════════════════════════════════════════════
+
 import { Page } from 'playwright';
 import { screenshotOnFailure } from '../utils/browser';
 import * as fs from 'fs';

@@ -1,3 +1,11 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// MIGRACIÓN PORTAL SUPERIR v6.0.1 — Paso 2 · Declaraciones  ✅ CERRADO — SIN CAMBIOS (2026-07-22)
+// ───────────────────────────────────────────────────────────────────────────────
+// Verificado por Pato contra el HTML real de v6.0.1: este paso NO cambió ningún
+// selector (incluido #declaracionRenegociacionForm, que se mantiene). Igual al worker
+// original. Auditoría: context/superir-v601-auditoria-selectores.md
+// ═══════════════════════════════════════════════════════════════════════════════
+
 import { Page } from 'playwright';
 import { screenshotOnFailure } from '../utils/browser';
 import * as fs from 'fs';
@@ -136,6 +144,7 @@ export async function fillStep2(
         
         await page.locator('#descargaCarpetaTributaria').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
         log('✓ Página recargada tras eliminar Carpeta Tributaria.');
+        
         
         await page.waitForSelector('#declaracionRenegociacionForm', { timeout: 30000 });
         await recheckRequiredFields();

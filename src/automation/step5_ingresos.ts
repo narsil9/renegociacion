@@ -1,3 +1,11 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// MIGRACIÓN PORTAL SUPERIR v6.0.1 — Paso 5 · Ingresos  ✅ CERRADO — SIN CAMBIOS (2026-07-22)
+// ───────────────────────────────────────────────────────────────────────────────
+// Verificado por Pato contra el HTML real de v6.0.1: este paso NO cambió ningún
+// selector (incluido #ingresosRenegociacionForm, que se mantiene). Igual al worker
+// original. Auditoría: context/superir-v601-auditoria-selectores.md
+// ═══════════════════════════════════════════════════════════════════════════════
+
 /**
  * Paso 5 — Ingresos. Declara los ingresos del deudor en el portal Superir:
  *   1) una fila por fuente de ingreso (modal "Nuevo Ingreso"),

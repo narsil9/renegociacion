@@ -109,7 +109,7 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
   page.once('pageerror', err => log(`[PAGE ERROR] ${err.message}\n${err.stack}`));
 
   try {
-    await page.waitForSelector('#renegociacionForm', { timeout: 30000 });
+    await page.waitForSelector('#deudorForm', { timeout: 30000 });
     if (!page.url().includes('renegociacion')) {
       throw new Error(`URL inesperada para Paso 1: ${page.url()}`);
     }
@@ -120,14 +120,14 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
     await page.waitForTimeout(3000);
 
     // Esperar a que el campo nacionalidad esté cargado en la página
-    await page.waitForSelector('#personaNacionalidad', { timeout: 15000 });
+    await page.waitForSelector('#nacionalidad', { timeout: 15000 });
 
     // Si el formulario tiene datos guardados, los campos aparecen deshabilitados
     // en modo vista. Hay que clickear "Modificar Información" para desbloquearlo.
     // Usamos page.evaluate para evaluar el estado real del DOM, ya que Bootstrap Select
     // oculta los inputs nativos con display:none, lo que hace que Playwright .isVisible() retorne false.
     const isViewMode = await page.evaluate(() => {
-      const el = document.getElementById('personaNacionalidad') as HTMLInputElement;
+      const el = document.getElementById('nacionalidad') as HTMLInputElement;
       const btnModificar = document.getElementById('btnModificar');
       const fieldDisabled = el ? el.disabled || el.hasAttribute('disabled') : false;
       const btnVisible = btnModificar ? !btnModificar.classList.contains('hidden') && btnModificar.style.display !== 'none' : false;
@@ -140,7 +140,7 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
       
       // Esperar a que se elimine el atributo disabled de la página
       await page.waitForFunction(() => {
-        const el = document.getElementById('personaNacionalidad') as HTMLInputElement;
+        const el = document.getElementById('nacionalidad') as HTMLInputElement;
         return el ? !el.disabled && !el.hasAttribute('disabled') : false;
       }, { timeout: 15000 });
 
@@ -153,11 +153,11 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
     // a partir del RUT (Registro Civil vía ClaveÚnica). No se tocan.
 
     // --- Campos de texto ---
-    await clearAndFill(page, '#personaNacionalidad', client.nacionalidad);
+    await clearAndFill(page, '#nacionalidad', client.nacionalidad);
 
     // Check if birthdate is editable before filling it
     const isFechaNacimientoEditable = await page.evaluate(() => {
-      const el = document.getElementById('personaFechaNacimiento') as HTMLInputElement;
+      const el = document.getElementById('fchNacimiento') as HTMLInputElement;
       return el ? !el.disabled && !el.readOnly : false;
     });
 
@@ -166,7 +166,7 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
       
       let dateValue = client.fecha_nacimiento;
       const inputType = await page.evaluate(() => {
-        const el = document.getElementById('personaFechaNacimiento') as HTMLInputElement;
+        const el = document.getElementById('fchNacimiento') as HTMLInputElement;
         return el ? el.type : 'text';
       });
 
@@ -205,12 +205,12 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
         log(`→ Fecha formateada para input de tipo "${inputType}": ${dateValue}`);
       }
 
-      await clearAndFill(page, '#personaFechaNacimiento', dateValue);
+      await clearAndFill(page, '#fchNacimiento', dateValue);
 
       if (inputType !== 'date') {
         log('→ Seteando fecha de nacimiento en el widget bootstrap-datepicker...');
         const datepickerUpdated = await page.evaluate((val) => {
-          const $el = (window as any).jQuery ? (window as any).jQuery('#personaFechaNacimiento') : null;
+          const $el = (window as any).jQuery ? (window as any).jQuery('#fchNacimiento') : null;
           if ($el && typeof $el.datepicker === 'function') {
             $el.datepicker('setDate', val);
             return true;
@@ -225,35 +225,35 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
 
     // --- Dropdowns Bootstrap Select ---
     const estadoCivil = client.estado_civil;
-    await selectBootstrap(page, 'personaEstadoCivil', estadoCivil);
+    await selectBootstrap(page, 'estadoCivil', estadoCivil);
 
     // Régimen Patrimonial solo aparece si Estado Civil = Casado(a) (valor "2")
     if (estadoCivil === '2' && client.regimen_patrimonial) {
       await page.waitForSelector('#rowRegimenPatrimonial:not(.hidden)', { timeout: 5000 });
-      await selectBootstrap(page, 'personaRegimenPatrimonial', client.regimen_patrimonial);
+      await selectBootstrap(page, 'regimenPatrimonial', client.regimen_patrimonial);
     }
 
-    await selectBootstrap(page, 'personaProfesionOficio', client.profesion_oficio);
-    await selectBootstrap(page, 'personaOcupacion', client.ocupacion);
+    await selectBootstrap(page, 'profesionOficio', client.profesion_oficio);
+    await selectBootstrap(page, 'ocupacion', client.ocupacion);
 
     // --- Dirección ---
-    await clearAndFill(page, '#personaDireccion', client.direccion);
+    await clearAndFill(page, '#direccion', client.direccion);
 
     // Región primero, luego esperar que el dropdown de comunas se pueble vía AJAX
-    await selectBootstrap(page, 'personaRegion', client.region);
+    await selectBootstrap(page, 'region', client.region);
     await page.waitForFunction(
       () => {
-        const el = document.getElementById('personaComuna') as HTMLSelectElement;
+        const el = document.getElementById('comuna') as HTMLSelectElement;
         return el !== null && el.options.length > 1;
       },
       { timeout: 10000 }
     );
-    await selectBootstrap(page, 'personaComuna', client.comuna);
+    await selectBootstrap(page, 'comuna', client.comuna);
 
     // --- Contacto ---
-    await clearAndFill(page, '#personaCorreoElectronico', client.email);
-    await selectBootstrap(page, 'personaTelefonoPrefijo', client.telefono_prefijo);
-    await clearAndFill(page, '#personaTelefono', client.telefono);
+    await clearAndFill(page, '#email', client.email);
+    await selectBootstrap(page, 'prefijo', client.telefono_prefijo);
+    await clearAndFill(page, '#telefono', client.telefono);
 
     log('✓ Todos los campos completados.');
 
@@ -348,7 +348,7 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
     } catch {
       log('⚠️  Modal de confirmación no se mostró o no se hizo visible. Intentando envío directo de formulario...');
       await page.evaluate(() => {
-        const form = document.getElementById('renegociacionForm') as HTMLFormElement;
+        const form = document.getElementById('deudorForm') as HTMLFormElement;
         const csrfEl = document.querySelector('input[name="_csrf"]') as HTMLInputElement;
         if (form && csrfEl) {
           (window as any).openProcesandoSolicitud?.();

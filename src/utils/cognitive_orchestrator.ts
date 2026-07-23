@@ -19,8 +19,8 @@ export function extractDatesFromText(text: string): Date[] {
   const dates: Date[] = [];
   const lower = text.toLowerCase();
   
-  // Regex 1: D(D)/M(M)/YYYY or D(D)-M(M)-YYYY  — allows 1 or 2 digit day/month
-  const regex1 = /\b(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})\b/g;
+  // Regex 1: D(D)/M(M)/YYYY, D(D)-M(M)-YYYY o D(D).M(M).YYYY  — 1 o 2 dígitos día/mes
+  const regex1 = /\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})\b/g;
   let match;
   while ((match = regex1.exec(text)) !== null) {
     const day = parseInt(match[1], 10);
@@ -30,8 +30,8 @@ export function extractDatesFromText(text: string): Date[] {
     if (!isNaN(d.getTime())) dates.push(d);
   }
 
-  // Regex 2: YYYY-MM-DD
-  const regex2 = /\b(\d{4})[/\-](\d{2})[/\-](\d{2})\b/g;
+  // Regex 2: YYYY-MM-DD, YYYY/MM/DD o YYYY.MM.DD (firma electrónica avanzada)
+  const regex2 = /\b(\d{4})[/\-.](\d{2})[/\-.](\d{2})\b/g;
   while ((match = regex2.exec(text)) !== null) {
     const year = parseInt(match[1], 10);
     const month = parseInt(match[2], 10) - 1;
@@ -146,7 +146,10 @@ export function extractEmissionDateFromText(
   // Tier 1-B: Explicit emission labels with Spanish month name
   // "Fecha de Emisión: 20 de mayo de 2026"
   const labeledSpanishPatterns: RegExp[] = [
-    new RegExp(`fecha\\s+de?\\s*emisi[oó]n\\s*:?\\s*(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`, 'i'),
+    // "de" opcional en el LABEL y entre día/mes/año: cubre "fecha DE emisión: 20 de
+    // julio de 2026" Y "FECHA EMISIÓN: 20 Julio 2026" (Registro Civil / SII usan el mes
+    // en palabra SIN los "de", y el label sin "de"). Antes `de?` exigía la "d" del label.
+    new RegExp(`fecha\\s+(?:de\\s+)?emisi[oó]n\\s*:?\\s*(\\d{1,2})\\s+(?:de\\s+)?(${MONTHS_JOINED})\\s+(?:de\\s+)?(\\d{4})`, 'i'),
     new RegExp(`fecha\\s+del?\\s*certificado\\s*:?\\s*(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`, 'i'),
     new RegExp(`certificado\\s+emitido\\s+el\\s*:?\\s*(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`, 'i'),
     new RegExp(`emitido\\s+(?:el|con\\s+fecha)\\s*:?\\s*(\\d{1,2})\\s+de\\s+(${MONTHS_JOINED})\\s+de\\s+(\\d{4})`, 'i'),
@@ -198,6 +201,18 @@ export function extractEmissionDateFromText(
       const d = buildDate(parseInt(me[1], 10), idx, parseInt(me[3], 10));
       if (d) return { date: d, confidence: 'high' };
     }
+  }
+
+  // Tier 1-E: fecha de firma electrónica avanzada en ISO punteado — "Fecha: 2026.06.17".
+  // Es la fecha de GENERACIÓN real del documento y es la única legible por máquina en
+  // certificados cuyo cuerpo trae la fecha en palabras (Conservador de Bienes Raíces,
+  // Registro Civil, SII). Va después de los labels explícitos de emisión (que ganan) y
+  // antes del "Fecha:" genérico DD/MM/YYYY (que suele agarrar fechas internas).
+  const fechaIsoRe = /fecha\s*:?\s*(\d{4})[.\-/](\d{2})[.\-/](\d{2})/i;
+  const mi = lower.match(fechaIsoRe);
+  if (mi) {
+    const d = buildDate(parseInt(mi[3], 10), parseInt(mi[2], 10) - 1, parseInt(mi[1], 10));
+    if (d) return { date: d, confidence: 'high' };
   }
 
   // ── TIER 2: MEDIUM CONFIDENCE ───────────────────────────────────────────────

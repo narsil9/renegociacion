@@ -159,14 +159,15 @@ export function validateTributarioOutput(output: TributarioOutput): ValidationRe
 export function validateCmfParseOutput(output: CmfParseOutput): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+  let needsLawyerReview = false;
 
   if (output.cmfAgeDays > 30) {
-    const msg = `CMF vencido: ${output.cmfAgeDays} días de antigüedad (máx 30).`;
-    if (getBypassDateCheck()) {
-      warnings.push(`⚠️  ${msg} — BYPASS_DATE_CHECK activo`);
-    } else {
-      errors.push(`${msg} Usa BYPASS_DATE_CHECK=true para pruebas.`);
-    }
+    // POLÍTICA DE VIGENCIA (estudio, 2026-07-21): un documento >30 días NO bloquea.
+    // Avisa y marca para revisión humana. El worker jamás radica: un humano revisa
+    // el borrador en el portal antes de presentar, así que la vigencia es un aviso a
+    // resolver, no un muro. (Antes esto era error bloqueante salvo BYPASS_DATE_CHECK.)
+    warnings.push(`⚠️  CMF con ${output.cmfAgeDays} días de antigüedad (máx 30) — actualizar antes de radicar.`);
+    needsLawyerReview = true;
   }
 
   if (!output.meets90DaysRequirement) {
@@ -185,7 +186,7 @@ export function validateCmfParseOutput(output: CmfParseOutput): ValidationResult
     );
   }
 
-  return { valid: errors.length === 0, needsLawyerReview: false, errors, warnings };
+  return { valid: errors.length === 0, needsLawyerReview, errors, warnings };
 }
 
 /**
@@ -249,23 +250,18 @@ export function validateCentinelaOutput(output: CentinelaOutput): ValidationResu
     }
   }
 
+  // POLÍTICA DE VIGENCIA (estudio, 2026-07-21): vencido >30d NO bloquea → avisa +
+  // revisión humana (el worker no radica; el humano revisa el borrador en el portal).
   const expiredCmfClave = output.fechasClave.find(f => f.tipo === 'expiracion_cmf' && f.diasRestantes < 0);
   if (expiredCmfClave) {
-    const msg = `CMF vencido: ${expiredCmfClave.detalle}`;
-    if (getBypassDateCheck()) {
-      warnings.push(`⚠️  ${msg} — BYPASS_DATE_CHECK activo`);
-    } else {
-      errors.push(msg);
-    }
+    warnings.push(`⚠️  CMF con +30 días: ${expiredCmfClave.detalle} — actualizar antes de radicar.`);
+    needsLawyerReview = true;
   }
 
   const expiredCerts = output.fechasClave.filter(f => f.tipo === 'expiracion_certificado' && f.diasRestantes < 0);
   for (const c of expiredCerts) {
-    if (getBypassDateCheck()) {
-      warnings.push(`⚠️  Certificado expirado: ${c.detalle} — BYPASS_DATE_CHECK activo`);
-    } else {
-      errors.push(`Certificado expirado: ${c.detalle}`);
-    }
+    warnings.push(`⚠️  Certificado con +30 días: ${c.detalle} — actualizar antes de radicar.`);
+    needsLawyerReview = true;
   }
 
   return { valid: errors.length === 0, needsLawyerReview, errors, warnings };
@@ -295,12 +291,10 @@ export function validateMapeadorOutput(output: MapeadorOutput): ValidationResult
       errors.push(`Documento faltante: ${alert.message}`);
       needsLawyerReview = true;
     } else if (alert.type === 'expired_cmf' || alert.type === 'expired_certificate') {
-      const msg = `Documento vencido: ${alert.message}`;
-      if (getBypassDateCheck()) {
-        warnings.push(`⚠️  ${msg} — BYPASS_DATE_CHECK activo`);
-      } else {
-        errors.push(msg);
-      }
+      // POLÍTICA DE VIGENCIA (estudio, 2026-07-21): vencido >30d → aviso + revisión
+      // humana, no bloqueo (el worker no radica; el humano revisa antes de presentar).
+      warnings.push(`⚠️  Documento con +30 días: ${alert.message} — actualizar antes de radicar.`);
+      needsLawyerReview = true;
     } else if (alert.type === 'amount_mismatch') {
       warnings.push(`⚠️  Diferencia de monto: ${alert.message}`);
     } else {

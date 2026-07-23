@@ -1,3 +1,16 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// MIGRACIÓN PORTAL SUPERIR v6.0.1 — Autolimpieza del borrador  ⚠️ EN PROGRESO (2026-07-21)
+// ───────────────────────────────────────────────────────────────────────────────
+// La navegación + el Paso 1 YA están migrados y vivos. Este paso AÚN NO.
+// NO se aplicó ningún rename a ciegas: los selectores marcados abajo con
+//   `// TODO v6.0.1`  siguen con el id VIEJO a propósito. Hay que confirmarlos
+// contra el HTML del mapeo (map_portal.mjs) y recién ahí editarlos (dual `#nuevo, #viejo`).
+//
+// Punch-list completo (archivo · línea · categoría · propuesta):
+//   context/superir-v601-auditoria-selectores.md
+// Sospechoso (casi seguro cambió): comparte ids con Paso 2/3 (data-documento, tablaAcreedores, btnEliminarCMF, dlgConfirmar) — actualizar con LOS MISMOS valores que se confirmen ahí
+// ═══════════════════════════════════════════════════════════════════════════════
+
 import { Page } from 'playwright';
 
 interface SimpleLogger {

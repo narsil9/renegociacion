@@ -276,14 +276,23 @@ export async function loginAndNavigateToStep1(
     }
 
     log('→ Navegando a Renegociación...');
-    await page.locator('a[onclick*="renegociacion"]').first().click();
+    // Portal SUPERIR v6.0.1 (2026-07): el menú "Renegociación" pasó de un
+    // <a onclick="...renegociacion..."> a un <a href="/miSuperir/autenticado/
+    // renegociacion/inicio"> plano. El selector viejo por onclick daba timeout.
+    // Se prueba el href nuevo y, como red de seguridad, el texto del menú.
+    const navRenegociacion = page.locator('nav.primary-menu a[href*="renegociacion"], a[href*="/renegociacion/inicio"], a[onclick*="renegociacion"]').first();
+    await navRenegociacion.waitFor({ state: 'visible', timeout: 30000 });
+    await navRenegociacion.click();
     await page.waitForURL(/renegociacion/, { timeout: 30000 });
 
     log('→ Haciendo click en Solicitud Renegociación...');
     await page.waitForSelector('text=Solicitud Renegociación', { timeout: 15000 });
     await page.getByText('Solicitud Renegociación').first().click();
 
-    await page.waitForSelector('#renegociacionForm', { timeout: 30000 });
+    // Portal v6.0.1 (2026-07): el <form> de la solicitud pasó de id="renegociacionForm"
+    // a id="deudorForm" (action=/renegociacion/solicitud). Los checkboxes y el botón de
+    // abajo (#mensajeLeido, #autorizoConvenioDatos, #btnEnviar) NO cambiaron.
+    await page.waitForSelector('#deudorForm, #renegociacionForm', { timeout: 30000 });
     await page.waitForLoadState('load');
     await page.waitForTimeout(1500); // Esperar estabilización de scripts onload
 
@@ -326,7 +335,10 @@ export async function loginAndNavigateToStep1(
       );
       
       // Esperar al formulario Step 1 real
-      await page.waitForSelector('#personaNacionalidad', { timeout: 30000 });
+      // Portal v6.0.1: el Paso 1 le sacó el prefijo "persona" a todos los ids del
+      // formulario. #personaNacionalidad → #nacionalidad. (El resto del llenado vive en
+      // step1_personal.ts y necesita la misma migración de ids — ver mapa v6.0.1.)
+      await page.waitForSelector('#nacionalidad, #personaNacionalidad', { timeout: 30000 });
       log('✓ [INICIO] Paso 1 real cargado correctamente.');
     } else {
       log('✓ Formulario Paso 1 cargado correctamente.');

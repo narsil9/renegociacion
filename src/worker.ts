@@ -1,3 +1,4 @@
+import './utils/ws-polyfill'; // WebSocket para Node<22 — ANTES de cualquier cliente Supabase
 import * as dotenv from 'dotenv';
 dotenv.config({ override: true });
 

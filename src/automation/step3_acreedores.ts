@@ -1,3 +1,15 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// MIGRACIÓN PORTAL SUPERIR v6.0.1 — Paso 3 · Acreedores + CMF  ✅ CERRADO (2026-07-22)
+// ───────────────────────────────────────────────────────────────────────────────
+// Verificado por Pato contra el HTML real de verAcreedores. ÚNICO cambio del Paso 3:
+// el modal del acreedor persona natural renombró los 3 campos de NOMBRE de dotted a
+// camelCase (persona.nombres→personaNombres, .aPaterno→personaAPaterno, .aMaterno→
+// personaAMaterno). Ya aplicado (dual `#nuevo, [id="viejo"]`) en addPersonaAcreedor.
+// El RESTO del Paso 3 (#acreedoresRenegociacionForm, #informeCMF, #btnAgregarEmpresa,
+// modal empresa, representante legal, adjuntos, tablas, #btnContinuar, #personaRutDv,
+// personaAcreedor.*) está confirmado SIN cambios. Auditoría: context/superir-v601-auditoria-selectores.md
+// ═══════════════════════════════════════════════════════════════════════════════
+
 import { Page } from 'playwright';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { screenshotOnFailure } from '../utils/browser';
@@ -1626,6 +1638,11 @@ async function cleanupCMF(page: Page, log: (m: string) => void): Promise<void> {
 /**
  * Opens the "Agregar Persona Natural" modal and fills it for one creditor.
  */
+// v6.0.1 (verificado por Pato contra el HTML real de verAcreedores, 2026-07-22): en el modal
+// del acreedor persona natural SOLO cambiaron los 3 campos de nombre (persona.nombres →
+// personaNombres, persona.aPaterno → personaAPaterno, persona.aMaterno → personaAMaterno).
+// El RESTO de este bloque (#personaRutDv, personaAcreedor.*, #personaFechaCuotaImpaga,
+// personaRegion, #personaAcreedorcomuna) está confirmado SIN cambios — NO tocar.
 async function addPersonaAcreedor(
   page: Page,
   entry: AcreedorCatalogEntry,
@@ -1645,22 +1662,25 @@ async function addPersonaAcreedor(
   await page.locator('#buscarPersona').click();
   await page.waitForTimeout(2500);
 
-  const nombresFilled = await page.locator('[id="persona.nombres"]').evaluate(
+  // Portal v6.0.1 (2026-07): el modal del acreedor persona natural renombró los campos
+  // de nombre de dotted a camelCase (persona.nombres → personaNombres, etc.). Dual
+  // #nuevo, [id="viejo"] por si el portal reusara el id viejo en algún flujo.
+  const nombresFilled = await page.locator('#personaNombres, [id="persona.nombres"]').evaluate(
     (el: HTMLInputElement) => el.value.trim().length > 0
   );
   if (!nombresFilled) {
     const { nombres, paterno, materno } = splitName(entry.nombre);
     await page.evaluate(() => {
-      const n = document.getElementById('persona.nombres');
-      const p = document.getElementById('persona.aPaterno');
-      const m = document.getElementById('persona.aMaterno');
+      const n = document.getElementById('personaNombres') || document.getElementById('persona.nombres');
+      const p = document.getElementById('personaAPaterno') || document.getElementById('persona.aPaterno');
+      const m = document.getElementById('personaAMaterno') || document.getElementById('persona.aMaterno');
       if (n) n.removeAttribute('readonly');
       if (p) p.removeAttribute('readonly');
       if (m) m.removeAttribute('readonly');
     });
-    await page.locator('[id="persona.nombres"]').fill(truncate(nombres, 50));
-    await page.locator('[id="persona.aPaterno"]').fill(truncate(paterno, 30));
-    if (materno) await page.locator('[id="persona.aMaterno"]').fill(truncate(materno, 30));
+    await page.locator('#personaNombres, [id="persona.nombres"]').fill(truncate(nombres, 50));
+    await page.locator('#personaAPaterno, [id="persona.aPaterno"]').fill(truncate(paterno, 30));
+    if (materno) await page.locator('#personaAMaterno, [id="persona.aMaterno"]').fill(truncate(materno, 30));
   }
 
   await locByName(page, 'personaAcreedor.direccion').fill(truncate(entry.direccion ?? '', MAX.direccion));
