@@ -23,6 +23,8 @@ import { normalizeOperationId } from './cert_line_items';
 import { loadReaderLessons } from './lessons_loader';
 import { extractEmissionDateFromText } from './cognitive_orchestrator';
 import { getCurrentChileDate, parseDateString } from './date_helper';
+import { runCalculadoraMora } from './calculadora-mora/mora-api';
+import { enrichEstadosCuentaConMora } from './calculadora-mora/mora-runner';
 
 // --- Tipos de extracción (lo único que devuelve el LLM, por documento) ---
 
@@ -323,6 +325,17 @@ export async function runPerDocExtraction(
     const rows = doc.institucion_cmf ? (rowsByBank.get(canonicalInstitutionKey(doc.institucion_cmf)) ?? []) : [];
     return extractDocFacts(doc, rows, anthropic, model, todayStr, logger);
   });
+  // Enganche calculadora de mora: por cada estado_cuenta, derivar fecha_inicio_mora (Ley 20.720)
+  // y estamparla como fecha_mora del producto ANTES del ruteo 260/261. Toggle CENTINELA_CALCULADORA_MORA.
+  if (process.env.CENTINELA_CALCULADORA_MORA !== 'false') {
+    const docByName = new Map(documents.map((d) => [d.filename, d]));
+    const runCalc = async (facts: DocFacts): Promise<unknown[]> => {
+      const src = docByName.get(facts.filename);
+      if (!src) throw new Error(`sin doc fuente para ${facts.filename}`);
+      return runCalculadoraMora(src, anthropic, model, todayStr, logger);
+    };
+    await enrichEstadosCuentaConMora(factsList, runCalc, (m) => log(m));
+  }
   const raw = assembleRawFromDocFacts(factsList, cmfResult, catalog, clientRut, todayStr, logger);
   // Exponer el doc_type que el LLM clasificó por documento, para que las heurísticas
   // deterministas aguas abajo (isChatDocument / classifyNonAccreditingDoc) CONFÍEN en él en
@@ -520,7 +533,7 @@ export function assembleRawFromDocFacts(
     const prev = byOp.get(key);
     if (!prev) { byOp.set(key, pp); products.push(pp); continue; }
     const win = better(prev, pp), lose = win === prev ? pp : prev;
-    if (!win.p.fecha_mora && lose.p.fecha_mora) win.p.fecha_mora = lose.p.fecha_mora; // heredar fecha
+    if (!win.p.fecha_mora && lose.p.fecha_mora) { win.p.fecha_mora = lose.p.fecha_mora; win.p.cita_fecha = lose.p.cita_fecha; } // heredar fecha + cita
     if (win !== prev) { byOp.set(key, win); const i = products.indexOf(prev); if (i >= 0) products[i] = win; }
     if (materiallyDifferent(win.clp, lose.clp)) {
       dedupDrops.push({ bank: pp.bankName, op, kept: win.clp, dropped: lose.clp, keptFile: win.filename, droppedFile: lose.filename });

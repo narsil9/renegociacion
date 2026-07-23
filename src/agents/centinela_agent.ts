@@ -96,7 +96,7 @@ export async function runCentinelaAgent(
   // acreditación del cliente y (3) versión de lógica. Antes solo miraba el CMF, así
   // que documentos nuevos nunca se re-leían (bug María, 2026-07). Subir la versión
   // al cambiar reglas del Centinela.
-  const CENTINELA_LOGIC_VERSION = 'v19-doc-set-in-hash';
+  const CENTINELA_LOGIC_VERSION = 'v20-calculadora-mora';
   const { data: docRows, error: docErr } = await supabase
     .from('client_documents')
     .select('storage_path, uploaded_at')
