@@ -16,6 +16,57 @@ interface SimpleLogger {
   error(msg: string, err?: any): void;
 }
 
+/**
+ * Borra la Carpeta Tributaria y el Certificado de Agentes Retenedores YA subidos en
+ * el borrador del Paso 2 (si existen). Hace el llenado IDEMPOTENTE: re-correr la
+ * automatización REEMPLAZA en vez de intentar subir sobre un documento ya presente.
+ * Movido de `cleanup.ts` (mismos selectores/modal, mismo comportamiento de borrado).
+ * NO navega: asume que la página ya está en `verDeclaraciones` (el caller ya navegó).
+ */
+export async function clearStep2Documents(page: Page, log: (msg: string) => void): Promise<void> {
+  // Check if Carpeta Tributaria is uploaded and delete it
+  const isTributariaUploaded = await page.evaluate(() => {
+    const el = document.getElementById('descargaCarpetaTributaria');
+    return el ? !el.classList.contains('hidden') : false;
+  });
+
+  if (isTributariaUploaded) {
+    log('   🗑️  Eliminando Carpeta Tributaria del borrador...');
+    await page.locator('button[data-documento="carpetaTributaria"]').click();
+
+    const confirm = page.locator('#btnConfirmarModal');
+    await confirm.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    if (await confirm.isVisible().catch(() => false)) {
+      await confirm.click();
+      await page.locator('#dlgConfirmar').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    }
+    await page.locator('#descargaCarpetaTributaria').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+    log('   ✓ Carpeta Tributaria eliminada.');
+    await page.waitForTimeout(1000);
+  }
+
+  // Check if Agentes Retenedores is uploaded and delete it
+  const isRetenedoresUploaded = await page.evaluate(() => {
+    const el = document.getElementById('descargaInformacionIngresos');
+    return el ? !el.classList.contains('hidden') : false;
+  });
+
+  if (isRetenedoresUploaded) {
+    log('   🗑️  Eliminando Certificado de Agentes Retenedores del borrador...');
+    await page.locator('button[data-documento="informacionIngresos"]').click();
+
+    const confirm = page.locator('#btnConfirmarModal');
+    await confirm.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    if (await confirm.isVisible().catch(() => false)) {
+      await confirm.click();
+      await page.locator('#dlgConfirmar').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    }
+    await page.locator('#descargaInformacionIngresos').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+    log('   ✓ Agentes Retenedores eliminado.');
+    await page.waitForTimeout(1000);
+  }
+}
+
 export async function fillStep2(
   page: Page,
   tributariaLocalPath: string,
@@ -50,6 +101,12 @@ export async function fillStep2(
 
     log('→ Esperando estabilización de scripts en la página...');
     await page.waitForTimeout(3000);
+
+    // 0. Limpieza idempotente ANTES de llenar (clear-before-fill): borra Carpeta
+    // Tributaria / Agentes Retenedores preexistentes para que cada corrida
+    // REEMPLACE en vez de APILAR (happy path incluido).
+    log('🧹 Verificando borrador preexistente del Paso 2 antes de llenar...');
+    await clearStep2Documents(page, log);
 
     // 1. Check radio according to category
     if (categoria === 'primera') {

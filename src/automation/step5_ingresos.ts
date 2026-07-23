@@ -192,6 +192,77 @@ async function uploadCotizaciones(page: Page, localPath: string, log: (m: string
   log('   ✓ Certificado de Cotizaciones subido.');
 }
 
+/**
+ * Borra TODAS las filas de ingresos declarados y documentos justificativos
+ * preexistentes en el borrador del Paso 5 ANTES de llenar. Hace el llenado
+ * IDEMPOTENTE: re-correr la automatización REEMPLAZA en vez de APILAR (ej. 3 filas
+ * de Remuneración idénticas). Movido de `cleanup.ts` (mismos selectores/modal),
+ * incluido el hardening: (A) detección de falso-éxito (hay filas de datos pero no
+ * se encontró botón de eliminar → WARNING y se sigue con la otra tabla), (B) break
+ * por no-progreso (el borrado no redujo las filas → WARNING y se corta para no
+ * reintentar la misma fila), (C) el ✓ final solo si ambas tablas quedaron en 0.
+ * NO navega: asume que la página ya está en `verIngresos` (el caller ya navegó).
+ */
+export async function clearStep5Incomes(page: Page, log: (m: string) => void): Promise<void> {
+  // ponytail: ids de tabla (tablaIngresos, tablaDocumentos) confirmados en este
+  // archivo; los selectores de borrado (botón tacho por fila + modal
+  // #btnConfirmarModal / #dlgConfirmar) están derivados por analogía al Paso 3;
+  // verificar contra el DOM real en la próxima corrida.
+  for (const tableId of ['tablaIngresos', 'tablaDocumentos']) {
+    log(`   🗑️  Buscando filas en "${tableId}" para eliminar...`);
+
+    // A) Detección de falso-éxito: hay filas de datos pero el selector de tacho no matchea.
+    const filasReales = await dataRowCount(page, tableId);
+    const tieneBotonBorrado =
+      (await page
+        .locator(`#${tableId} tbody tr button[title*="liminar"], #${tableId} tbody tr a[title*="liminar"]`)
+        .count()) > 0;
+    if (filasReales > 0 && !tieneBotonBorrado) {
+      log(
+        `   ⚠️ Paso 5: la tabla "${tableId}" tiene ${filasReales} fila(s) pero no se encontró botón de eliminar (selector de tacho no matcheó) — NO se limpió; verificar DOM de verIngresos.`
+      );
+      continue;
+    }
+
+    for (let i = 0; i < 30; i++) {
+      const deleteBtn = page
+        .locator(`#${tableId} tbody tr button[title*="liminar"], #${tableId} tbody tr a[title*="liminar"]`)
+        .first();
+      if ((await deleteBtn.count()) === 0) break;
+
+      const antes = await dataRowCount(page, tableId);
+
+      log(`      🗑️  Eliminando fila ${i + 1} de "${tableId}"...`);
+      await deleteBtn.click();
+
+      const confirm = page.locator('#btnConfirmarModal');
+      await confirm.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      if (await confirm.isVisible().catch(() => false)) {
+        await confirm.click();
+        await page.locator('#dlgConfirmar').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+      }
+      await page.waitForLoadState('load').catch(() => {});
+      await page.waitForSelector('#ingresosRenegociacionForm', { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+
+      // B) Break por no-progreso: si el conteo no bajó, no re-clickear la misma fila.
+      if ((await dataRowCount(page, tableId)) >= antes) {
+        log(
+          `   ⚠️ Paso 5: el borrado no redujo las filas de "${tableId}" (${antes} fila(s)) — corto para no reintentar la misma fila; verificar flujo de borrado.`
+        );
+        break;
+      }
+    }
+  }
+
+  // El ✓ final solo si efectivamente no quedan filas de datos en ninguna tabla.
+  const filasRestantesStep5 =
+    (await dataRowCount(page, 'tablaIngresos')) + (await dataRowCount(page, 'tablaDocumentos'));
+  if (filasRestantesStep5 === 0) {
+    log('   ✓ Todos los ingresos declarados y documentos justificativos eliminados del borrador.');
+  }
+}
+
 export async function fillStep5(
   page: Page,
   input: Step5Input,
@@ -211,6 +282,12 @@ export async function fillStep5(
     log('⏳ Esperando formulario de Paso 5 (Ingresos)...');
     await page.waitForSelector('#ingresosRenegociacionForm', { timeout: 30000 });
     await page.waitForTimeout(3000); // estabilización de handlers (regla del proyecto)
+
+    // 0. Limpieza idempotente ANTES de llenar (clear-before-fill): borra ingresos y
+    // justificativos preexistentes para que cada corrida REEMPLACE en vez de APILAR
+    // (happy path incluido — sin esto, una re-corrida triplicaba filas de Remuneración).
+    log('🧹 Verificando borrador preexistente del Paso 5 antes de llenar...');
+    await clearStep5Incomes(page, log);
 
     if (input.incomes.length === 0) {
       report.warnings.push('No hay ingresos para declarar (lista vacía).');

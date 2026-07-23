@@ -156,19 +156,25 @@ export async function captureStep3ForComparison(page: Page, log: (m: string) => 
 
 /**
  * Borra TODOS los acreedores existentes de ambas tablas del Paso 3 (Obligaciones 260
- * y Otros Acreedores) ANTES de llenar. Hace el llenado IDEMPOTENTE: re-correr la
- * automatización REEMPLAZA en vez de APILAR. NO toca el Informe CMF ni los archivos
- * del Paso 2. Mismo selector/flujo que cleanup.ts.
+ * y Otros Acreedores) y el Informe CMF ANTES de llenar. Hace el llenado IDEMPOTENTE:
+ * re-correr la automatización REEMPLAZA en vez de APILAR (happy path incluido, no
+ * solo la rama de fallo de `cleanup.ts`, de donde se movió esta lógica — mismos
+ * selectores/modal, mismo comportamiento de borrado). NO toca los archivos del Paso 2.
+ * NO navega: asume que la página ya está en `verAcreedores` (el caller ya navegó).
  */
-async function clearExistingAcreedores(page: Page, log: (m: string) => void): Promise<void> {
-  let removed = 0;
+export async function clearStep3Creditors(page: Page, log: (m: string) => void): Promise<void> {
+  // --- Acreedores (ambas tablas) ---
   for (const tableId of ['tablaAcreedores', 'tablaOtrosAcreedores']) {
-    for (let i = 0; i < 40; i++) {
+    log(`   🗑️  Buscando acreedores en "${tableId}" para eliminar...`);
+    for (let i = 0; i < 30; i++) {
       const deleteBtn = page
         .locator(`#${tableId} tbody tr button[title*="liminar"], #${tableId} tbody tr a[title*="liminar"]`)
         .first();
       if ((await deleteBtn.count()) === 0) break;
+
+      log(`      🗑️  Eliminando acreedor ${i + 1} de la tabla...`);
       await deleteBtn.click();
+
       const confirm = page.locator('#btnConfirmarModal');
       await confirm.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
       if (await confirm.isVisible().catch(() => false)) {
@@ -176,12 +182,27 @@ async function clearExistingAcreedores(page: Page, log: (m: string) => void): Pr
         await page.locator('#dlgConfirmar').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
       }
       await page.waitForLoadState('load').catch(() => {});
-      await page.waitForTimeout(1200);
-      removed++;
+      await page.waitForTimeout(1500);
     }
   }
-  if (removed > 0) log(`🧹 Limpieza idempotente: ${removed} acreedor(es) preexistente(s) eliminado(s) antes de llenar.`);
-  else log('🧹 Tabla de acreedores vacía (sin preexistentes) — llenado limpio.');
+  log('   ✓ Todos los acreedores eliminados del borrador.');
+
+  // --- Informe CMF ---
+  const deleteCMFSelector = '#btnEliminarCMF';
+  if ((await page.locator(deleteCMFSelector).count()) > 0) {
+    log('   🗑️  Eliminando Informe CMF del borrador...');
+    await page.locator(deleteCMFSelector).click();
+
+    const confirm = page.locator('#btnConfirmarModal');
+    await confirm.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    if (await confirm.isVisible().catch(() => false)) {
+      await confirm.click();
+      await page.locator('#dlgConfirmar').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    }
+    await page.locator(deleteCMFSelector).waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+    log('   ✓ Informe CMF eliminado.');
+    await page.waitForTimeout(1000);
+  }
 }
 
 /**
@@ -266,6 +287,15 @@ export async function fillStep3(
 
     log('→ Esperando estabilización de scripts en la página...');
     await page.waitForTimeout(3000);
+
+    // --- 0. LIMPIEZA IDEMPOTENTE — borrar acreedores + Informe CMF preexistentes ---
+    // Hace que el llenado REEMPLACE en vez de APILAR. Sin esto, una re-corrida
+    // agrega encima de la anterior y, como el Centinela puede leer montos
+    // levemente distintos entre corridas, isCreditorAlreadyInTable (que matchea
+    // por monto) no detecta el duplicado → se acumulan filas repetidas (ej. Tenpo
+    // $2.289.252 y $2.358.815). Borrar primero garantiza un Paso 3 limpio en cada
+    // ejecución, en TODAS las corridas (happy path incluido). NO toca el Paso 2.
+    await clearStep3Creditors(page, log);
 
     // --- 1. Upload Boletín Comercial (opcional) --------------------------
     if (boletinComercialPath && fs.existsSync(boletinComercialPath)) {
@@ -721,16 +751,6 @@ export async function fillStep3(
     } catch (err) {
       log(`⚠️ No se pudo extraer el RUT del cliente del CMF: ${(err as Error).message}`);
     }
-
-    // --- 4a-0. LIMPIEZA IDEMPOTENTE — borrar acreedores preexistentes ---------
-    // Hace que el llenado REEMPLACE en vez de APILAR. Sin esto, una re-corrida
-    // agrega encima de la anterior y, como el Centinela puede leer montos
-    // levemente distintos entre corridas, isCreditorAlreadyInTable (que matchea
-    // por monto) no detecta el duplicado → se acumulan filas repetidas (ej. Tenpo
-    // $2.289.252 y $2.358.815). Borrar primero garantiza un Paso 3 limpio en cada
-    // ejecución. NO toca el CMF ni los archivos del Paso 2.
-    await ensureOnAcreedoresPage(page, log).catch(() => {});
-    await clearExistingAcreedores(page, log);
 
     for (const creditor of creditors) {
       // Fix #3 — si la institución es multiproducto (varios overrides del mismo
