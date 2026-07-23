@@ -376,6 +376,55 @@ function issuerInCmf(
 
 const PRODUCTLESS_TYPES: DocType[] = ['resumen_global', 'comprobante_pago', 'cartola', 'chat'];
 
+export interface OplessItem {
+  bankKey: string;
+  productType?: string;
+  etiqueta: string;
+  clp: number;
+  emision?: string;      // YYYY-MM-DD
+  docTypeScore: number;
+  confidence: number;
+}
+
+/**
+ * Dedup determinista de productos SIN Nº de operación, por IDENTIDAD = banco + producto + mes de
+ * emisión. Colapsa solo cuando además el monto es equivalente (misma deuda re-enviada / mismo estado
+ * en dos formatos); conserva el de emisión más nueva (desempate: docTypeScore, confidence, clp).
+ * Conserva TODO cuando: meses distintos (serie), montos materialmente distintos (productos reales
+ * distintos), o falta el mes (no se puede fechar → conservador).
+ */
+export function dedupOplessProducts<T extends OplessItem>(items: T[]): T[] {
+  const materiallyDifferent = (a: number, b: number) =>
+    Math.abs(a - b) > 100_000 && Math.abs(a - b) / Math.max(a, b, 1) > 0.05;
+  const month = (e?: string) => (e && /^\d{4}-\d{2}/.test(e) ? e.slice(0, 7) : null);
+  const newer = (a: T, b: T): T => {
+    if (a.emision && b.emision && a.emision !== b.emision) return a.emision > b.emision ? a : b;
+    if (a.docTypeScore !== b.docTypeScore) return a.docTypeScore > b.docTypeScore ? a : b;
+    if (Math.abs((a.confidence ?? 0) - (b.confidence ?? 0)) > 0.001) return (a.confidence ?? 0) > (b.confidence ?? 0) ? a : b;
+    return a.clp >= b.clp ? a : b;
+  };
+  const out: T[] = [];
+  const groups = new Map<string, T[]>(); // clave: banco+producto+mes (solo si hay mes)
+  for (const item of items) {
+    const m = month(item.emision);
+    if (!m) { out.push(item); continue; }             // sin mes → conservador, no dedup
+    const key = `${item.bankKey}|${item.productType ?? item.etiqueta}|${m}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(item);
+  }
+  for (const bucket of groups.values()) {
+    const kept: T[] = [];
+    for (const item of bucket) {
+      const twin = kept.find((k) => !materiallyDifferent(k.clp, item.clp));
+      if (!twin) { kept.push(item); continue; }        // monto distinto → producto distinto real
+      const win = newer(twin, item);
+      if (win !== twin) kept[kept.indexOf(twin)] = win; // gana el más nuevo
+    }
+    out.push(...kept);
+  }
+  return out;
+}
+
 /**
  * Construye el objeto raw-shaped (mismas 5 listas que el LLM) desde los DocFacts por documento,
  * ANCLANDO el número de productos al CMF (L11). El LLM ya extrajo hechos; acá TS decide la estructura.
@@ -406,7 +455,7 @@ export function assembleRawFromDocFacts(
   }
 
   // Producto enriquecido con su origen
-  interface PP { p: DocProduct; clp: number; filename: string; bankName: string; bankKey: string; rutEmisor?: string; emisorNombre?: string; inCmf: boolean; docType: DocType; }
+  interface PP { p: DocProduct; clp: number; filename: string; bankName: string; bankKey: string; rutEmisor?: string; emisorNombre?: string; inCmf: boolean; docType: DocType; emision?: string; }
 
   // Repartir los productos extraídos: por banco del CMF (in-CMF) vs NO-CMF (additionalCreditors)
   const productsByBank = new Map<string, PP[]>();
@@ -427,7 +476,7 @@ export function assembleRawFromDocFacts(
     for (const p of facts.productos) {
       const clp = toClp(p);
       if (!(clp > 0)) continue; // $0 / negativo → no es un producto a declarar
-      gathered.push({ p, clp, filename: facts.filename, bankName, bankKey, rutEmisor: facts.rut_emisor, emisorNombre: facts.emisor_nombre, inCmf, docType: facts.doc_type });
+      gathered.push({ p, clp, filename: facts.filename, bankName, bankKey, rutEmisor: facts.rut_emisor, emisorNombre: facts.emisor_nombre, inCmf, docType: facts.doc_type, emision: facts.emision });
     }
   }
 
@@ -459,9 +508,10 @@ export function assembleRawFromDocFacts(
   // Fechas de mora que el lector puso pero la cita NO corrobora como vencimiento (Capa 2) → alerta.
   const fechaNoAcreditada: Array<{ bank: string; monto: number; fecha: string; cita: string; filename: string }> = [];
   const materiallyDifferent = (a: number, b: number) => Math.abs(a - b) > 100_000 && Math.abs(a - b) / Math.max(a, b, 1) > 0.05;
+  const oplessPPs: PP[] = [];
   for (const pp of gathered) {
     const op = normalizeOperationId(pp.p.operacion);
-    if (!op) { products.push(pp); continue; }
+    if (!op) { oplessPPs.push(pp); continue; }
     const key = `${pp.bankKey}|${op}`;
     const prev = byOp.get(key);
     if (!prev) { byOp.set(key, pp); products.push(pp); continue; }
@@ -472,6 +522,27 @@ export function assembleRawFromDocFacts(
       dedupDrops.push({ bank: pp.bankName, op, kept: win.clp, dropped: lose.clp, keptFile: win.filename, droppedFile: lose.filename });
     }
     log(`🧹 Dedup por operación: ${pp.bankName} op ${op} aparece en ${lose.filename} y ${win.filename} → se conserva 1 ($${win.clp.toLocaleString('es-CL')}).`);
+  }
+
+  // Dedup de productos SIN Nº de operación por identidad (banco + producto + mes de emisión):
+  // colapsa el MISMO documento re-enviado / el mismo estado en dos formatos (ej. captura .png y .pdf),
+  // conservando el de emisión más nueva; conserva series de meses distintos y productos de monto distinto.
+  const docTypeScoreOf = (t: DocType): number => (t === 'liquidacion_payoff' ? 3 : t === 'desglose_por_producto' ? 2 : t === 'estado_cuenta' ? 1 : 0);
+  const oplessDedup = dedupOplessProducts(
+    oplessPPs.map((pp) => ({
+      bankKey: pp.bankKey,
+      productType: pp.p.product_type,
+      etiqueta: pp.p.etiqueta_monto,
+      clp: pp.clp,
+      emision: pp.emision,
+      docTypeScore: docTypeScoreOf(pp.docType),
+      confidence: pp.p.confidence ?? 0,
+      __pp: pp,
+    }))
+  );
+  for (const d of oplessDedup) products.push((d as any).__pp as PP);
+  if (oplessPPs.length !== oplessDedup.length) {
+    log(`🧹 Dedup por identidad (sin operación): ${oplessPPs.length} → ${oplessDedup.length} producto(s) tras colapsar duplicados de mismo banco+producto+mes.`);
   }
 
   // 2b) PARTE B — El VENCIMIENTO de un aviso de COBRANZA se transfiere a la MISMA deuda de otro
