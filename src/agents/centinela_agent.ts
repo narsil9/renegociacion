@@ -30,6 +30,21 @@ function hashFile(filePath: string): string {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
+/**
+ * Firma determinista del CONJUNTO de documentos de acreditación del cliente.
+ * Se incluye en la llave de idempotencia del Centinela para que agregar o
+ * re-subir un documento invalide el cache y fuerce la re-lectura (antes la
+ * llave solo miraba el CMF, así que documentos nuevos nunca se leían).
+ */
+export function documentSetSignature(
+  docs: Array<{ storage_path: string; uploaded_at: string | null }>
+): string {
+  const norm = docs
+    .map((d) => `${d.storage_path}@${d.uploaded_at ?? ''}`)
+    .sort();
+  return crypto.createHash('sha256').update(norm.join('\n')).digest('hex');
+}
+
 const EMPTY_OUTPUT: CentinelaOutput = {
   reclassifiedCreditors: [],
   identified261Creditors: [],
