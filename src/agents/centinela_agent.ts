@@ -30,6 +30,11 @@ function hashFile(filePath: string): string {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
+/** Salt único para forzar un inputHash que nunca matchee (usado si falla la lectura de documentos). */
+function runIdSalt(): string {
+  return `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+}
+
 /**
  * Firma determinista del CONJUNTO de documentos de acreditación del cliente.
  * Se incluye en la llave de idempotencia del Centinela para que agregar o
@@ -87,13 +92,26 @@ export async function runCentinelaAgent(
   }
 
   // --- Idempotencia ---
-  // El sufijo de versión invalida los runs cacheados cuando cambia la LÓGICA del Centinela
-  // (no solo el CMF). Subir al cambiar reglas como el backstop de acreditación 260→261.
-  const CENTINELA_LOGIC_VERSION = 'v18-per-doc-extraction';
-  const inputHash = `${hashFile(cmfLocalPath)}:${CENTINELA_LOGIC_VERSION}`;
+  // La llave incluye: (1) hash del CMF, (2) firma del CONJUNTO de documentos de
+  // acreditación del cliente y (3) versión de lógica. Antes solo miraba el CMF, así
+  // que documentos nuevos nunca se re-leían (bug María, 2026-07). Subir la versión
+  // al cambiar reglas del Centinela.
+  const CENTINELA_LOGIC_VERSION = 'v19-doc-set-in-hash';
+  const { data: docRows, error: docErr } = await supabase
+    .from('client_documents')
+    .select('storage_path, uploaded_at')
+    .eq('client_id', clientId);
+  if (docErr) {
+    // No arriesgar un run stale: si no podemos leer el set de documentos, forzamos re-lectura.
+    log(`No se pudo leer client_documents para la firma (${docErr.message}) — se fuerza re-lectura.`);
+  }
+  const docsSig = documentSetSignature(docRows ?? []);
+  const inputHash = docErr
+    ? `FORCE-REREAD:${runIdSalt()}`
+    : `${hashFile(cmfLocalPath)}:${docsSig}:${CENTINELA_LOGIC_VERSION}`;
   const existing = await getLatestRun<CentinelaOutput>(supabase, clientId, 'centinela');
-  if (existing?.input_hash === inputHash && existing.output_json) {
-    log(`Reutilizando run centinela existente (${existing.id}) — CMF sin cambios.`);
+  if (!docErr && existing?.input_hash === inputHash && existing.output_json) {
+    log(`Reutilizando run centinela existente (${existing.id}) — CMF y documentos sin cambios.`);
     return existing.output_json;
   }
 
