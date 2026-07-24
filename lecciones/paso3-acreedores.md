@@ -114,10 +114,11 @@ productos del banco a las filas del CMF; modelo más capaz para escaneos.
 *(Testigos: Miguel Itaú 3/3/2, Néctor BancoEstado 3/2/3 — ambos docs SÍ desglosan, el drop es del escaneo.)*
 · **validada** (lectura directa de los docs, 2026-06-29).
 
-### L13 — Certificado de Liquidación/Prepago: tabla de payoff por FECHA → un solo producto, monto del día ✅
-Un "Certificado Liquidación de Crédito - Prepago" trae una **tabla con el monto a pagar para cada fecha**
-sucesiva (la deuda crece día a día con interés). Es **UN solo producto**; se declara **un** monto = el del
-día relevante (el más reciente / fecha de presentación). No declarar varias filas como productos distintos.
+### L13 — Certificado de Liquidación/Prepago (incl. CCAF Ley 20.130): tabla de payoff por FECHA → un solo producto, monto de la ÚLTIMA fila (vigencia) ✅
+Un "Certificado Liquidación de Crédito - Prepago" (o Certificado de Deuda de CCAF, Ley 20.130, con "Saldo
+Total Diario a Pagar") trae una **tabla con el monto a pagar para cada fecha** sucesiva (la deuda crece día a
+día con interés). Es **UN solo producto**; se declara **un** monto = el de la **ÚLTIMA fila del rango de
+vigencia** (la fecha más lejana de la tabla), **NO** el valor del día de hoy ni el de la primera fila. No declarar varias filas como productos distintos.
 El monto puede diferir levemente entre corridas según qué fila de fecha se elija (mismo producto, ±intereses
 de pocos días) — es variación de monto, NO de conteo.
 *(Testigo: Cristian BancoEstado consumo — tabla $5.827.472 (29/05) → $5.884.108 (11/06); abogada usó
@@ -548,6 +549,9 @@ CMF tarjeta/línea de misma `fecha_otorgamiento` antes del Gate (evita el `falta
   NO es una tarjeta Líder. No inferir un emisor/acreedor separado de las descripciones de movimientos; el
   emisor es la marca de la tarjeta ("TARJETA SANTANDER", card XXXX-8653 VISA PLATINUM). *(error propio
   detectado al releer: había supuesto un "merge Líder+Santander" que no existía.)*
+- **Una TIENDA/marca de retail NO es el acreedor financiero.** FORUS S.A., Falabella Retail, Ripley Store,
+  Cencosud Retail son comercios; el acreedor es su brazo financiero (Banco Falabella / CMR Falabella,
+  Banco Ripley / CAR S.A., Cencosud → CAT). Resolvé por el RUT del EMISOR, no por la marca comercial.
 - **Un cert puede traer 2 RUTs**: el del EMISOR/acreedor y el del DESTINO de pago. Hites → acreedor
   "Inversiones y Tarjetas S.A." RUT `85.325.100-3`; "Nominativo a nombre de HITES S.A. RUT `81.675.600-6`"
   es solo el beneficiario del pago. Al resolver por RUT, usar el del **emisor/acreedor**, no el de pago.

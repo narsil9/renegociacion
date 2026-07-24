@@ -338,24 +338,30 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
       await btnGuardar.click();
     }
 
-    // Esperar a que el modal HTML de confirmación aparezca y hacer click en "Guardar"
+    // v6.0.2: el modal de confirmación es #confirmarInformacionModal y su botón de confirmar es
+    // #btnConfirmar ("Guardar", btn-success). El selector viejo (#btnConfirmarModal / onclick="confirmar()")
+    // ya no matchea, y 5s era corto (tras re-llenar en modo "Modificar" el modal tarda >5s en aparecer)
+    // → el guardado caía a un fallback (form.submit + openProcesandoSolicitud) que dejaba la página
+    // colgada en "procesando". Verificado contra el portal real (2026-07-24): #btnConfirmar + espera 15s.
     log('→ Esperando modal de confirmación HTML...');
-    const selectorConfirmar = 'button[onclick="confirmar()"], #btnConfirmarModal';
+    await page.waitForTimeout(2500);
+    // Diagnóstico: si el form quedó inválido tras re-llenar, el modal NO se abre. Log de la validación visible.
+    const vErrs: string[] = await page.evaluate(() => {
+      const vis = (el: Element) => { const s = getComputedStyle(el); return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).offsetParent !== null; };
+      return Array.from(document.querySelectorAll('.invalid-feedback,.error,.text-danger,.help-block,label.error,span.error'))
+        .filter((e) => vis(e) && (e.textContent || '').trim())
+        .map((e) => { const grp = e.closest('.form-group,.form-row,.row,div'); const fld = (grp?.querySelector('input,select,textarea') as HTMLElement)?.id || ''; return `${fld || '?'}: ${(e.textContent || '').trim()}`; })
+        .slice(0, 15);
+    });
+    if (vErrs.length) log(`   ⚠️ validación visible tras guardarYContinuar: ${JSON.stringify(vErrs)}`);
+    const selectorConfirmar = '#btnConfirmar, #confirmarInformacionModal button.btn-success, button[onclick="confirmar()"], #btnConfirmarModal';
+    const modalBtn = page.locator(selectorConfirmar).filter({ visible: true }).first();
     try {
-      await page.waitForSelector(selectorConfirmar, { state: 'visible', timeout: 5000 });
-      const btnConfirmar = page.locator(selectorConfirmar).filter({ visible: true }).first();
-      await btnConfirmar.click();
+      await modalBtn.waitFor({ state: 'visible', timeout: 15000 });
+      log('→ Modal de confirmación visible. Click en "Guardar"...');
+      await modalBtn.click();
     } catch {
-      log('⚠️  Modal de confirmación no se mostró o no se hizo visible. Intentando envío directo de formulario...');
-      await page.evaluate(() => {
-        const form = document.getElementById('deudorForm') as HTMLFormElement;
-        const csrfEl = document.querySelector('input[name="_csrf"]') as HTMLInputElement;
-        if (form && csrfEl) {
-          (window as any).openProcesandoSolicitud?.();
-          form.setAttribute('action', `/miSuperir/autenticado/renegociacion/guardarInformacionPersonal?_csrf=${csrfEl.value}`);
-          form.submit();
-        }
-      });
+      throw new Error(`El modal de confirmación del Paso 1 (#confirmarInformacionModal) no se abrió. Validación visible: ${vErrs.length ? JSON.stringify(vErrs) : 'ninguna detectada'}`);
     }
 
     log('→ Esperando redirección al Paso 2...');

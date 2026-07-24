@@ -54,7 +54,8 @@ function findDocsByInstitution(
 function toAcreditacionDoc(
   doc: ClientDocument,
   institucion: string,
-  tipoOverride?: 22 | 23 | 24
+  tipoOverride?: 22 | 23 | 24,
+  montoClp?: number
 ): AcreditacionDoc {
   return {
     institucion_cmf: institucion,
@@ -62,6 +63,9 @@ function toAcreditacionDoc(
     storage_path: doc.storage_path,
     local_path: doc.local_path,
     filename: doc.filename,
+    // Monto por-documento (del Centinela): desambigua qué doc va a qué fila en bancos
+    // multi-producto durante la adjunción en step3. Opcional → si no viene, no cambia nada.
+    monto_clp: typeof montoClp === 'number' && montoClp > 0 ? montoClp : undefined,
     // Nombre canónico que dejó el Resolver en client_documents (catalog-resuelto
     // por RUT/nombre de archivo). step3 lo usa como fallback para hallar el RUT
     // cuando el nombre del CMF/Centinela no matchea el catálogo.
@@ -90,13 +94,13 @@ export async function buildMappedDocsDeterministic(
     centinelaOutput.additionalCreditors.map(a => a.document_filename).filter(Boolean)
   );
 
-  function pushDoc(doc: ClientDocument, institucion: string, tipoOverride?: 22 | 23 | 24): void {
+  function pushDoc(doc: ClientDocument, institucion: string, tipoOverride?: 22 | 23 | 24, montoClp?: number): void {
     const tipo = tipoOverride ?? (doc.document_type as 22 | 23 | 24);
     const key = `${doc.storage_path}:${tipo}`;
     if (addedKeys.has(key)) return;
     addedKeys.add(key);
-    mappedDocs.push(toAcreditacionDoc(doc, institucion, tipo));
-    log(`  ✓ ${doc.filename} → "${institucion}" (tipo ${tipo})`);
+    mappedDocs.push(toAcreditacionDoc(doc, institucion, tipo, montoClp));
+    log(`  ✓ ${doc.filename} → "${institucion}" (tipo ${tipo}${typeof montoClp === 'number' ? `, $${montoClp.toLocaleString('es-CL')}` : ''})`);
   }
 
   // ─── 1. Reclasificados (261→260) ───────────────────────────────────────────
@@ -114,7 +118,7 @@ export async function buildMappedDocsDeterministic(
       log(`  ⚠️ FALTA "${r.document_filename}" para reclasificado "${r.bank}"`);
       continue;
     }
-    pushDoc(primaryDoc, r.institucion_cmf);
+    pushDoc(primaryDoc, r.institucion_cmf, undefined, r.total_credito_clp);
 
     // Buscar documento complementario (monto↔vencimiento) por institución
     const complementary = findDocsByInstitution(r.institucion_cmf, clientDocuments, reservedNonCmfFilenames)
@@ -122,10 +126,10 @@ export async function buildMappedDocsDeterministic(
 
     if (primaryDoc.document_type === 22) {
       const vencDoc = complementary.find(d => d.document_type === 23);
-      if (vencDoc) pushDoc(vencDoc, r.institucion_cmf);
+      if (vencDoc) pushDoc(vencDoc, r.institucion_cmf, undefined, r.total_credito_clp);
     } else if (primaryDoc.document_type === 23) {
       const montoDoc = complementary.find(d => d.document_type === 22);
-      if (montoDoc) pushDoc(montoDoc, r.institucion_cmf);
+      if (montoDoc) pushDoc(montoDoc, r.institucion_cmf, undefined, r.total_credito_clp);
     }
     // tipo 24 cubre monto+vencimiento — no necesita complementario
   }
@@ -141,13 +145,13 @@ export async function buildMappedDocsDeterministic(
       ? clientDocuments.find((d) => d.filename?.toLowerCase() === fn.toLowerCase())
       : undefined;
     if (primaryDoc) {
-      pushDoc(primaryDoc, c.institucion_cmf, 22);
+      pushDoc(primaryDoc, c.institucion_cmf, 22, c.total_credito_clp);
     } else {
       // Fallback: buscar por institución con document_type 22 o 24
       const fallback = findDocsByInstitution(c.institucion_cmf, clientDocuments, reservedNonCmfFilenames)
         .find(d => d.document_type === 22 || d.document_type === 24);
       if (fallback) {
-        pushDoc(fallback, c.institucion_cmf, 22);
+        pushDoc(fallback, c.institucion_cmf, 22, c.total_credito_clp);
         log(`  ⚠️ "${c.bank}": "${c.document_filename}" no encontrado — fallback por institución (${fallback.filename})`);
       } else {
         alerts.push({
@@ -169,7 +173,7 @@ export async function buildMappedDocsDeterministic(
     if (doc) {
       const tipo: 22 | 24 = a.categoria_articulo === 260 ? 24 : 22;
       // NO-CMF creditors have no institucion_cmf (null) — use bank name instead
-      pushDoc(doc, a.institucion_cmf ?? a.bank, tipo);
+      pushDoc(doc, a.institucion_cmf ?? a.bank, tipo, a.total_credito_clp);
     } else {
       alerts.push({
         type: 'missing_document',
@@ -237,7 +241,8 @@ export async function buildMappedDocsDeterministic(
       continue;
     }
     for (const doc of docsForInst) {
-      pushDoc(doc, c.institucion);
+      // monto de la fila 260 (CMF total del producto) → desambigua bancos multi-producto en step3.
+      pushDoc(doc, c.institucion, undefined, c.totalCredito);
     }
   }
 
@@ -251,7 +256,7 @@ export async function buildMappedDocsDeterministic(
     for (const c of unhandled261) {
       const docsForInst = findDocsByInstitution(c.institucion, clientDocuments, reservedNonCmfFilenames);
       for (const doc of docsForInst) {
-        pushDoc(doc, c.institucion, 22);
+        pushDoc(doc, c.institucion, 22, c.totalCredito);
       }
     }
   }

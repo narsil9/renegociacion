@@ -44,6 +44,9 @@ let keepRunning = true;
 
 const CLIENTS_TABLE = 'clients';
 const JOBS_TABLE = 'automation_jobs';
+// Feedback #1 del abogado: el "Correo Electrónico" de la solicitud SIEMPRE es el del estudio
+// (Benja), no el del cliente (clients.email es el correo personal del cliente). Fijo para todos.
+const CORREO_ESTUDIO = 'benjamin@abogadoricardopuelma.com';
 
 /**
  * Uploads a local file to Supabase storage 'screenshots' bucket
@@ -461,7 +464,7 @@ async function processJob(job: any): Promise<void> {
         const { browser, page } = await launchBrowser();
         browserInstance = browser;
         await loginAndNavigateToStep1(page, resolvedClaveUnicaRut, resolvedClaveUnicaPassword, logger, {
-          region: client.region, comuna: client.comuna, email: client.email, telefono: client.telefono,
+          region: client.region, comuna: client.comuna, email: CORREO_ESTUDIO, telefono: client.telefono,
         });
         await cleanupDraft(page, logger);
       } catch (cleanupErr: any) {
@@ -788,7 +791,7 @@ async function processJob(job: any): Promise<void> {
       await loginAndNavigateToStep1(page, resolvedClaveUnicaRut, resolvedClaveUnicaPassword, logger, {
         region: client.region,
         comuna: client.comuna,
-        email: client.email,
+        email: CORREO_ESTUDIO,
         telefono: client.telefono,
       });
 
@@ -814,7 +817,7 @@ async function processJob(job: any): Promise<void> {
           direccion: client.direccion,
           region: client.region,
           comuna: client.comuna,
-          email: client.email,
+          email: CORREO_ESTUDIO,
           telefono_prefijo: client.telefono_prefijo,
           telefono: client.telefono,
         };
@@ -935,7 +938,7 @@ async function processJob(job: any): Promise<void> {
           direccion: client.direccion,
           region: client.region,
           comuna: client.comuna,
-          email: client.email,
+          email: CORREO_ESTUDIO,
           telefono_prefijo: client.telefono_prefijo,
           telefono: client.telefono,
         };

@@ -157,6 +157,7 @@ REGLAS ESPECÍFICAS (validadas en casos reales — evitan errores de lectura fre
 - EL MONTO SIEMPRE VIENE DEL DOCUMENTO, NUNCA DEL CMF: no inventes un "producto" cuyo monto sea la cifra de mora 90+d del informe CMF. El CMF solo dice qué acreedores existen y si hay mora 90+d; el MONTO se lee del certificado/estado de cuenta. Si un banco figura con mora 90+d en el CMF pero no tenés su documento, NO fabriques un producto con el número del CMF (dejalo sin producto; el sistema decide aguas abajo).
 - CRÉDITO HIPOTECARIO / VIVIENDA = UN SOLO PRODUCTO: un certificado hipotecario trae varias cifras del MISMO crédito — "Saldo del Crédito (UF)", "Valor del Dividendo (UF)", "Costo Total del Prepago (UF)", "Monto Vencido". NO son productos distintos. Reportá UN solo producto con el PAYOFF = "Costo Total del Prepago (UF)" (si no está, el "Saldo del Crédito"). NUNCA emitas el Saldo Y el Prepago como dos productos (es la misma casa contada dos veces). El Dividendo es la cuota mensual, no la deuda.
 - CERTIFICADO DE DEUDA "GLOBAL" (totales por moneda, sin desglose por producto): un doc que solo trae "Total deudas en PESO CHILENO $X", "Total deudas en DÓLAR", "Total deudas en UNIDAD DE FOMENTO Y UF" es el TOTAL del banco, NO un producto. Reglas: (a) el total EN UF corresponde al crédito HIPOTECARIO/vivienda (declaralo como el producto hipotecario, no como uno extra); (b) el total EN PESOS es la suma de los productos en pesos de ese banco (consumo + tarjetas + líneas) — úsalo para acreditar el MONTO del/los producto(s) del CMF de ese banco que no tengan un certificado propio; NO lo declares como una deuda extra encima de los productos individuales, ni lo confundas con la hipoteca. doc_type="resumen_global" y llená "totales_por_moneda" (productos vacío).
+- CERTIFICADO DE DEUDA DE CCAF / LEY 20.130 CON TABLA "SALDO TOTAL DIARIO A PAGAR": una caja de compensación (CCAF Los Andes / Los Héroes / La Araucana) emite un Certificado de Deuda (Ley 20.130) con una tabla del "Saldo Total Diario a Pagar" por cada día de un RANGO DE VIGENCIA (la deuda sube día a día por interés). Es UN solo producto (doc_type="liquidacion_payoff"): el monto = el "Saldo Total Diario a Pagar" de la ÚLTIMA fila del rango (el último día de vigencia del certificado), NO el del día de hoy ni el de la primera fila. Reportá ese único monto; no emitas una fila por día.
 
 TIPO DE PRODUCTO ("product_type") — clasificá cada producto por su NATURALEZA (no por la etiqueta literal):
 - "tarjeta_credito": tarjeta de crédito (Visa/Mastercard/CMR/CAT/cupo rotativo de tienda).
@@ -171,6 +172,7 @@ FECHA DE MORA / VENCIMIENTO — regla estricta (NO fabricar):
 - NO son fecha de vencimiento (dejá "fecha_mora" VACÍA si es lo único que hay): "N cuotas impagadas"/"cuotas morosas" (es un CONTEO, no una fecha), "monto mora", "Fecha último Pago", "Fecha de emisión", "Fecha de otorgamiento/contratación", "Fecha de proyección". Que el documento diga que HAY morosidad (advertencia de mora, N cuotas) NO significa que dé la FECHA de la mora.
 - EXCEPCIÓN — DOCUMENTO DE COBRANZA: si el documento es un aviso/mensaje/correo de COBRANZA (trae señales de mora explícitas: "N días de mora", "deuda castigada", "cartera vencida", "cobranza judicial/prejudicial"), entonces SÍ acredita el vencimiento: usá la fecha del "último pago: DD/MM/AAAA" como "fecha_mora" (la deuda quedó impaga desde ese pago), o si solo hay "N días de mora", calculá fecha_mora = (fecha del documento − N días). Copiá la cita en "cita_fecha". Esto NO aplica a un estado de cuenta/cert normal que solo mencione "Fecha último Pago" sin señales de mora.
 - NUNCA infieras ni calcules una fecha (no restes meses por las cuotas, no uses la fecha del cert). Si no hay una fecha de vencimiento literal, "fecha_mora" va vacía — TypeScript decidirá (irá a Art. 261). Es preferible dejarla vacía que inventarla.
+- FORMATO DE "cita_fecha" (para que la fecha ACREDITE el vencimiento): escribí SIEMPRE la fecha CON AÑO, en formato numérico "dd/mm/aaaa" o "aaaa-mm-dd", o como "DD de MES de AAAA" (ej. "5 de febrero de 2026"). Podés incluir además el texto tal cual del documento, pero la fecha canónica CON AÑO debe estar presente en la cita. Si el documento la imprime SIN año o como "05-febrero"/"05-feb" (día-mes con guión, típico de los avisos de cobranza chilenos), NO la copies así a secas: inferí el año del contexto (fecha de emisión/facturación) y escribí "05/02/2026". Una fecha sin año o solo en formato "día-guión-mes" puede NO acreditar y hacer caer la deuda de Art. 260 a Art. 261.
 
 EJEMPLOS RESUELTOS (aprendé de estos; NO son el documento actual):
 
@@ -833,6 +835,12 @@ function citaCorroboratesVenc(fecha: string | undefined, cita: string | undefine
     `${d}-${mo}-${y}`, `${dd}-${mm}-${y}`,
     `${d}/${mo}/${y}`, `${dd}/${mm}/${y}`,
     `${dd} ${mes} ${y}`, `${dd} de ${mes} de ${y}`, `${dd} de ${mes} ${y}`,
+    // Aviso de cobranza chileno: "cuota atrasada más antigua 05-febrero" (día-mes con guión, con o
+    // sin año). El día y el mes deben calzar con el venc derivado → sigue corroborando de verdad, y
+    // el guard de etiquetas negativas (arriba) ya se aplicó. Se usa el día PADDED (`${d}-${mes}`) para
+    // no colisionar por substring con "15-febrero"/"25-febrero" (por eso NO se agrega `${dd}-${mes}`).
+    // ponytail: la variante sin año confía en el año que infirió el LLM (el aviso no lo imprime).
+    `${d}-${mes}`, `${d}-${mes}-${y}`, `${dd}-${mes}-${y}`,
   ];
   return cands.some((s) => c.includes(s));
 }

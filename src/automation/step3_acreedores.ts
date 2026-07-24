@@ -48,6 +48,11 @@ export interface AcreditacionDoc {
   // CMF/Centinela no matchea el catálogo (ej. "Tenpo Payments" vs "Tenpo Prepago",
   // o un NO-CMF cuyo nombre libre del Centinela no está en acreedores_canonicos).
   catalogInstitucion?: string;
+  // Monto (CLP) que este documento acredita, poblado por el Mapeador desde el monto por-documento
+  // del Centinela. Desambigua QUÉ doc va a QUÉ fila cuando un banco tiene varios productos (ej.
+  // BdCh: tarjeta 260 + consumo 261 + línea 261): en la adjunción se elige el doc cuyo monto está
+  // más cerca del de la fila. Opcional → sin él, el comportamiento previo (primer doc) se mantiene.
+  monto_clp?: number;
 }
 
 interface SimpleLogger {
@@ -1317,6 +1322,20 @@ export async function fillStep3(
             (d) => !d.filename || !reservedNonCmfFilenames.has(d.filename)
           );
           creditorDocs = noReservados.length > 0 ? noReservados : allInstDocs;
+          // Desambiguar bancos multi-producto: si el banco tiene varios productos con certs
+          // DISTINTOS (ej. BdCh tarjeta 260 + consumo 261 + línea 261), findAcreditacionDocs
+          // devuelve TODOS y pickDoc tomaría el primero → cruce. Si ≥2 docs traen monto_clp,
+          // quedarse con el/los del monto MÁS CERCANO al de esta fila (argmin), conservando
+          // ambas copias tipo 22/23 de ese archivo. Se usa argmin (no filtro por tolerancia)
+          // para que un cert multiproducto COMPARTIDO (único candidato) siga sirviendo a todas
+          // las filas. Condicionado a monto_clp presente → 100% retrocompatible.
+          const conMonto = creditorDocs.filter((d) => typeof d.monto_clp === 'number');
+          if (conMonto.length > 1) {
+            const best = conMonto.reduce((b, d) =>
+              Math.abs((d.monto_clp as number) - creditor.totalCredito) < Math.abs((b.monto_clp as number) - creditor.totalCredito) ? d : b
+            );
+            creditorDocs = creditorDocs.filter((d) => typeof d.monto_clp !== 'number' || d.monto_clp === best.monto_clp);
+          }
         }
         if (nonCmfDocFilename && creditorDocs.length === 0) {
           log(`   ⚠️ Acreedor NO-CMF "${entry.nombre}": no se encontró el documento "${nonCmfDocFilename}" en los mappedDocs (¿el orquestador pobló filename?). No se adjunta.`);
