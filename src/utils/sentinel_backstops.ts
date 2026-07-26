@@ -27,6 +27,7 @@ import type {
   ClaudeReadIssue,
 } from './sentinel';
 import type { CmfCreditor } from './cmf_analyzer';
+import { UF_CLP } from './cmf_analyzer';
 import type { ClientDocument } from './cognitive_orchestrator';
 import { canonicalInstitutionKey, normalizeRut, findCatalogEntryByRut, AcreedorCatalogEntry } from './acreedor_matcher';
 import { extractCertLineItems, detectDocumentCurrency, normalizeOperationId } from './cert_line_items';
@@ -742,7 +743,7 @@ export async function applyDeterministicBackstops(
     // Monto trivial (< 1 UF ≈ $39.000): NO se descarta (un monto chico puede ser deuda REAL — TGR,
     // multa, cuota CCAF — ver lección L30) → se DECLARA y se alerta para que el abogado confirme si
     // es un remanente/comisión trivial. Lo "trivial" es semántico, no un umbral que TS aplique a ciegas.
-    const UF_MIN_CLP = 39000;
+    const UF_MIN_CLP = UF_CLP;
     for (const e of emitted) {
       if (e.monto > 0 && e.monto < UF_MIN_CLP) {
         issues.push({ document_filename: e.filename, institucion: e.institucion, monto_clp: e.monto, tipo: 'monto_trivial', detalle: `Monto declarado $${e.monto.toLocaleString('es-CL')} < 1 UF (~$${UF_MIN_CLP.toLocaleString('es-CL')}). Puede ser un remanente/comisión trivial (no declarar) o una deuda pequeña real (TGR/CCAF/multa). Verificar.` });

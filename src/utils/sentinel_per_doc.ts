@@ -20,6 +20,7 @@ import {
   normalizeRut,
 } from './acreedor_matcher';
 import { normalizeOperationId } from './cert_line_items';
+import { UF_CLP } from './cmf_analyzer';
 import { loadReaderLessons } from './lessons_loader';
 import { extractEmissionDateFromText } from './cognitive_orchestrator';
 import { getCurrentChileDate, parseDateString } from './date_helper';
@@ -488,7 +489,7 @@ export function assembleRawFromDocFacts(
 ): any {
   const log = (m: string) => (logger ? logger.log(`🛡️ [Assembler] ${m}`) : console.log(m));
   const factsByFile = new Map(factsList.map((f) => [f.filename, f]));
-  const uf = cmfResult.ufValueCLP && cmfResult.ufValueCLP > 0 ? cmfResult.ufValueCLP : 39000;
+  const uf = cmfResult.ufValueCLP && cmfResult.ufValueCLP > 0 ? cmfResult.ufValueCLP : UF_CLP;
   const toClp = (p: DocProduct): number => (p.moneda === 'UF' ? Math.round(p.monto * uf) : Math.round(p.monto));
 
   // Índices del CMF
@@ -681,7 +682,7 @@ export function assembleRawFromDocFacts(
       explicitVenc = '';
       fechaNoAcreditada.push({ bank: c.institucion, monto: amount, fecha: rawVenc, cita: match?.p.cita_fecha ?? '', filename });
     }
-    const UF_1 = Math.round((cmfResult.ufValueCLP && cmfResult.ufValueCLP > 0 ? cmfResult.ufValueCLP : 39000));
+    const UF_1 = Math.round((cmfResult.ufValueCLP && cmfResult.ufValueCLP > 0 ? cmfResult.ufValueCLP : UF_CLP));
     const push261 = (reason: string) => {
       if (match) {
         identified261Creditors.push({

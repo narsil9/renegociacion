@@ -32,6 +32,7 @@ import {
   extractRutsFromText,
   findCatalogEntryByRut,
   matchAcreedor,
+  normalizeRut,
   AcreedorCatalogEntry,
 } from './acreedor_matcher';
 
@@ -56,6 +57,9 @@ const FILENAME_KEYWORDS: { keys: string[]; target: string }[] = [
   { keys: ['scotiabank', 'scotia'], target: 'SCOTIABANK CHILE' },
   { keys: ['itau', 'itaú'], target: 'BANCO ITAU' },
   { keys: ['bci'], target: 'BANCO CREDITO E INVERSIONES' },
+  // Banco Ripley ≠ CAR S.A. (Tarjeta Ripley): son entidades distintas con RUT distinto, así
+  // que la regla específica va ANTES de la genérica (igual que bancofalabella/cmr).
+  { keys: ['bancoripley', 'banco ripley'], target: 'BANCO RIPLEY' },
   { keys: ['ripley'], target: 'CAR RIPLEY' },
   { keys: ['cmr'], target: 'CMR FALABELLA' },
   { keys: ['falabella'], target: 'CMR FALABELLA' },
@@ -165,11 +169,31 @@ export async function resolveCertInstitutions(
       const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext.toLowerCase());
       const text = isImage ? '' : await extractTextFromPdf(localPath).catch(() => '');
 
-      // Prioridad 1: RUT (lo más exacto). Sobrescribe cualquier valor previo.
+      // Prioridad 1: RUT (lo más exacto). Sobrescribe cualquier valor previo… con dos guardas:
+      //  (a) si la institución YA asignada tiene su RUT en el documento, se respeta. Un
+      //      certificado de Santander Consumer imprime también el RUT de Banco Santander en
+      //      las instrucciones de pago, y `findCatalogEntryByRut` devuelve el PRIMERO que
+      //      aparece → el cert de la financiera se reasignaba al banco y terminaba acreditando
+      //      la deuda equivocada (misma trampa con Banco Falabella↔CMR y Banco Ripley↔CAR).
+      //  (b) si el documento trae RUTs de DOS instituciones distintas del catálogo y ninguna
+      //      es la asignada, no se elige por orden de aparición: se deja como está y se avisa.
       const ruts = text ? extractRutsFromText(text) : [];
-      const rutEntry = findCatalogEntryByRut(ruts, catalog, client.rut ?? null);
-      if (rutEntry) {
-        resolvedName = rutEntry.nombre;
+      const candidatos: AcreedorCatalogEntry[] = [];
+      for (const r of ruts) {
+        const e = findCatalogEntryByRut([r], catalog, client.rut ?? null);
+        if (e && !candidatos.some((c) => c.nombre === e.nombre)) candidatos.push(e);
+      }
+      const asignada = doc.institucion_cmf ? matchAcreedor(doc.institucion_cmf, catalog) : null;
+      const asignadaEntry = asignada?.status === 'matched' ? asignada.entry ?? null : null;
+      const asignadaEstaEnDoc =
+        !!asignadaEntry && candidatos.some((c) => normalizeRut(c.rut) === normalizeRut(asignadaEntry.rut));
+
+      if (asignadaEstaEnDoc) {
+        logger.log(`🔗 [Resolver] "${doc.filename}": el RUT de "${doc.institucion_cmf}" aparece en el documento → se respeta la institución asignada.`);
+      } else if (candidatos.length > 1) {
+        logger.log(`🔗 [Resolver] "${doc.filename}": el documento trae RUTs de ${candidatos.length} instituciones del catálogo (${candidatos.map((c) => c.nombre).join(', ')}) y ninguna es la asignada → NO se reasigna (revisar a mano).`);
+      } else if (candidatos.length === 1) {
+        resolvedName = candidatos[0].nombre;
         source = 'rut';
       } else {
         // Prioridad 2: nombre de archivo. Solo RELLENA si está vacío.

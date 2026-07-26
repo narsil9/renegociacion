@@ -312,6 +312,10 @@ export function validateMapeadorOutput(output: MapeadorOutput): ValidationResult
         `Filename duplicado entre instituciones: "${doc.filename}" asignado a ` +
         `"${existing}" y a "${doc.institucion_cmf}".`
       );
+      // El mismo certificado acreditando a DOS acreedores distintos es exactamente lo que hay
+      // que revisar a mano: sin esto el hallazgo se quedaba en el log del job (nadie lee
+      // `validation.valid`) y no llegaba ni a `agent_runs` ni al panel.
+      needsLawyerReview = true;
     } else {
       filenameToInstitution.set(doc.filename, doc.institucion_cmf);
     }

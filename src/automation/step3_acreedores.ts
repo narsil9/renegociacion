@@ -13,7 +13,7 @@
 import { Page } from 'playwright';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { screenshotOnFailure } from '../utils/browser';
-import { extractCreditors, CmfCreditor } from '../utils/cmf_analyzer';
+import { extractCreditors, CmfCreditor, UF_80_CLP } from '../utils/cmf_analyzer';
 import { dataRowCount } from './step5_ingresos'; // cuenta filas de datos (ignora la fila placeholder)
 import { ReclassifiedCreditor, AdditionalCreditor, Identified261Creditor, DeReclassified261Creditor } from '../utils/sentinel';
 import {
@@ -400,7 +400,7 @@ export async function fillStep3(
     }
 
     // --- 3c. Classify creditors + validate 80 UF requirement ----------------
-    const UF_80_CLP = 3_253_000; // 80 UF ≈ $3,253,000 CLP
+    // UF_80_CLP viene de cmf_analyzer (fuente única, ver UF_CLP).
     // Un acreedor es reclasificado a Art. 260 si el sentinel detectó mora ≥91d
     // en sus documentos, aunque el CMF muestre $0 en la columna 90+d.
     // Name-only matching as primary key. When the same institution has multiple

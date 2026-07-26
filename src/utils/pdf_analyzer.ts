@@ -97,6 +97,17 @@ export async function extractTextFromPdfLayout(pdfPath: string): Promise<string>
 /**
  * Analyzes the Carpeta Tributaria text to determine the client's tax category.
  */
+/**
+ * Límite de la sección F22 (Declaraciones de Renta anuales) dentro de la Carpeta Tributaria.
+ * ÚNICA definición: `analyzeTaxCategory` y `detectF29ActivityLast24Months` cortaban el mismo
+ * texto con dos regex distintas (la de F29 no aceptaba "AÑO TRIBUTARIO … IMPUESTOS ANUALES"),
+ * y con el encabezado sin guión ninguna calzaba → el propio formulario F22, que dice "CRÉDITO
+ * POR IMPUESTO DE PRIMERA CATEGORÍA", hacía que un cliente de segunda categoría se leyera
+ * como primera.
+ */
+const F22_BOUNDARY =
+  /Declaraciones\s+de\s+Renta(\s*[-–]\s*Formulario\s+2?2?)?|Formulario\s+22\s*\(?F?22?\)?|A[Ññ]O\s+TRIBUTARIO\s+\d{4}(\s+IMPUESTOS\s+ANUALES)?/i;
+
 export async function analyzeTaxCategory(
   pdfPath: string,
   logger?: SimpleLogger,
@@ -118,7 +129,11 @@ export async function analyzeTaxCategory(
     // Get a small window of text after the label
     const labelMatch = text.match(labelRegex);
     const startIndex = matchIndex + (labelMatch ? labelMatch[0].length : 0);
-    const chunk = text.substring(startIndex, startIndex + 150);
+    // La ventana es el RESTO DE LA LÍNEA de la etiqueta, no 150 chars: con 150 caracteres se
+    // colaba texto de las líneas siguientes ("Observación: no registra actividades de Primera
+    // Categoría vigentes") y una CT que dice "Segunda Categoría" devolvía 'primera' →
+    // habilitaba el chequeo F29 y podía bloquear un caso válido.
+    const chunk = text.substring(startIndex, startIndex + 150).split('\n')[0];
     
     const hasFirst = /Primera\s+Categor[íi]a|1ra\s+Categor[íi]a/i.test(chunk);
     const hasSecond = /Segunda\s+Categor[íi]a|2da\s+Categor[íi]a/i.test(chunk);
@@ -170,7 +185,7 @@ export async function analyzeTaxCategory(
   // "CRÉDITO POR IMPUESTO DE PRIMERA CATEGORÍA" that are NOT indicators of
   // primera categoría taxation. Splitting on F22/F29 anchors prevents false positives.
   log('⚠️ Buscando en todo el documento (excluyendo sección F22)...');
-  const f22AnchorIdx = text.search(/Declaraciones\s+de\s+Renta\s*[-–]\s*Formulario\s+22|Formulario\s+22\s*\(F22\)|A[Ññ]O\s+TRIBUTARIO\s+\d{4}\s+IMPUESTOS\s+ANUALES/i);
+  const f22AnchorIdx = text.search(F22_BOUNDARY);
   const safeText = f22AnchorIdx !== -1 ? text.substring(0, f22AnchorIdx) : text;
 
   const hasFirstTotal = /Primera\s+Categor[íi]a|1ra\s+Categor[íi]a/i.test(safeText);
@@ -245,7 +260,7 @@ export async function detectF29ActivityLast24Months(
   // The new CT format includes the full F22 form after F29, which contains date references
   // like "04/2026" (declaration period) that would trigger false-positive activity detection.
   const f22BoundaryIdx = text.search(
-    /Declaraciones\s+de\s+Renta\s*[-–]\s*Formulario\s+22|Formulario\s+22\s*\(F22\)/i
+    F22_BOUNDARY
   );
   const f29EndIdx = f22BoundaryIdx !== -1 && f22BoundaryIdx > f29StartIdx
     ? f22BoundaryIdx
@@ -272,6 +287,14 @@ export async function detectF29ActivityLast24Months(
   // contain that phrase. This prevents false-positive blocks for segunda categoría
   // clients whose CT happens to show an empty F29 history.
   const NO_DECLARATION_PHRASE = /no\s+se\s+registra\s+declaraci[oó]n\s+para\s+este\s+per[ií]odo/i;
+  /**
+   * ¿El período que empieza en `endOfMatch` tiene declaración de verdad? El chequeo estaba SOLO
+   * en el patrón de nombres de mes; los patrones 2 (mm/aaaa) y 3 (ISO) lo omitían, así que en el
+   * formato nuevo de CT —que imprime los 36 períodos aunque estén vacíos— cualquier columna
+   * "Fecha declaración" marcaba actividad y bloqueaba un caso válido.
+   */
+  const tieneDeclaracion = (endOfMatch: number): boolean =>
+    !NO_DECLARATION_PHRASE.test(f29Section.substring(endOfMatch, endOfMatch + 200));
 
   // Pattern 1: "Marzo 2024" / "marzo de 2024"
   const p1 = /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})\b/gi;
@@ -282,9 +305,7 @@ export async function detectF29ActivityLast24Months(
     if (month !== undefined && !isNaN(year)) {
       const d = new Date(year, month, 1);
       if (d >= cutoff && d <= today) {
-        // Skip if the immediately following context says "no se registra declaración"
-        const context = f29Section.substring(m.index + m[0].length, m.index + m[0].length + 200);
-        if (NO_DECLARATION_PHRASE.test(context)) continue;
+        if (!tieneDeclaracion(m.index + m[0].length)) continue;
         const key = `${year}-${String(month + 1).padStart(2, '0')}`;
         if (!activeMonths.includes(key)) activeMonths.push(key);
       }
@@ -293,7 +314,9 @@ export async function detectF29ActivityLast24Months(
 
   // Pattern 2: "03/2024" or "2024/03" — BUG-11 FIX: removed space from separator set
   // to prevent false positives like "folio 03 2024" or "artículo 12 2023".
-  const p2 = /\b(\d{2})[/\-](\d{4})\b|\b(\d{4})[/\-](\d{2})\b/g;
+  // El lookbehind evita comerse el sufijo de una fecha COMPLETA: en "15/04/2026" el patrón
+  // matcheaba "04/2026" y marcaba abril como período activo.
+  const p2 = /(?<!\d[/\-])\b(\d{2})[/\-](\d{4})\b|\b(\d{4})[/\-](\d{2})\b(?![/\-]\d)/g;
   while ((m = p2.exec(f29Section)) !== null) {
     let month: number, year: number;
     if (m[1] && m[2]) {
@@ -306,6 +329,7 @@ export async function detectF29ActivityLast24Months(
     if (month >= 0 && month <= 11 && year >= 2000 && year <= today.getFullYear()) {
       const d = new Date(year, month, 1);
       if (d >= cutoff && d <= today) {
+        if (!tieneDeclaracion(m.index + m[0].length)) continue;
         const key = `${year}-${String(month + 1).padStart(2, '0')}`;
         if (!activeMonths.includes(key)) activeMonths.push(key);
       }
@@ -320,6 +344,7 @@ export async function detectF29ActivityLast24Months(
     if (month >= 0 && month <= 11 && year >= 2000 && year <= today.getFullYear()) {
       const d = new Date(year, month, 1);
       if (d >= cutoff && d <= today) {
+        if (!tieneDeclaracion(m.index + m[0].length)) continue;
         const key = `${year}-${String(month + 1).padStart(2, '0')}`;
         if (!activeMonths.includes(key)) activeMonths.push(key);
       }

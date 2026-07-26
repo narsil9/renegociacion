@@ -106,6 +106,19 @@ function getOverdue90DaysFromTableBlock(blockText: string, log: (m: string) => v
   return 0;
 }
 
+/**
+ * Valor de la UF en CLP. ⚠️ ACTUALIZAR periódicamente (la UF se reajusta a diario).
+ *
+ * FUENTE ÚNICA: antes este número vivía triplicado (40662.5 acá, 39000 en sentinel_per_doc y
+ * en sentinel_backstops, 3253000 hardcodeado en el orquestador y en step3), así que
+ * actualizarlo en un archivo dejaba los otros desalineados y las conversiones UF→CLP de los
+ * certificados usaban un valor distinto al del chequeo de las 80 UF.
+ */
+export const UF_CLP = 40662.5;
+
+/** Umbral legal del Art. 260: 80 UF. */
+export const UF_80_CLP = Math.round(80 * UF_CLP);
+
 export interface CmfCreditor {
   institucion: string; // Raw institution name as printed in the CMF report
   tipoCredito: string; // e.g. "Consumo", "Comercial", "Hipotecario"
@@ -510,8 +523,8 @@ export async function analyzeCmfPdf(
   });
 
   // 7. Evaluate requirements
-  const requiredAmountCLP = 3253000;
-  const ufValueCLP = 40662.5;
+  const requiredAmountCLP = UF_80_CLP;
+  const ufValueCLP = UF_CLP;
 
   // Los requisitos de fondo se miden SOLO sobre deuda DIRECTA: una fila de "Deuda Indirecta"
   // (el deudor es aval/fiador de un tercero) no es pasivo propio, no puede habilitar la
