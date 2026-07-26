@@ -288,6 +288,15 @@ export async function fillStep5(
     // (happy path incluido — sin esto, una re-corrida triplicaba filas de Remuneración).
     log('🧹 Verificando borrador preexistente del Paso 5 antes de llenar...');
     await clearStep5Incomes(page, log);
+    // Si la limpieza NO logró vaciar la tabla de ingresos, llenar encima declararía el mismo
+    // ingreso dos veces y el portal calcularía el doble de capacidad de pago. Mejor fallar
+    // visible (el retry loop reintenta y el fallo llega al panel) que duplicar en silencio.
+    const ingresosPreexistentes = await dataRowCount(page, 'tablaIngresos');
+    if (ingresosPreexistentes > 0) {
+      throw new Error(
+        `No se pudieron eliminar ${ingresosPreexistentes} ingreso(s) ya declarado(s) en el borrador del Paso 5. Se corta antes de llenar para no declararlos dos veces (revisar el flujo de borrado del portal).`
+      );
+    }
 
     if (input.incomes.length === 0) {
       report.warnings.push('No hay ingresos para declarar (lista vacía).');

@@ -320,7 +320,11 @@ async function gatherStep5Input(
       }
       fs.writeFileSync(finalLocal, Buffer.from(await blob.arrayBuffer()));
       filenameToPath.set(d.filename, finalLocal);
-      if (isCotiz(d.filename)) {
+      // Solo el PRIMER match por filename (antes ganaba el ÚLTIMO): con
+      // `Certificado_Cotizaciones_AFP.pdf` + `cotizaciones_sii.pdf` en la carpeta se subía la
+      // captura del SII como certificado obligatorio. La identificación por CONTENIDO que hace
+      // el agente pisa esta heurística más abajo.
+      if (!cotizacionesPath && isCotiz(d.filename)) {
         cotizacionesPath = finalLocal;
       }
       // El cert de cotizaciones también va al agente (extrae fecha+RUT), pero NO
@@ -334,10 +338,17 @@ async function gatherStep5Input(
 
     const ingresosOutput = await runIngresosAgent(supabase, client.id, incomeDocs, logger);
 
-    // Resolver: si el cert de cotizaciones lo identificó el agente, preferir ese filename.
-    if (!cotizacionesPath && ingresosOutput.cotizacionesCert?.filename) {
-      cotizacionesPath = filenameToPath.get(ingresosOutput.cotizacionesCert.filename) || null;
+    // La identificación por CONTENIDO del agente MANDA sobre el keyword del filename (L35: la
+    // metadata/contenido manda, no el nombre del archivo). Antes solo se usaba como fallback,
+    // así que un `cotizaciones_sii.pdf` (captura del Agente Retenedor) le ganaba al certificado
+    // real de la AFP y se subía un documento inválido en el campo obligatorio.
+    const certPorContenido = ingresosOutput.cotizacionesCert?.filename
+      ? filenameToPath.get(ingresosOutput.cotizacionesCert.filename) || null
+      : null;
+    if (certPorContenido && certPorContenido !== cotizacionesPath) {
+      logger.log(`ℹ️ [Paso 5] Certificado de Cotizaciones identificado por contenido: ${ingresosOutput.cotizacionesCert?.filename} (prevalece sobre el match por nombre de archivo).`);
     }
+    cotizacionesPath = certPorContenido ?? cotizacionesPath;
 
     const justificativos = buildJustificativos(
       ingresosOutput.incomes,
