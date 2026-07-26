@@ -1924,15 +1924,20 @@ async function downloadAcreditacionDocs(
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 
   for (const doc of docs) {
-    const ext = path.extname(doc.storage_path) || '.pdf';
-    const slug = path.basename(doc.storage_path, ext);
-    const localPath = path.join(tmpDir, `${slug}${ext}`);
-
-    if (fs.existsSync(localPath)) {
-      doc.local_path = localPath;
-      log(`→ Certificado en caché local: ${path.basename(localPath)}`);
+    // Documento ya disponible en disco (lo puso el caller): se usa tal cual.
+    if (doc.local_path && fs.existsSync(doc.local_path)) {
+      log(`→ Certificado ya disponible localmente: ${path.basename(doc.local_path)}`);
       continue;
     }
+
+    // El nombre local deriva del storage_path COMPLETO, no del basename, y el archivo se
+    // descarga SIEMPRE. Con `outputs/acreditaciones_tmp/<basename>` + "si existe no bajar",
+    // dos clientes con un documento del mismo nombre (`cert_1.pdf`, `liquidacion.pdf`) se
+    // cruzaban —se adjuntaba el certificado de otro cliente— y un certificado corregido por el
+    // abogado (mismo path, upsert en el bucket) se seguía usando en su versión vieja.
+    const ext = path.extname(doc.storage_path) || '.pdf';
+    const base = doc.storage_path.slice(0, doc.storage_path.length - ext.length) || doc.storage_path;
+    const localPath = path.join(tmpDir, `${base.replace(/[^a-zA-Z0-9._-]+/g, '_')}${ext}`);
 
     log(`→ Descargando certificado "${doc.institucion_cmf}"...`);
     let downloaded: Blob | null = null;
