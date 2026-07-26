@@ -1000,8 +1000,10 @@ async function processJob(job: any): Promise<void> {
             comuna_sin_region: 'su comuna no está mapeada a una región → agregalo a mano cargando región y comuna',
             error_portal: 'el portal falló al cargarlo tras varios intentos → reintentá la automatización o cargalo a mano',
             falta_documento: 'falta el documento de acreditación → adjuntalo y cargalo a mano',
-            remanente_trivial: '', // no accionable (no se alerta)
-            movido_a_261: '',      // no accionable (no se alerta)
+            posible_duplicado: 'se fusionó con otra deuda del mismo banco de monto casi idéntico (misma deuda leída dos veces) → si son dos créditos distintos, cargá el segundo a mano',
+            remanente_trivial: '',  // no accionable (no se alerta)
+            deuda_indirecta: '',    // no accionable: aval/fiador de un tercero, no es pasivo propio
+            movido_a_261: '',       // no accionable (no se alerta)
           };
           // #6 — para acreedores sin match en el catálogo, ofrecer los candidatos más parecidos
           // (en vez de "no está en el catálogo" a secas) → el abogado elige de una lista corta.

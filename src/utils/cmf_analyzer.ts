@@ -513,12 +513,17 @@ export async function analyzeCmfPdf(
   const requiredAmountCLP = 3253000;
   const ufValueCLP = 40662.5;
 
-  const qualifying90PlusCount = creditors.filter(c => c.overdue90Days > 0).length;
+  // Los requisitos de fondo se miden SOLO sobre deuda DIRECTA: una fila de "Deuda Indirecta"
+  // (el deudor es aval/fiador de un tercero) no es pasivo propio, no puede habilitar la
+  // renegociación ni sumar a las 80 UF. Antes se contaban y un cliente con 1 producto propio
+  // + 1 aval quedaba "elegible".
+  const directCreditors = creditors.filter(c => !c.esIndirecta);
+  const qualifying90PlusCount = directCreditors.filter(c => c.overdue90Days > 0).length;
   const meets90DaysRequirement = qualifying90PlusCount >= 2;
 
   // 80 UF criterion: sum of totalCredito of creditors with overdue90Days > 0 (not the overdue amount itself).
   // A creditor qualifies for Obligaciones 260 if any value > 0 appears in the "90+ días" column.
-  const totalCreditoOf90PlusCreditors = creditors
+  const totalCreditoOf90PlusCreditors = directCreditors
     .filter(c => c.overdue90Days > 0)
     .reduce((sum, c) => sum + c.totalCredito, 0);
   const meetsAmountRequirement = totalCreditoOf90PlusCreditors >= requiredAmountCLP;
