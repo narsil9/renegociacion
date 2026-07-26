@@ -504,7 +504,7 @@ export async function applyDeterministicBackstops(
       const overridesForKey = (result.cmf260DirectOverrides ?? []).filter(o => canonicalInstitutionKey(o.institucion_cmf) === k);
       if (overridesForKey.length > 0) {
         for (const o of overridesForKey) {
-          result.deReclassified261Creditors!.push({ bank: c.institucion, institucion_cmf: c.institucion, total_credito_clp: o.monto_clp, reason: motivo, document_filename: o.document_filename ?? '' });
+          result.deReclassified261Creditors!.push({ bank: c.institucion, institucion_cmf: c.institucion, total_credito_clp: o.monto_clp, reason: motivo, document_filename: o.document_filename ?? '', degradedForMissingVenc: true });
           result.identified261Creditors!.push({ bank: c.institucion, product_type: productType, institucion_cmf: c.institucion, total_credito_clp: o.monto_clp, reason: motivo, document_filename: o.document_filename ?? '', evidence: o.evidence });
         }
         result.cmf260DirectOverrides = (result.cmf260DirectOverrides ?? []).filter(o => canonicalInstitutionKey(o.institucion_cmf) !== k);
@@ -522,7 +522,7 @@ export async function applyDeterministicBackstops(
 
       // Caso 3 — el banco 90+d NO tiene NINGÚN documento que lo represente → se inyecta el total
       // del CMF como Art. 261 para no perder el acreedor (G2). Es el único caso que usa el total.
-      result.deReclassified261Creditors!.push({ bank: c.institucion, institucion_cmf: c.institucion, total_credito_clp: c.totalCredito, reason: motivo, document_filename: assocDoc?.filename ?? '' });
+      result.deReclassified261Creditors!.push({ bank: c.institucion, institucion_cmf: c.institucion, total_credito_clp: c.totalCredito, reason: motivo, document_filename: assocDoc?.filename ?? '', degradedForMissingVenc: true });
       result.identified261Creditors!.push({ bank: c.institucion, product_type: productType, institucion_cmf: c.institucion, total_credito_clp: c.totalCredito, reason: motivo, document_filename: assocDoc?.filename ?? '' });
       log(
         `🛡️ [Backstop 260→261] "${c.institucion}" (mora 90+d $${c.overdue90Days.toLocaleString('es-CL')}) ` +

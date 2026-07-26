@@ -39,6 +39,18 @@ class BlockedError extends Error {
   }
 }
 
+/**
+ * Meses de actividad F29 que BLOQUEAN el caso. El único bloqueo tributario es
+ * `categoria === 'primera'` con actividad real en F29 (CLAUDE.md, "Worker — Primera Categoría
+ * & F29 Block"): segunda categoría (boletas de honorarios) NO impide la renegociación.
+ * El camino determinista solo calcula F29 cuando la categoría es primera, pero el de VISIÓN
+ * (carpeta tributaria escaneada) devuelve los meses sin condicionar la categoría → sin este
+ * filtro, un cliente de segunda categoría con IVA declarado quedaba bloqueado sin razón.
+ */
+function f29BlockingMonths(out: { categoria: string; f29_meses_con_actividad: string[] }): string[] {
+  return out.categoria === 'primera' ? (out.f29_meses_con_actividad ?? []) : [];
+}
+
 const POLL_INTERVAL_MS = 5000;
 let keepRunning = true;
 
@@ -243,6 +255,23 @@ async function gatherStep5Input(
   logger: RunnerLogger,
   jobId?: string
 ): Promise<Step5Input | null> {
+  // G2 / L35: el Paso 5 NUNCA se omite en silencio. Cualquier camino que devuelva null
+  // (sin documentos, fallo de descarga, error del agente) deja una alerta en el panel — antes
+  // solo la dejaba el caso "no hay documentos" y un 403 de Storage o un 529 de la API
+  // terminaban en un job 'success' con la solicitud sin ningún ingreso declarado.
+  const alertarOmision = async (motivo: string): Promise<null> => {
+    if (jobId) {
+      const { error: alertErr } = await supabase.from('automation_alerts').insert({
+        job_id: jobId,
+        client_id: client.id,
+        step: 5,
+        alert_type: 'needs_review',
+        description: `Paso 5 (Ingresos) OMITIDO — ${motivo} Cargá el respaldo y declará el ingreso manualmente en el portal.`,
+      });
+      if (alertErr) logger.error('⚠️ [Paso 5] No se pudo registrar la alerta de omisión:', alertErr.message);
+    }
+    return null;
+  };
   try {
     const { data: docs, error } = await supabase
       .from('client_documents')
@@ -250,7 +279,7 @@ async function gatherStep5Input(
       .eq('client_id', client.id);
     if (error) {
       logger.error('⚠️ [Paso 5] No se pudo leer client_documents:', error.message);
-      return null;
+      return alertarOmision(`no se pudieron leer los documentos del cliente (${error.message}).`);
     }
     const rows = (docs || []).filter((d: any) => d?.filename && d?.storage_path);
     const isCotiz = (f: string) => COTIZACIONES_FILENAME_KEYWORDS.some((k) => f.toLowerCase().includes(k));
@@ -273,19 +302,7 @@ async function gatherStep5Input(
     const incomeRows = rows.filter((d: any) => isCotiz(d.filename) || isIncome(d.filename) || !isAcreedorCert(d));
     if (incomeRows.length === 0) {
       logger.log('ℹ️ [Paso 5] No se encontraron documentos de ingreso en client_documents — se omite el Paso 5.');
-      if (jobId) {
-        const { error: alertErr } = await supabase.from('automation_alerts').insert({
-          job_id: jobId,
-          client_id: client.id,
-          step: 5,
-          alert_type: 'needs_review',
-          description:
-            'Paso 5 (Ingresos) omitido: el cliente no tiene ningún documento de ingreso cargado ' +
-            '(liquidaciones, pensión, honorarios, etc.). Cargar el respaldo y declarar el ingreso manualmente.',
-        });
-        if (alertErr) logger.error('⚠️ [Paso 5] No se pudo registrar la alerta de omisión:', alertErr.message);
-      }
-      return null;
+      return alertarOmision('el cliente no tiene ningún documento de ingreso cargado (liquidaciones, pensión, honorarios, etc.).');
     }
 
     // Descargar a tempDir.
@@ -311,7 +328,9 @@ async function gatherStep5Input(
       incomeDocs.push({ filename: d.filename, localPath: finalLocal });
     }
 
-    if (incomeDocs.length === 0) return null;
+    if (incomeDocs.length === 0) {
+      return alertarOmision(`no se pudo descargar ninguno de los ${incomeRows.length} documento(s) de ingreso del cliente (falla de Storage).`);
+    }
 
     const ingresosOutput = await runIngresosAgent(supabase, client.id, incomeDocs, logger);
 
@@ -352,7 +371,7 @@ async function gatherStep5Input(
     return { incomes: ingresosOutput.incomes, justificativos, cotizacionesPath };
   } catch (err: any) {
     logger.error('⚠️ [Paso 5] Excepción al preparar el Paso 5 (se omite):', err?.message || err);
-    return null;
+    return alertarOmision(`falló la preparación de los ingresos (${err?.message || err}).`);
   }
 }
 
@@ -466,7 +485,9 @@ async function processJob(job: any): Promise<void> {
         await loginAndNavigateToStep1(page, resolvedClaveUnicaRut, resolvedClaveUnicaPassword, logger, {
           region: client.region, comuna: client.comuna, email: CORREO_ESTUDIO, telefono: client.telefono,
         });
-        await cleanupDraft(page, logger);
+        // Solo el Paso 3: este bloqueo (no califica / cert mal atribuido) no justifica borrar
+        // la Carpeta Tributaria y los Agentes Retenedores del Paso 2 ni los ingresos del Paso 5.
+        await cleanupDraft(page, logger, [3]);
       } catch (cleanupErr: any) {
         logger.error(`⚠️ No se pudo realizar la autolimpieza en el portal: ${cleanupErr.message || cleanupErr}`);
       }
@@ -498,9 +519,10 @@ async function processJob(job: any): Promise<void> {
             fs.writeFileSync(ctEarlyPath, Buffer.from(await ctBlob.arrayBuffer()));
             const tribEarly = await runTributarioAgent(supabase, client.id, ctEarlyPath, logger);
             fs.existsSync(ctEarlyPath) && fs.unlinkSync(ctEarlyPath);
-            if (tribEarly.f29_meses_con_actividad.length > 0) {
-              const meses = tribEarly.f29_meses_con_actividad.join(', ');
-              const alertDesc = `Paso 2 bloqueado (pre-chequeo A7): primera categoría con actividad F29 en ${tribEarly.f29_meses_con_actividad.length} mes(es): ${meses}`;
+            const f29EarlyBlocking = f29BlockingMonths(tribEarly);
+            if (f29EarlyBlocking.length > 0) {
+              const meses = f29EarlyBlocking.join(', ');
+              const alertDesc = `Paso 2 bloqueado (pre-chequeo A7): primera categoría con actividad F29 en ${f29EarlyBlocking.length} mes(es): ${meses}`;
               logger.log(`🚫 ${alertDesc} — bloqueando antes de gastar el Centinela.`);
               const { error: insertErr } = await supabase.from('automation_alerts').insert({
                 job_id: job.id, client_id: client.id, step: 2, alert_type: 'blocked', description: alertDesc,
@@ -568,23 +590,14 @@ async function processJob(job: any): Promise<void> {
             }).eq('id', job.id);
             return;
           }
-          // Error TÉCNICO del centinela (red, créditos API) — distinto del bloqueo
-          // semántico. El job queda 'failed', pero igual registramos alerta + error_message
-          // para que el panel no muestre "falló sin alerta registrada".
-          const techMsg = `Error técnico del Centinela (red, API o créditos): ${centinelaErr?.message || centinelaErr}`;
-          logger.error(`⚠️ ${techMsg}`);
-          const { error: techAlertErr } = await supabase.from('automation_alerts').insert({
-            job_id: job.id, client_id: client.id, step: job.step,
-            alert_type: 'failed', description: techMsg,
-          });
-          if (techAlertErr) logger.error('⚠️ No se pudo registrar alerta técnica del Centinela:', techAlertErr.message);
-          await supabase.from(JOBS_TABLE).update({
-            status: 'failed',
-            error_message: techMsg,
-            error_log: logger.getBufferText() + `\n\n❌ EXCEPCIÓN CENTINELA: ${centinelaErr?.message || centinelaErr}`,
-            updated_at: new Date().toISOString(),
-          }).eq('id', job.id);
-          return;
+          // Error TÉCNICO del centinela (red, créditos API) — distinto del bloqueo semántico:
+          // es RETRYABLE. Se re-lanza para que el loop de intentos lo reintente a los 15s (el
+          // Centinela es idempotente por hash, así que no se re-gasta la lectura si ya completó).
+          // Antes se escribía 'failed' y se hacía `return` en el intento 1: un 529 transitorio
+          // dejaba el job muerto y había que re-encolarlo a mano. El manejo final de `!success`
+          // ya escribe 'failed' + error_log si los 3 intentos fallan.
+          logger.error(`⚠️ Error técnico del Centinela (red, API o créditos), reintentable: ${centinelaErr?.message || centinelaErr}`);
+          throw centinelaErr;
         }
 
         // 4. Run Mapeador Agent (API #2) — mapea documentos a acreedores
@@ -612,7 +625,13 @@ async function processJob(job: any): Promise<void> {
         ).length;
         // REGLA 10: productos que el CMF marcaba 90+d pero el certificado certifica
         // vigentes (260→261) ya NO cuentan para el requisito de 2 productos en mora.
-        const deReclassifiedCount = (centinelaOutput.deReclassified261Creditors || []).length;
+        // OJO: solo esos. El backstop determinista usa la MISMA lista para las deudas que
+        // degrada a 261 por no poder acreditar el VENCIMIENTO (`degradedForMissingVenc`) —
+        // esas siguen en mora (solo falta el documento de la fecha) y deben seguir contando,
+        // y además el backstop empuja una entrada POR OVERRIDE en multiproducto. Contarlas
+        // dejaba en 0 el conteo de un cliente que sí califica → Paso 3 omitido / job blocked.
+        const deReclassifiedCount = (centinelaOutput.deReclassified261Creditors || [])
+          .filter((d) => !d.degradedForMissingVenc).length;
         const totalQualifyingCount =
           Math.max(0, cmf90PlusCount - deReclassifiedCount) + reclassifiedCount + nonCmf260Count;
 
@@ -725,9 +744,17 @@ async function processJob(job: any): Promise<void> {
             informativeSignals.push(`monto divergente: ${amountAlerts.map((a) => a.message).join('; ')}`);
           }
           if (informativeSignals.length > 0) {
-            // Solo se loguea para trazabilidad (queda en error_log del job). No se inserta
-            // alerta 'needs_review' ni se detiene el flujo: se continúa con el Paso 3.
-            logger.log(`ℹ️ Señales detectadas (no bloqueantes, se continúa con el Paso 3): ${informativeSignals.join(' · ')}.`);
+            // NO bloquean (el Paso 3 se completa igual), pero SÍ tienen que llegarle al abogado:
+            // un monto divergente entre el certificado y el CMF es justo la señal que G1 manda
+            // ALERTAR (se declara el del certificado), y un acreedor NO-CMF se declara sin
+            // confirmación humana. Antes solo quedaban en el error_log del job.
+            const desc = `Revisar antes de presentar (el Paso 3 se completó igual):\n` +
+              informativeSignals.map((s) => `• ${s}`).join('\n');
+            logger.log(`ℹ️ ${desc}`);
+            const { error: isErr } = await supabase.from('automation_alerts').insert({
+              job_id: job.id, client_id: client.id, step: 3, alert_type: 'needs_review', description: desc,
+            });
+            if (isErr) logger.error('⚠️ No se pudo registrar la alerta de señales informativas:', isErr.message);
           }
         }
       }
@@ -833,9 +860,10 @@ async function processJob(job: any): Promise<void> {
         const categoria = tributariaOutput2.categoria;
 
         // --- BLOQUEO: Primera categoría con actividad F29 en últimos 24 meses ---
-        if (tributariaOutput2.f29_meses_con_actividad.length > 0) {
-          const meses = tributariaOutput2.f29_meses_con_actividad.join(', ');
-          const alertDesc = `Paso 2 bloqueado: primera categoría con actividad F29 en ${tributariaOutput2.f29_meses_con_actividad.length} mes(es): ${meses}`;
+        const f29Blocking2 = f29BlockingMonths(tributariaOutput2);
+        if (f29Blocking2.length > 0) {
+          const meses = f29Blocking2.join(', ');
+          const alertDesc = `Paso 2 bloqueado: primera categoría con actividad F29 en ${f29Blocking2.length} mes(es): ${meses}`;
           logger.log(`🚫 ${alertDesc}`);
 
           try {
@@ -901,9 +929,10 @@ async function processJob(job: any): Promise<void> {
         const tributariaOutput0 = await runTributarioAgent(supabase, client.id, tributariaLocalPath, logger);
         const categoria = tributariaOutput0.categoria;
 
-        if (tributariaOutput0.f29_meses_con_actividad.length > 0) {
-          const meses = tributariaOutput0.f29_meses_con_actividad.join(', ');
-          const alertDesc = `Paso 2 (all-steps) bloqueado: primera categoría con actividad F29 en ${tributariaOutput0.f29_meses_con_actividad.length} mes(es): ${meses}`;
+        const f29Blocking0 = f29BlockingMonths(tributariaOutput0);
+        if (f29Blocking0.length > 0) {
+          const meses = f29Blocking0.join(', ');
+          const alertDesc = `Paso 2 (all-steps) bloqueado: primera categoría con actividad F29 en ${f29Blocking0.length} mes(es): ${meses}`;
           logger.log(`🚫 ${alertDesc}`);
 
           try {
@@ -1155,19 +1184,34 @@ async function processJob(job: any): Promise<void> {
         publicSuccessUrl = await uploadToStorage(localSuccessPath, destName, logger);
       }
 
-      logger.log('✓ Job completado con éxito!');
+      // Un flujo completo que OMITIÓ el Paso 3 (no califica / certificado mal atribuido) dejó
+      // el borrador SIN NINGÚN acreedor: la solicitud no se puede presentar así. Terminar en
+      // 'success' con "Revisar y presentar" invitaba a presentar un borrador vacío de deudas,
+      // y además el MISMO motivo en un Paso 3 individual ya deja el job en 'blocked'.
+      const terminaBloqueado = !!skipStep3Reason;
+      if (terminaBloqueado) {
+        logger.log('🚫 Job terminado: los Pasos 1, 2, 4 y 5 quedaron cargados, pero el Paso 3 (acreedores) NO se completó.');
+      } else {
+        logger.log('✓ Job completado con éxito!');
+      }
       await supabase
         .from(JOBS_TABLE)
         .update({
-          status: 'success',
+          status: terminaBloqueado ? 'blocked' : 'success',
+          error_message: terminaBloqueado ? `Paso 3 (acreedores) NO declarado: ${skipStep3Reason}` : null,
           screenshot_url: publicSuccessUrl,
           error_log: logger.getBufferText(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', job.id);
       // Mensaje de progreso final (best-effort, en su propio update para no arriesgar
-      // el status='success' si la columna de progreso aún no existe en la DB).
-      await reportProgress(job.id, 'Listo: borrador cargado en el portal. Revisar y presentar.');
+      // el status si la columna de progreso aún no existe en la DB).
+      await reportProgress(
+        job.id,
+        terminaBloqueado
+          ? 'Pasos 1, 2, 4 y 5 cargados, pero SIN acreedores en el Paso 3. Revisar la alerta antes de presentar.'
+          : 'Listo: borrador cargado en el portal. Revisar y presentar.'
+      );
 
       success = true;
       break;
@@ -1257,10 +1301,20 @@ async function processJob(job: any): Promise<void> {
         }
       }
 
+      // Alerta al panel para CUALQUIER fallo terminal (no solo los casos especiales): sin
+      // esto el dashboard muestra "falló sin alerta registrada" y el abogado no sabe por qué.
+      const failMsg = `La automatización falló tras ${maxAttempts} intentos: ${lastError?.message || lastError || 'error desconocido'}`;
+      const { error: failAlertErr } = await supabase.from('automation_alerts').insert({
+        job_id: job.id, client_id: client.id, step: job.step,
+        alert_type: 'failed', description: failMsg,
+      });
+      if (failAlertErr) logger.error('⚠️ No se pudo registrar la alerta de fallo:', failAlertErr.message);
+
       await supabase
         .from(JOBS_TABLE)
         .update({
           status: 'failed',
+          error_message: failMsg,
           error_log: fullErrorLog,
           screenshot_url: publicFailureUrl,
           updated_at: new Date().toISOString(),
@@ -1311,9 +1365,17 @@ export async function runDaemon(): Promise<void> {
   // con clientes de ClaveÚnica DISTINTA (solicitudes de portal separadas): los
   // temporales ya están aislados por job.id / client.id. NO usar >1 para el modo
   // comparación (todos comparten la ClaveÚnica de Pato = un solo borrador).
-  const MAX_CONCURRENCY = Math.max(1, parseInt(process.env.WORKER_CONCURRENCY || '1', 10) || 1);
-  if (MAX_CONCURRENCY > 1) {
-    console.log(`⚙️  Concurrencia del worker: hasta ${MAX_CONCURRENCY} jobs en paralelo (WORKER_CONCURRENCY).`);
+  // ⚠️ Clampeado a 1 hasta que el modo dry-run deje de viajar por `process.env.DRY_RUN`:
+  // esa variable es del PROCESO, así que con 2 jobs en vuelo uno pisa el modo del otro (y el
+  // restore al terminar pisa al que sigue corriendo). Un job real que hereda 'true' entra en
+  // la rama de autolimpieza y BORRA los acreedores y archivos que acaba de cargar; uno de
+  // prueba que hereda 'false' guarda y avanza el borrador real. Para habilitar >1 hay que
+  // pasar el flag como parámetro por fillAllSteps/fillStepN.
+  // ponytail: clamp en vez de refactor; subir a >1 solo con el flag parametrizado.
+  const requested = Math.max(1, parseInt(process.env.WORKER_CONCURRENCY || '1', 10) || 1);
+  const MAX_CONCURRENCY = 1;
+  if (requested > MAX_CONCURRENCY) {
+    console.log(`⚠️  WORKER_CONCURRENCY=${requested} ignorado: el worker corre 1 job a la vez (DRY_RUN es global al proceso).`);
   }
   const inFlight = new Set<Promise<void>>();
 

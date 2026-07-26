@@ -59,7 +59,7 @@ export interface ClientData {
   telefono: string;
 }
 
-function validateClientData(client: ClientData): void {
+function validateClientData(client: ClientData, warn: (m: string) => void): void {
   const required: (keyof ClientData)[] = [
     'nacionalidad',
     'fecha_nacimiento',
@@ -85,7 +85,8 @@ function validateClientData(client: ClientData): void {
 
   // BUG-19 FIX: Warn explicitly when fecha_nacimiento was substituted with fallback
   if (client.fecha_nacimiento === '01/01/1990') {
-    console.warn('⚠️ ADVERTENCIA: fecha_nacimiento tiene valor de fallback "01/01/1990". Es posible que el dato no exista en Supabase.');
+    // Por el logger (no console.warn): así queda en el error_log del job y el abogado lo ve.
+    warn('⚠️ ADVERTENCIA: fecha_nacimiento tiene valor de fallback "01/01/1990". Es posible que el dato no exista en la ficha del cliente.');
   }
 }
 
@@ -103,7 +104,7 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
       console.log(`[${ts}] ${msg}`);
     }
   };
-  validateClientData(client);
+  validateClientData(client, log);
 
   page.once('console', msg => log(`[PAGE CONSOLE] ${msg.type()}: ${msg.text()}`));
   page.once('pageerror', err => log(`[PAGE ERROR] ${err.message}\n${err.stack}`));
@@ -161,7 +162,19 @@ export async function fillStep1(page: Page, client: ClientData, logger?: SimpleL
       return el ? !el.disabled && !el.readOnly : false;
     });
 
-    if (isFechaNacimientoEditable && client.fecha_nacimiento && client.fecha_nacimiento !== '01/01/1990') {
+    // El portal PRE-LLENA la fecha de nacimiento desde el Registro Civil. Si ya trae un valor,
+    // ese dato manda: pisarlo con el de `clients` (cargado a mano, en formato ambiguo) podía
+    // declarar el 3 de septiembre en vez del 9 de marzo, sin ninguna alerta.
+    const fechaNacPortal = (await page.inputValue('#fchNacimiento').catch(() => '')).trim();
+    if (fechaNacPortal) {
+      const mismaFecha = client.fecha_nacimiento
+        ? fechaNacPortal.replace(/[^0-9]/g, '') === String(client.fecha_nacimiento).replace(/[^0-9]/g, '')
+        : true;
+      log(`→ Fecha de Nacimiento ya cargada por el portal (Registro Civil): ${fechaNacPortal} — se respeta.`);
+      if (!mismaFecha) {
+        log(`⚠️ La fecha de nacimiento de la ficha (${client.fecha_nacimiento}) NO coincide con la del portal (${fechaNacPortal}). Se usa la del portal; revisá la ficha del cliente.`);
+      }
+    } else if (isFechaNacimientoEditable && client.fecha_nacimiento && client.fecha_nacimiento !== '01/01/1990') {
       log('→ Completando Fecha de Nacimiento (campo es editable)...');
       
       let dateValue = client.fecha_nacimiento;

@@ -142,6 +142,14 @@ export interface DeReclassified261Creditor {
   total_credito_clp: number;
   reason: string;
   document_filename: string;
+  /**
+   * true = NO es una de-reclasificación de la REGLA 10 (el certificado certifica la deuda
+   * VIGENTE), sino una DEGRADACIÓN del backstop por no poder acreditar el vencimiento. La
+   * distinción importa para el requisito de fondo: si el certificado dice "vigente", la mora
+   * del CMF no existe y ese producto NO cuenta; si solo falta el documento del vencimiento,
+   * la mora SÍ existe y el producto SIGUE contando para los 2 productos con 91+ días.
+   */
+  degradedForMissingVenc?: boolean;
 }
 
 /**
@@ -300,7 +308,12 @@ export async function runSentinelCheck(
   }
 
   const cmfLocalPath = path.join(tempDir, `sentinel_cmf_${client.id}.pdf`);
-  const tmpDir = path.join(process.cwd(), 'outputs', 'acreditaciones_tmp');
+  // Temporales POR CLIENTE. Antes era un directorio compartido y el nombre local era
+  // `sentinel_<basename(storage_path)>`: dos clientes con un documento del mismo basename
+  // (`cert_1.pdf`, `liquidacion.pdf`) colisionaban y, como el archivo ya existía, NO se
+  // descargaba → el Centinela leía el certificado de OTRO cliente y declaraba sus montos
+  // (con cita verbatim auto-consistente, imposible de detectar aguas abajo).
+  const tmpDir = path.join(process.cwd(), 'outputs', 'acreditaciones_tmp', String(client.id));
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 
   try {
@@ -384,12 +397,14 @@ export async function runSentinelCheck(
       const localPath = path.join(tmpDir, `sentinel_${slug}${ext}`);
       doc.local_path = localPath;
 
-      if (!fs.existsSync(localPath)) {
-        log(`Descargando "${doc.filename}"...`);
-        const { data, error } = await supabase.storage.from('documentos').download(doc.storage_path);
-        if (error || !data) throw new Error(`Error al descargar ${doc.filename}: ${error?.message || 'vacío'}`);
-        fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer()));
-      }
+      // Siempre se re-descarga. El `if (!existsSync)` de antes solo servía ENTRE corridas y
+      // hacía que un certificado corregido por el abogado (mismo storage_path, upsert en el
+      // bucket) se leyera para siempre en su versión vieja. Dentro de una corrida cada
+      // documento se baja una sola vez, así que no hay costo extra.
+      log(`Descargando "${doc.filename}"...`);
+      const { data, error } = await supabase.storage.from('documentos').download(doc.storage_path);
+      if (error || !data) throw new Error(`Error al descargar ${doc.filename}: ${error?.message || 'vacío'}`);
+      fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer()));
 
       // Determinar si es PDF de texto, PDF escaneado o Imagen
       const extLower = ext.toLowerCase();

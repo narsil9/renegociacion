@@ -17,6 +17,34 @@ export class CredentialError extends Error {
   }
 }
 
+/**
+ * Detecta un bloqueo REAL de la cuenta de ClaveÚnica y devuelve el texto del aviso (o null).
+ *
+ * Busca FRASES (no palabras sueltas) y SOLO dentro de los contenedores de error de la página.
+ * El chequeo anterior corría un `includes('bloque'|'intentos'|'limite'…)` sobre el innerText
+ * completo del body: los links permanentes de ClaveÚnica ("desbloquear tu cuenta", "¿cuántos
+ * intentos tengo?") lo activaban y cualquier cliente quedaba marcado como bloqueado.
+ */
+async function detectAccountLockout(page: Page): Promise<string | null> {
+  const LOCKOUT_PHRASES = [
+    /cuenta\s+(ha\s+sido\s+)?(temporalmente\s+)?bloquead/i,
+    /usuario\s+bloquead/i,
+    /clave\s*[úu]nica\s+bloquead/i,
+    /te\s+quedan\s+\d+\s+intentos/i,
+    /(superaste|excediste|super[oó])\s+.{0,30}(intentos|l[íi]mite)/i,
+    /demasiados\s+intentos/i,
+    /cuenta\s+(suspendida|inhabilitada)/i,
+  ];
+  const containers = page.locator('.alert, [role="alert"], .error, .msg-error, #error, .form-error');
+  const n = await containers.count().catch(() => 0);
+  for (let i = 0; i < n; i++) {
+    const raw = ((await containers.nth(i).innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim();
+    if (!raw) continue;
+    if (LOCKOUT_PHRASES.some((re) => re.test(raw))) return raw.substring(0, 350);
+  }
+  return null;
+}
+
 export async function loginAndNavigateToStep1(
   page: Page,
   rut: string,
@@ -60,12 +88,13 @@ export async function loginAndNavigateToStep1(
     log('→ Esperando formulario de ClaveÚnica...');
     await page.waitForSelector('#uname', { timeout: 30000 });
 
-    const preLoginText = await page.innerText('body').catch(() => '');
-    const preLoginLower = preLoginText.toLowerCase();
-    const preLockoutKeywords = ['bloque', 'intentos', 'intentando', 'suspend', 'límite', 'limite', 'inhabilit', 'intento fallido'];
-    const preFound = preLockoutKeywords.find(kw => preLoginLower.includes(kw));
-    if (preFound) {
-      const msg = `ALERTA DE BLOQUEO PREVIA DETECTADA (clave: "${preFound}"): "${preLoginText.trim().replace(/\s+/g, ' ').substring(0, 350)}..."`;
+    // Bloqueo REAL de la cuenta, por FRASE y dentro del contenedor de error — no por
+    // substrings ('intentos', 'bloque', 'limite') sobre el innerText de toda la página: los
+    // links de recuperación de ClaveÚnica ("¿olvidaste tu clave?", "desbloquear cuenta")
+    // contienen esas palabras y bloqueaban a TODOS los clientes sin un solo intento.
+    const preLockoutMsg = await detectAccountLockout(page);
+    if (preLockoutMsg) {
+      const msg = `ALERTA DE BLOQUEO PREVIA DETECTADA: "${preLockoutMsg}"`;
       log(`❌ ${msg}`);
       throw new CredentialError(msg, 'usuario_bloqueado');
     }
@@ -153,27 +182,32 @@ export async function loginAndNavigateToStep1(
         page.waitForURL(/autenticado/, { timeout: 45000 }),
         page.waitForSelector('text="Datos de acceso no válidos"', { state: 'visible', timeout: 45000 }),
         page.waitForSelector('text="Ingresa correctamente tu RUN de 7 u 8 números más dígito verificador"', { state: 'visible', timeout: 45000 }),
-        page.locator('body').filter({ hasText: /bloque|intentos|intentando|suspend|límite|limite|inhabilit|intento fallido/i }).waitFor({ state: 'visible', timeout: 45000 }).catch(() => null)
+        // (Se quitó un cuarto competidor `locator('body').filter({hasText:/bloque|intentos|…/})`:
+        //  el <body> siempre está visible, así que resolvía en 0 ms si la página contenía
+        //  cualquiera de esas palabras y la carrera terminaba antes de la navegación → un login
+        //  correcto se clasificaba como error. El chequeo de bloqueo corre igual más abajo.)
       ]);
     } catch (raceErr) {
       // Ignore race timeout and let url check decide
     }
 
     if (!page.url().includes('autenticado')) {
-      const bodyText = await page.innerText('body').catch(() => '');
-      const lowerBody = bodyText.toLowerCase();
-
-      const lockoutKeywords = ['bloque', 'intentos', 'intentando', 'suspend', 'límite', 'limite', 'inhabilit', 'intento fallido'];
-      const foundKeyword = lockoutKeywords.find(kw => lowerBody.includes(kw));
-
-      if (foundKeyword) {
-        const msg = `ALERTA DE BLOQUEO DETECTADA (clave: "${foundKeyword}"): "${bodyText.trim().replace(/\s+/g, ' ').substring(0, 350)}..."`;
-        log(`❌ ${msg}`);
-        throw new CredentialError(msg, 'riesgo_bloqueo');
-      }
-
+      // ORDEN IMPORTANTE: primero el diagnóstico EXACTO de credenciales. ClaveÚnica muestra
+      // "Datos de acceso no válidos" junto al contador de reintentos, así que un chequeo de
+      // bloqueo por substrings ganaba siempre y una clave simplemente cambiada se reportaba
+      // como "riesgo_bloqueo" — el abogado dejaba de intentar cuando solo había que actualizar
+      // la clave. (Mismo patrón del falso "bloqueo de IP" ya vivido.)
       const isInvalidRun = await page.locator('text="Ingresa correctamente tu RUN de 7 u 8 números más dígito verificador"').isVisible().catch(() => false);
       const isInvalidAccess = await page.locator('text="Datos de acceso no válidos"').isVisible().catch(() => false);
+
+      if (!isInvalidRun && !isInvalidAccess) {
+        const lockoutMsg = await detectAccountLockout(page);
+        if (lockoutMsg) {
+          const msg = `ALERTA DE BLOQUEO DETECTADA: "${lockoutMsg}"`;
+          log(`❌ ${msg}`);
+          throw new CredentialError(msg, 'riesgo_bloqueo');
+        }
+      }
 
       if (isInvalidRun) {
         const msg = 'El RUN (RUT) ingresado es incorrecto o inválido ("Ingresa correctamente tu RUN de 7 u 8 números más dígito verificador").';

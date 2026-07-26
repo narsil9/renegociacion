@@ -14,6 +14,7 @@ import { Page } from 'playwright';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { screenshotOnFailure } from '../utils/browser';
 import { extractCreditors, CmfCreditor } from '../utils/cmf_analyzer';
+import { dataRowCount } from './step5_ingresos'; // cuenta filas de datos (ignora la fila placeholder)
 import { ReclassifiedCreditor, AdditionalCreditor, Identified261Creditor, DeReclassified261Creditor } from '../utils/sentinel';
 import {
   fetchAcreedoresCatalog,
@@ -180,6 +181,8 @@ export async function clearStep3Creditors(page: Page, log: (m: string) => void):
         .first();
       if ((await deleteBtn.count()) === 0) break;
 
+      const antes = await dataRowCount(page, tableId);
+
       log(`      🗑️  Eliminando acreedor ${i + 1} de la tabla...`);
       await deleteBtn.click();
 
@@ -191,7 +194,24 @@ export async function clearStep3Creditors(page: Page, log: (m: string) => void):
       }
       await page.waitForLoadState('load').catch(() => {});
       await page.waitForTimeout(1500);
+
+      // Break por no-progreso: si el conteo no bajó, el borrado NO ocurrió (modal
+      // interceptado, id cambiado…) → no reintentar sobre la misma fila.
+      if ((await dataRowCount(page, tableId)) >= antes) {
+        log(`   ⚠️ El borrado no redujo las filas de "${tableId}" (${antes}) — corto para no reintentar la misma fila.`);
+        break;
+      }
     }
+  }
+  // El ✓ (y el clear-before-fill que depende de él) SOLO si las dos tablas quedaron vacías:
+  // declarar "todos eliminados" con filas vivas apilaba acreedores en la corrida siguiente,
+  // inflando el pasivo declarado. Mismo endurecimiento que ya tenía clearStep5Incomes.
+  const filasRestantes =
+    (await dataRowCount(page, 'tablaAcreedores')) + (await dataRowCount(page, 'tablaOtrosAcreedores'));
+  if (filasRestantes > 0) {
+    throw new Error(
+      `No se pudieron eliminar ${filasRestantes} acreedor(es) preexistentes del borrador. Se corta antes de declarar para no apilar filas duplicadas (revisar el flujo de borrado del portal).`
+    );
   }
   log('   ✓ Todos los acreedores eliminados del borrador.');
 

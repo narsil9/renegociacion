@@ -40,8 +40,19 @@ export async function fillStep4(
     log('→ Esperando estabilización de scripts en la página...');
     await page.waitForTimeout(3000);
 
-    log('→ Seleccionando opción: Asistiré personalmente a las audiencias...');
-    await page.locator('#representadoPorApoderadoNo').check({ force: true });
+    // Si el abogado YA constituyó un apoderado a mano (radio "Sí" marcado o poder subido), NO
+    // se toca: dar vuelta esa declaración obligaría al cliente a comparecer personalmente a la
+    // audiencia y dejaría el archivo del poder huérfano. Se respeta y se avisa.
+    const apoderadoSiMarcado = await page.locator('#representadoPorApoderadoSi').isChecked().catch(() => false);
+    const tienePoderSubido = (await page.locator('#btnEliminarPoder, #btnVerPoder').count().catch(() => 0)) > 0;
+    if (apoderadoSiMarcado || tienePoderSubido) {
+      // Se respeta y se sigue al guardado normal (así el flujo completo igual avanza al Paso 5).
+      log('⚠️  Paso 4: el borrador YA declara un apoderado' + (tienePoderSubido ? ' (con poder adjunto)' : '') +
+          ' — se respeta la declaración existente y NO se marca "asistiré personalmente".');
+    } else {
+      log('→ Seleccionando opción: Asistiré personalmente a las audiencias...');
+      await page.locator('#representadoPorApoderadoNo').check({ force: true });
+    }
 
     log('✓ Todos los campos requeridos del Paso 4 completados.');
 
