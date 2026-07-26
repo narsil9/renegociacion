@@ -162,9 +162,17 @@ export function extractCertLineItems(text: string | null | undefined): CertLineI
   // activa si el documento tiene ese encabezado (evita falsos positivos en otros docs).
   const isPortabilityCert =
     /certificado\s+de\s+liquidaci[oó]n|de\s+portabilidad/i.test(text);
+  // Línea de TOTAL GLOBAL del certificado ("Monto total a Pagar al 17-06-2026 para poner
+  // término a TODOS los productos … contrato 40567938 … $ 20.254.651"): tiene un token de ≥7
+  // dígitos y un monto, así que el detector la tomaba como si fuera un producto más y el
+  // backstop de completitud la inyectaba ENCIMA de los productos individuales = doble conteo
+  // del banco completo (L9 / regla transversal D: el total global NO es un producto).
+  const GLOBAL_TOTAL_LABEL =
+    /total(es)?\s+(de\s+)?(la\s+)?(deuda|deudas|adeudad|a\s+pagar)|para\s+poner\s+t[eé]rmino|todos\s+(los\s+)?(sus\s+)?productos|todas\s+(sus\s+)?(las\s+)?operaciones|suma\s+de\s+(los\s+)?productos|gran\s+total/i;
   if (isPortabilityCert) {
     for (const line of lines) {
       if (FORBIDDEN_LABEL.test(line) || INDIRECT_LABEL.test(line)) continue;
+      if (GLOBAL_TOTAL_LABEL.test(line)) continue;
       const opId = firstOpId(line);
       const amount = firstMoney(line);
       // Fila de producto = tiene Nº de operación Y un monto en la misma línea.

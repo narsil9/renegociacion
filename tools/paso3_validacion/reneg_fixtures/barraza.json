@@ -1,0 +1,78 @@
+{
+  "case": "maria_barraza",
+  "rut": "16.991.741-8",
+  "cmf_cut_date": "2026-07-20",
+  "_nota": "doc_facts = lo que un agente limpio extrae de cada certificado (reemplazo de la API). Fechas de mora corregidas (BdCh 06/04, CMR 05/02). SIN el credito fantasma $5.279.356 (era el costo de prepago de un mes previo de la MISMA tarjeta BdCh, no un producto aparte).",
+  "cmf_rows": [
+    { "institucion": "Caja de Compensación de Asignación Familiar Los Andes", "tipoCredito": "Consumo", "totalCredito": 7037571, "overdue90Days": 0 },
+    { "institucion": "Banco de Chile", "tipoCredito": "Consumo", "totalCredito": 19165602, "overdue90Days": 0 },
+    { "institucion": "Banco de Chile", "tipoCredito": "Tarjeta de crédito", "totalCredito": 5941363, "overdue90Days": 0 },
+    { "institucion": "Promotora CMR Falabella S.A.", "tipoCredito": "Tarjeta de crédito", "totalCredito": 3266789, "overdue90Days": 765959 },
+    { "institucion": "Banco de Chile", "tipoCredito": "Línea de crédito", "totalCredito": 44878, "overdue90Days": 0 },
+    { "institucion": "Banco de Chile", "tipoCredito": "Línea de crédito", "totalCredito": 1417318, "overdue90Days": 0 }
+  ],
+  "doc_facts": [
+    {
+      "filename": "informeCredito (1).pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "desglose_por_producto",
+      "productos": [
+        { "operacion": "132169917418019686", "monto": 19077809, "etiqueta_monto": "Costo Total de Prepago", "moneda": "CLP", "fecha_mora": null, "cita_monto": "Costo Total de Prepago: 19.077.809 (0 cuotas vencidas, Monto Total Atrasado $0)", "confidence": 0.95 }
+      ]
+    },
+    {
+      "filename": "Captura de pantalla 2026-06-02 102417.png",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        { "operacion": "01-132-05695-00", "monto": 1400000, "etiqueta_monto": "Monto utilizado", "moneda": "CLP", "fecha_mora": null, "cita_monto": "Monto utilizado $1.400.000 (línea de crédito, saldo al 02/06/2026)", "confidence": 0.85 }
+      ]
+    },
+    {
+      "filename": "032CON105211041.PDF",
+      "institucion_asignada": "Caja de Compensación de Asignación Familiar Los Andes",
+      "doc_type": "liquidacion_payoff",
+      "productos": [
+        { "operacion": "032CON105211041", "monto": 6963807, "etiqueta_monto": "Saldo Total Diario a Pagar", "moneda": "CLP", "fecha_mora": null, "cita_monto": "Saldo Total Diario a Pagar 6.963.807 (Certificado de Deuda Ley 20.130; 1 dividendo moroso, mora <90d)", "confidence": 0.95 }
+      ]
+    },
+    {
+      "filename": "ilovepdf_merged (23).pdf",
+      "institucion_asignada": "Tanner Servicios Financieros S.A.",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        { "operacion": "2530176", "monto": 1063590, "etiqueta_monto": "saldo insoluto (declaración jurada)", "moneda": "CLP", "fecha_mora": null, "cita_monto": "el saldo insoluto que debo como crédito automotriz es el monto de $1.063.590 (3 cuotas x $354.530; NO figura en CMF; requiere validación del abogado)", "confidence": 0.70 }
+      ]
+    },
+    {
+      "filename": "ilovepdf_merged (22).pdf",
+      "institucion_asignada": "Banco de Chile",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        { "operacion": "XXXX XXX3 0291 0371", "monto": 5932768, "etiqueta_monto": "Costo Monetario Prepago", "moneda": "CLP", "fecha_mora": "2026-04-06", "cita_monto": "Costo Monetario Prepago 5.932.768 (tarjeta Banco de Chile). Comercios FORUS/Falabella/Ripley = donde compró, NO acreedores.", "cita_fecha": "primera cuota impaga 06/04/2026", "confidence": 0.90 }
+      ]
+    },
+    {
+      "filename": "ilovepdf_merged (21).pdf",
+      "institucion_asignada": "Promotora CMR Falabella S.A.",
+      "doc_type": "estado_cuenta",
+      "productos": [
+        { "operacion": "356010******0764", "monto": 3362375, "etiqueta_monto": "Costo Monetario Prepago", "moneda": "CLP", "fecha_mora": "2026-02-05", "cita_monto": "Costo Monetario Prepago al 19/06/2026: 3.362.375 (suma de avisos = 765.959 = 90+d del CMF).", "cita_fecha": "Aviso de Cobranza: cuota atrasada más antigua 05/02/2026 (05 de febrero de 2026)", "confidence": 0.90 }
+      ]
+    }
+  ],
+  "expected_declaration": {
+    "_comment": "Verificación manual (no es el oracle_truth.ts oficial).",
+    "art_260": [
+      { "acreedor": "Banco de Chile (tarjeta)", "monto": 5932768, "vencimiento": "2026-04-06" },
+      { "acreedor": "Promotora CMR Falabella S.A.", "monto": 3362375, "vencimiento": "2026-02-05" }
+    ],
+    "art_261": [
+      { "acreedor": "Caja de Compensación Los Andes", "monto": 6963807 },
+      { "acreedor": "Banco de Chile (consumo)", "monto": 19077809 },
+      { "acreedor": "Banco de Chile (línea)", "monto": 1400000 },
+      { "acreedor": "Tanner Servicios Financieros S.A.", "monto": 1063590, "no_cmf": true }
+    ],
+    "no_fantasma_5279356": true
+  }
+}

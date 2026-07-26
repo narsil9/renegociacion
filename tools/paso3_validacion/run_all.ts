@@ -34,6 +34,7 @@ const TESTS = [
   'test_dedup_preferir_consolidado.ts',  // dedup por operación: prefiere el estado de cuenta consolidado
   'test_yasmin.ts',                      // caso Yasmín (cobranza La Polar) contra la declaración de la abogada
   'test_carpeta_tributaria.ts',          // categoría tributaria + falsos positivos de actividad F29
+  'test_cert_line_items.ts',             // ítems de un cert: no emitir el TOTAL GLOBAL como producto
 ];
 
 const results: { test: string; passed: boolean }[] = [];
