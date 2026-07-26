@@ -20,6 +20,7 @@ import {
   normalizeRut,
 } from './acreedor_matcher';
 import { normalizeOperationId } from './cert_line_items';
+import { UF_CLP } from './cmf_analyzer';
 import { loadReaderLessons } from './lessons_loader';
 import { extractEmissionDateFromText } from './cognitive_orchestrator';
 import { getCurrentChileDate, parseDateString } from './date_helper';
@@ -68,6 +69,12 @@ export interface DocFacts {
   // true si el doc es un AVISO DE COBRANZA por CONTENIDO (días de mora / deuda castigada / cobranza
   // judicial). Su vencimiento acredita, y su monto es referencial (el cert formal trae el monto).
   es_cobranza?: boolean;
+  /**
+   * true = el documento NO se pudo leer (error de API, JSON truncado…), NO que no tenga
+   * productos. La diferencia es crítica: `productos: []` por un 529 transitorio hacía
+   * DESAPARECER al acreedor de la declaración sin alerta y sin marcar error técnico.
+   */
+  read_failed?: boolean;
 }
 
 /**
@@ -208,7 +215,7 @@ export async function extractDocFacts(
   logger?: SimpleLogger
 ): Promise<DocFacts> {
   const log = (m: string) => (logger ? logger.log(`🛡️ [PerDoc] ${m}`) : console.log(m));
-  const empty: DocFacts = { filename: doc.filename, institucion_asignada: doc.institucion_cmf, doc_type: 'otro', productos: [] };
+  const empty: DocFacts = { filename: doc.filename, institucion_asignada: doc.institucion_cmf, doc_type: 'otro', productos: [], read_failed: true };
 
   const parts: any[] = [];
   const cmfHint = cmfRows.length
@@ -281,9 +288,12 @@ export async function extractDocFacts(
       return facts;
     } catch (err: any) {
       log(`⚠️ ${doc.filename}: error de extracción (intento ${attempt}): ${err?.message || err}`);
+      // Backoff antes del reintento: los dos intentos eran inmediatos, así que un 429/529
+      // transitorio fallaba las dos veces.
+      if (attempt === 1) await new Promise((r) => setTimeout(r, 3000));
     }
   }
-  log(`⚠️ ${doc.filename}: extracción vacía tras 2 intentos → DocFacts vacío.`);
+  log(`⚠️ ${doc.filename}: NO se pudo leer tras 2 intentos → se marca read_failed (error técnico, reintentable).`);
   return empty;
 }
 
@@ -330,6 +340,16 @@ export async function runPerDocExtraction(
     const rows = doc.institucion_cmf ? (rowsByBank.get(canonicalInstitutionKey(doc.institucion_cmf)) ?? []) : [];
     return extractDocFacts(doc, rows, anthropic, model, todayStr, logger);
   });
+  // Un documento que no se pudo LEER no es un documento sin productos: seguir dejaría al
+  // acreedor fuera de la declaración (o diagnosticado como "falta el documento" cuando existe).
+  // Es un error TÉCNICO → se lanza para que el retry loop del worker reintente el job.
+  const noLeidos = factsList.filter((f: DocFacts) => f?.read_failed).map((f: DocFacts) => f.filename);
+  if (noLeidos.length > 0) {
+    throw new Error(
+      `No se pudieron leer ${noLeidos.length} documento(s) de acreditación (${noLeidos.join(', ')}) tras 2 intentos. ` +
+      `Es un error técnico (API/red): se reintenta el job en vez de declarar el caso incompleto.`
+    );
+  }
   // Enganche calculadora de mora: por cada estado_cuenta, derivar fecha_inicio_mora (Ley 20.720)
   // y estamparla como fecha_mora del producto ANTES del ruteo 260/261. Toggle CENTINELA_CALCULADORA_MORA.
   if (process.env.CENTINELA_CALCULADORA_MORA !== 'false') {
@@ -488,7 +508,7 @@ export function assembleRawFromDocFacts(
 ): any {
   const log = (m: string) => (logger ? logger.log(`🛡️ [Assembler] ${m}`) : console.log(m));
   const factsByFile = new Map(factsList.map((f) => [f.filename, f]));
-  const uf = cmfResult.ufValueCLP && cmfResult.ufValueCLP > 0 ? cmfResult.ufValueCLP : 39000;
+  const uf = cmfResult.ufValueCLP && cmfResult.ufValueCLP > 0 ? cmfResult.ufValueCLP : UF_CLP;
   const toClp = (p: DocProduct): number => (p.moneda === 'UF' ? Math.round(p.monto * uf) : Math.round(p.monto));
 
   // Índices del CMF
@@ -681,7 +701,7 @@ export function assembleRawFromDocFacts(
       explicitVenc = '';
       fechaNoAcreditada.push({ bank: c.institucion, monto: amount, fecha: rawVenc, cita: match?.p.cita_fecha ?? '', filename });
     }
-    const UF_1 = Math.round((cmfResult.ufValueCLP && cmfResult.ufValueCLP > 0 ? cmfResult.ufValueCLP : 39000));
+    const UF_1 = Math.round((cmfResult.ufValueCLP && cmfResult.ufValueCLP > 0 ? cmfResult.ufValueCLP : UF_CLP));
     const push261 = (reason: string) => {
       if (match) {
         identified261Creditors.push({
@@ -737,8 +757,20 @@ export function assembleRawFromDocFacts(
   // declara en 260 TODA deuda acreditable, más completo que dejar solo 1 por banco):
   //   - con fecha_mora ≥ 91d → Art. 260 (override CON fecha → el gate lo mantiene en 260).
   //   - sin vencimiento acreditable → identified261 (el backstop lo moverá a NO-CMF si excede slots).
-  for (const [, pool] of productsByBank) {
+  // Nombre CMF por banco canónico: el override anclado a una fila usa `c.institucion` (nombre
+  // del CMF) y el del producto sobrante usaba `pp.bankName` (nombre del certificado/resolver).
+  // Dos strings distintos para el mismo banco ("De Crédito e Inversiones" vs "Banco BCI")
+  // rompían la agrupación multiproducto de step3 y el 2º producto no se declaraba en ninguna
+  // parte ni quedaba reportado.
+  const cmfNameByKey = new Map<string, string>();
+  for (const c of cmfResult.creditors) {
+    const k = canonicalInstitutionKey(c.institucion);
+    if (k && !cmfNameByKey.has(k)) cmfNameByKey.set(k, c.institucion);
+  }
+  for (const [bankKeyOverflow, pool] of productsByBank) {
+    const nombreCmfBanco = cmfNameByKey.get(bankKeyOverflow);
     for (const pp of pool) {
+      const nombreOverride = nombreCmfBanco ?? pp.bankName;
       // Capa 2: la fecha_mora del extra solo cuenta si la cita la corrobora como vencimiento.
       const vencOk = citaCorroboratesVenc(pp.p.fecha_mora, pp.p.cita_fecha);
       if (pp.p.fecha_mora && !vencOk) {
@@ -748,7 +780,7 @@ export function assembleRawFromDocFacts(
       // Revolvente (línea/cta cte/sobregiro) → 261 aunque tenga fecha_mora (regla del abogado).
       if (!isRevolvingLine(pp.p.etiqueta_monto ?? '', pp.p.product_type) && moraDays !== null && moraDays >= 91) {
         cmf260DirectOverrides.push({
-          institucion_cmf: pp.bankName,
+          institucion_cmf: nombreOverride,
           monto_clp: pp.clp,
           fecha_vencimiento: pp.p.fecha_mora,
           document_filename: pp.filename,

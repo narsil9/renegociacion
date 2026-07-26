@@ -96,7 +96,12 @@ export async function buildMappedDocsDeterministic(
 
   function pushDoc(doc: ClientDocument, institucion: string, tipoOverride?: 22 | 23 | 24, montoClp?: number): void {
     const tipo = tipoOverride ?? (doc.document_type as 22 | 23 | 24);
-    const key = `${doc.storage_path}:${tipo}`;
+    // La clave incluye la INSTITUCIÓN: el dedup que se busca es por acreedor, no global. Con
+    // `storage_path:tipo` un certificado multiproducto compartido por N filas del mismo banco
+    // solo se emitía para la PRIMERA; las demás quedaban sin AcreditacionDoc, sin alerta de
+    // `missing_document`, y la desambiguación por monto de step3 (que necesita ≥2 docs con
+    // monto_clp) nunca se activaba.
+    const key = `${doc.storage_path}:${tipo}:${canonicalInstitutionKey(institucion)}`;
     if (addedKeys.has(key)) return;
     addedKeys.add(key);
     mappedDocs.push(toAcreditacionDoc(doc, institucion, tipo, montoClp));

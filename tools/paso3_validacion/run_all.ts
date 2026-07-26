@@ -27,6 +27,14 @@ const TESTS = [
   'test_dedup_id261.ts',          // dedup id261 por Nº op / hipoteca saldo-prepago (L38); no fusiona deudas distintas
   'test_ischat_doctype.ts',       // Tier 1: isChatDocument/classifyNonAccreditingDoc confían en doc_type + regex endurecido
   'test_cobranza_venc.ts',        // L47 + Parte B: cobranza aporta venc a la misma deuda (mismo monto), no duplica
+  // Estas existían en el repo pero NO estaban en la batería, así que no protegían de nada:
+  'test_centinela_dedup_opless.ts',      // dedup por identidad cuando el doc no imprime Nº de operación
+  'test_centinela_doc_signature.ts',     // firma de documentos (idempotencia del caché del Centinela)
+  'test_centinela_emision.ts',           // fecha de emisión: determinista sobre la del LLM
+  'test_dedup_preferir_consolidado.ts',  // dedup por operación: prefiere el estado de cuenta consolidado
+  'test_yasmin.ts',                      // caso Yasmín (cobranza La Polar) contra la declaración de la abogada
+  'test_carpeta_tributaria.ts',          // categoría tributaria + falsos positivos de actividad F29
+  'test_cert_line_items.ts',             // ítems de un cert: no emitir el TOTAL GLOBAL como producto
 ];
 
 const results: { test: string; passed: boolean }[] = [];

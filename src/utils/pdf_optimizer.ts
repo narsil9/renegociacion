@@ -3,7 +3,11 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+// El portal declara 20 MB como tamaño máximo ("Formato soportado: .jpg, .docx, .pdf.
+// Tamaño máximo 20 MB" en verDeclaraciones/verAcreedores). Con el umbral en 10 MB se
+// recomprimía a 150 DPI documentos que el portal aceptaba tal cual, degradando escaneos
+// que después tiene que leer la Superintendencia.
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB (límite real del portal)
 
 interface SimpleLogger {
   log(msg: string): void;
@@ -59,11 +63,11 @@ export async function getOptimizedPdfPath(
   logger.log(`→ Tamaño de archivo: ${(stats.size / (1024 * 1024)).toFixed(2)} MB`);
 
   if (stats.size <= MAX_FILE_SIZE_BYTES) {
-    logger.log(`✓ El archivo pesa 10 MB o menos. No requiere compresión.`);
+    logger.log(`✓ El archivo pesa 20 MB o menos. No requiere compresión.`);
     return localPath;
   }
 
-  logger.log(`⚠️  El archivo excede los 10 MB (${(stats.size / (1024 * 1024)).toFixed(2)} MB). Iniciando compresión con Ghostscript...`);
+  logger.log(`⚠️  El archivo excede los 20 MB (${(stats.size / (1024 * 1024)).toFixed(2)} MB). Iniciando compresión con Ghostscript...`);
   try {
     // 1. Obtener ruta ejecutable gs
     const gsPath = await getGhostscriptPath();
@@ -76,10 +80,19 @@ export async function getOptimizedPdfPath(
     if (fs.existsSync(outputPath)) {
       const compStats = fs.statSync(outputPath);
       logger.log(`✓ Archivo comprimido con éxito: ${(compStats.size / (1024 * 1024)).toFixed(2)} MB`);
+      // Si SIGUE por encima del límite del portal, fallar con un mensaje claro: subirlo termina
+      // en un timeout opaco ("Timeout waiting for #descargaCarpetaTributaria") que no dice nada.
+      if (compStats.size > MAX_FILE_SIZE_BYTES) {
+        throw new Error(
+          `El PDF sigue pesando ${(compStats.size / (1024 * 1024)).toFixed(2)} MB después de comprimir, por encima del máximo de 20 MB del portal. Hay que reducirlo o dividirlo a mano.`
+        );
+      }
       return outputPath;
     }
+    logger.error('❌ Ghostscript terminó sin error pero no generó el archivo comprimido. Se procederá con el original (el portal puede rechazarlo).');
   } catch (err: any) {
-    logger.error(`❌ Falló la compresión con Ghostscript: ${err.message || err}. Se procederá con el archivo original.`);
+    if (/sigue pesando/.test(err?.message ?? '')) throw err; // límite del portal: no silenciar
+    logger.error(`❌ Falló la compresión con Ghostscript: ${err.message || err}. Se procederá con el archivo original (el portal puede rechazarlo por tamaño).`);
   }
 
   return localPath; // Fallback al original en caso de error o falta de gs

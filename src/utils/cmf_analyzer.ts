@@ -106,6 +106,19 @@ function getOverdue90DaysFromTableBlock(blockText: string, log: (m: string) => v
   return 0;
 }
 
+/**
+ * Valor de la UF en CLP. ⚠️ ACTUALIZAR periódicamente (la UF se reajusta a diario).
+ *
+ * FUENTE ÚNICA: antes este número vivía triplicado (40662.5 acá, 39000 en sentinel_per_doc y
+ * en sentinel_backstops, 3253000 hardcodeado en el orquestador y en step3), así que
+ * actualizarlo en un archivo dejaba los otros desalineados y las conversiones UF→CLP de los
+ * certificados usaban un valor distinto al del chequeo de las 80 UF.
+ */
+export const UF_CLP = 40662.5;
+
+/** Umbral legal del Art. 260: 80 UF. */
+export const UF_80_CLP = Math.round(80 * UF_CLP);
+
 export interface CmfCreditor {
   institucion: string; // Raw institution name as printed in the CMF report
   tipoCredito: string; // e.g. "Consumo", "Comercial", "Hipotecario"
@@ -510,15 +523,20 @@ export async function analyzeCmfPdf(
   });
 
   // 7. Evaluate requirements
-  const requiredAmountCLP = 3253000;
-  const ufValueCLP = 40662.5;
+  const requiredAmountCLP = UF_80_CLP;
+  const ufValueCLP = UF_CLP;
 
-  const qualifying90PlusCount = creditors.filter(c => c.overdue90Days > 0).length;
+  // Los requisitos de fondo se miden SOLO sobre deuda DIRECTA: una fila de "Deuda Indirecta"
+  // (el deudor es aval/fiador de un tercero) no es pasivo propio, no puede habilitar la
+  // renegociación ni sumar a las 80 UF. Antes se contaban y un cliente con 1 producto propio
+  // + 1 aval quedaba "elegible".
+  const directCreditors = creditors.filter(c => !c.esIndirecta);
+  const qualifying90PlusCount = directCreditors.filter(c => c.overdue90Days > 0).length;
   const meets90DaysRequirement = qualifying90PlusCount >= 2;
 
   // 80 UF criterion: sum of totalCredito of creditors with overdue90Days > 0 (not the overdue amount itself).
   // A creditor qualifies for Obligaciones 260 if any value > 0 appears in the "90+ días" column.
-  const totalCreditoOf90PlusCreditors = creditors
+  const totalCreditoOf90PlusCreditors = directCreditors
     .filter(c => c.overdue90Days > 0)
     .reduce((sum, c) => sum + c.totalCredito, 0);
   const meetsAmountRequirement = totalCreditoOf90PlusCreditors >= requiredAmountCLP;

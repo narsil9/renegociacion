@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { extractTextFromPdf } from './pdf_analyzer';
 import { getCurrentChileDate, getDaysDifference } from './date_helper';
-import { analyzeCmfPdf } from './cmf_analyzer';
+import { analyzeCmfPdf, UF_80_CLP } from './cmf_analyzer';
 import {
   fetchAcreedoresCatalog,
   matchAcreedor,
@@ -811,7 +811,7 @@ export async function runCognitiveOrchestrator(
   const totalCreditoOf90Plus = cmfResult ? cmfResult.totalCreditoOf90PlusCreditors : 0;
   const qualifying90PlusCount = cmfResult ? cmfResult.qualifying90PlusCount : 0;
   const cumpleRequisito91Dias = cmfResult ? cmfResult.meets90DaysRequirement : false;
-  const sumaObligaciones90DiasMayor80UF = totalCreditoOf90Plus >= 3253000;
+  const sumaObligaciones90DiasMayor80UF = totalCreditoOf90Plus >= UF_80_CLP;
 
   // 5d. CMF validation
   const cmfFechaEmision = cmfResult ? cmfResult.fechaEmision : null;

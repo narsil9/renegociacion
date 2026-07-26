@@ -27,6 +27,7 @@ import type {
   ClaudeReadIssue,
 } from './sentinel';
 import type { CmfCreditor } from './cmf_analyzer';
+import { UF_CLP } from './cmf_analyzer';
 import type { ClientDocument } from './cognitive_orchestrator';
 import { canonicalInstitutionKey, normalizeRut, findCatalogEntryByRut, AcreedorCatalogEntry } from './acreedor_matcher';
 import { extractCertLineItems, detectDocumentCurrency, normalizeOperationId } from './cert_line_items';
@@ -504,7 +505,7 @@ export async function applyDeterministicBackstops(
       const overridesForKey = (result.cmf260DirectOverrides ?? []).filter(o => canonicalInstitutionKey(o.institucion_cmf) === k);
       if (overridesForKey.length > 0) {
         for (const o of overridesForKey) {
-          result.deReclassified261Creditors!.push({ bank: c.institucion, institucion_cmf: c.institucion, total_credito_clp: o.monto_clp, reason: motivo, document_filename: o.document_filename ?? '' });
+          result.deReclassified261Creditors!.push({ bank: c.institucion, institucion_cmf: c.institucion, total_credito_clp: o.monto_clp, reason: motivo, document_filename: o.document_filename ?? '', degradedForMissingVenc: true });
           result.identified261Creditors!.push({ bank: c.institucion, product_type: productType, institucion_cmf: c.institucion, total_credito_clp: o.monto_clp, reason: motivo, document_filename: o.document_filename ?? '', evidence: o.evidence });
         }
         result.cmf260DirectOverrides = (result.cmf260DirectOverrides ?? []).filter(o => canonicalInstitutionKey(o.institucion_cmf) !== k);
@@ -522,7 +523,7 @@ export async function applyDeterministicBackstops(
 
       // Caso 3 — el banco 90+d NO tiene NINGÚN documento que lo represente → se inyecta el total
       // del CMF como Art. 261 para no perder el acreedor (G2). Es el único caso que usa el total.
-      result.deReclassified261Creditors!.push({ bank: c.institucion, institucion_cmf: c.institucion, total_credito_clp: c.totalCredito, reason: motivo, document_filename: assocDoc?.filename ?? '' });
+      result.deReclassified261Creditors!.push({ bank: c.institucion, institucion_cmf: c.institucion, total_credito_clp: c.totalCredito, reason: motivo, document_filename: assocDoc?.filename ?? '', degradedForMissingVenc: true });
       result.identified261Creditors!.push({ bank: c.institucion, product_type: productType, institucion_cmf: c.institucion, total_credito_clp: c.totalCredito, reason: motivo, document_filename: assocDoc?.filename ?? '' });
       log(
         `🛡️ [Backstop 260→261] "${c.institucion}" (mora 90+d $${c.overdue90Days.toLocaleString('es-CL')}) ` +
@@ -742,7 +743,7 @@ export async function applyDeterministicBackstops(
     // Monto trivial (< 1 UF ≈ $39.000): NO se descarta (un monto chico puede ser deuda REAL — TGR,
     // multa, cuota CCAF — ver lección L30) → se DECLARA y se alerta para que el abogado confirme si
     // es un remanente/comisión trivial. Lo "trivial" es semántico, no un umbral que TS aplique a ciegas.
-    const UF_MIN_CLP = 39000;
+    const UF_MIN_CLP = UF_CLP;
     for (const e of emitted) {
       if (e.monto > 0 && e.monto < UF_MIN_CLP) {
         issues.push({ document_filename: e.filename, institucion: e.institucion, monto_clp: e.monto, tipo: 'monto_trivial', detalle: `Monto declarado $${e.monto.toLocaleString('es-CL')} < 1 UF (~$${UF_MIN_CLP.toLocaleString('es-CL')}). Puede ser un remanente/comisión trivial (no declarar) o una deuda pequeña real (TGR/CCAF/multa). Verificar.` });

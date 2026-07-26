@@ -246,6 +246,19 @@ export function parsePeriodKey(label: string | undefined): number | null {
   return null;
 }
 
+/**
+ * Clave de dedup de un período: el MES normalizado (no la etiqueta cruda).
+ *
+ * Cada documento se lee en una llamada aislada, así que el mismo mes vuelve con grafías
+ * distintas ("Octubre 2025", "OCTUBRE-2025", "10/2025"). El dedup comparaba la etiqueta cruda
+ * mientras el agrupamiento usaba `parsePeriodKey` → dos PDFs del mismo mes no se veían como
+ * duplicados y se SUMABAN como si fueran sueldo + aguinaldo (L15), sobre-declarando el ingreso.
+ */
+function periodDedupKey(label: string | null | undefined, monto: unknown): string {
+  const mes = parsePeriodKey(label ?? '');
+  return `${mes ?? String(label ?? '').toLowerCase().trim()}|${monto}`;
+}
+
 /** Distancia en meses entre dos claves YYYYMM (a − b). */
 function monthsBetween(a: number, b: number): number {
   return (Math.floor(a / 100) * 12 + (a % 100)) - (Math.floor(b / 100) * 12 + (b % 100));
@@ -417,7 +430,7 @@ function computeBoletasIncome(
   // inflaría el bruto (el divisor es fijo). Mismo criterio que liquidaciones/subsidio.
   const seenB = new Set<string>();
   const boletas = legibles.filter((p) => {
-    const k = `${p.period_label}|${rawReadAmount(p)}`;
+    const k = periodDedupKey(p.period_label, rawReadAmount(p));
     if (seenB.has(k)) return false;
     seenB.add(k);
     return true;
@@ -553,7 +566,7 @@ function computeSubsidioIncome(
   // (a) dedup exacto: mismo period_label + mismo monto líquido.
   const seen = new Set<string>();
   const unique = pagos.filter((p) => {
-    const k = `${p.period_label}|${p.liquido_a_pagar}`;
+    const k = periodDedupKey(p.period_label, p.liquido_a_pagar);
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
@@ -649,7 +662,7 @@ export function computeDeclaredIncomeForDoc(doc: ExtractedIncomeDoc): DeclaredIn
   // subido 2× duplicaría un mes y distorsionaría el promedio de "los últimos N".
   const dseen = new Set<string>();
   const periods = rawPeriods.filter((p) => {
-    const k = `${p.period_label}|${p.liquido_a_pagar}`;
+    const k = periodDedupKey(p.period_label, p.liquido_a_pagar);
     if (dseen.has(k)) return false;
     dseen.add(k);
     return true;
@@ -707,11 +720,16 @@ export function computeDeclaredIncomeForDoc(doc: ExtractedIncomeDoc): DeclaredIn
     const fullUnits = allUnits.filter(isFull);
     const partialUnits = allUnits.filter((u) => !isFull(u));
     let pool = fullUnits.length > 0 ? fullUnits : allUnits;
-    if (fullUnits.length > 0 && partialUnits.length > 0) {
+    if (partialUnits.length > 0) {
+      const detalle = partialUnits.map((u) => `${u.key ?? '¿?'}: ${u.dias} días`).join(', ');
       alerts.push(
-        `Se excluyó(eron) del promedio ${partialUnits.length} mes(es) PARCIAL(es) ` +
-        `(${partialUnits.map((u) => `${u.key ?? '¿?'}: ${u.dias} días`).join(', ')}) — licencia médica o ` +
-        `ingreso/egreso a mitad de mes subestiman el ingreso normal. El abogado puede reconsiderarlos.`
+        fullUnits.length > 0
+          ? `Se excluyó(eron) del promedio ${partialUnits.length} mes(es) PARCIAL(es) (${detalle}) — licencia médica o ` +
+            `ingreso/egreso a mitad de mes subestiman el ingreso normal. El abogado puede reconsiderarlos.`
+          // L16 exige alertar TAMBIÉN cuando no queda ningún mes completo: el promedio se hace
+          // sobre meses parciales y SUBESTIMA el ingreso, y antes eso pasaba sin ninguna señal.
+          : `TODOS los meses del promedio son PARCIALES (${detalle}): el ingreso declarado SUBESTIMA el ingreso normal ` +
+            `(licencia médica o ingreso/egreso a mitad de mes). Revisar y, si corresponde, declarar el sueldo de un mes completo.`
       );
     }
     // L29: mes con líquido ANÓMALO-BAJO (< 50% de la mediana del pool) — típicamente un

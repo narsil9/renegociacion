@@ -33,8 +33,9 @@ export function getCurrentChileDate(): Date {
 export function parseDateString(dateStr: string): Date | null {
   if (!dateStr) return null;
   
-  // DD/MM/YYYY or DD-MM-YYYY
-  const dm = dateStr.match(/^(\d{2})[/\-](\d{2})[/\-](\d{4})$/);
+  // DD/MM/YYYY or DD-MM-YYYY — 1 o 2 dígitos: "5/3/2026" no matcheaba y caía al constructor
+  // de Date, que lee d/m/aaaa como MES/día (5 de marzo → 3 de mayo).
+  const dm = dateStr.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/);
   if (dm) {
     const day = parseInt(dm[1], 10);
     const month = parseInt(dm[2], 10) - 1;
@@ -51,6 +52,10 @@ export function parseDateString(dateStr: string): Date | null {
     return new Date(year, month, day);
   }
 
+  // Solo se delega al constructor de Date con formatos NO ambiguos (ISO con hora, "Jan 5 2026").
+  // Con barras la interpretación es mes/día y ya se cubrió arriba, así que se devuelve null en
+  // vez de inventar una fecha con el mes y el día invertidos.
+  if (dateStr.includes('/')) return null;
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -59,6 +64,10 @@ export function parseDateString(dateStr: string): Date | null {
  * Calculates the difference in days between two Date objects (d1 - d2).
  */
 export function getDaysDifference(d1: Date, d2: Date): number {
-  const diffTime = d1.getTime() - d2.getTime();
-  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  // Diferencia en días CALENDARIO, normalizando a UTC. Con `Math.floor` sobre timestamps
+  // locales, un rango que cruza el cambio de hora de Santiago (septiembre) tiene un día de
+  // 23 h → 31 días calendario daban 30,96 → 30, y un certificado vencido pasaba el límite
+  // de 30 días (REGLA 1).
+  const utc = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((utc(d1) - utc(d2)) / (1000 * 60 * 60 * 24));
 }

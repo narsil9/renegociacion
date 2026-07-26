@@ -32,6 +32,7 @@ import {
 } from '../utils/income_extractor';
 import { getCurrentChileDate, parseDateString, getDaysDifference } from '../utils/date_helper';
 import { loadReaderLessons } from '../utils/lessons_loader';
+import { normalizeRut } from '../utils/acreedor_matcher';
 
 const MAX_DOC_MB = 30; // límite de la API de Anthropic para documentos base64
 const VALID_CATEGORIES: IncomeCategory[] = [
@@ -245,7 +246,11 @@ function coerceSingleDoc(parsed: any, doc: IncomeDocInput): {
   const extracted: ExtractedIncomeDoc = {
     filename: doc.filename,
     category,
-    source_key: rutPagador, // L9: separa fuentes por empleador/pagador
+    // L9: separa fuentes por empleador/pagador. NORMALIZADO: el LLM transcribe el mismo RUT
+    // con o sin puntos y con dv en minúscula, y sin normalizar el mismo empleador se partía en
+    // dos fuentes con meses disjuntos → L30 concluía "cambio de trabajo" y BORRABA un grupo
+    // (se declaraba el líquido de un solo mes y se subía una sola liquidación de tres).
+    source_key: normalizeRut(rutPagador),
     periods: periods && periods.length ? periods : undefined,
     monto_mensual_declarado: num(parsed?.monto_mensual_declarado),
     notes,
