@@ -35,7 +35,19 @@ This is consistent with the principles already established in this file (see *"E
 
 ## 🟢 Encender el sistema (worker / daemon)
 
-> Cuando el usuario diga **"enciende el sistema"** (o "prende el worker / el daemon"), ejecutá en la terminal:
+> ⚠️ **En el Mac Mini (producción) NO se usa `sistema.sh`.** El proceso real corre bajo pm2 con el
+> nombre **`superir-worker`** (`ecosystem.config.js`), y `sistema.sh` usa otro nombre
+> (`renegociacion-worker`): su `stop` no lo detiene por pm2 (cae a `pkill` y pm2 lo revive), y su
+> `start` no toma la config de producción. En el Mini:
+> ```bash
+> cd ~/superir-worker && ./deploy.sh     # git pull --ff-only origin main + pm2 restart superir-worker
+> pm2 status | pm2 logs superir-worker   # estado y logs
+> ```
+> `deploy.sh` y `ecosystem.config.js` viven solo en el Mini (untracked).
+> *(Follow-up de 2 líneas, sin hacer: que `sistema.sh` resuelva el nombre real de pm2 en vez de
+> asumir `renegociacion-worker`.)*
+
+> Para **otra máquina** (este Mac, una nueva), `sistema.sh` sí sirve:
 > ```bash
 > bash scripts/sistema.sh start
 > ```
@@ -136,7 +148,7 @@ Algunas deudas reales NO aparecen en el Informe CMF pero igual deben declararse 
 - **Dedup por Nº de operación + no declarar $0 (ensamblador, `sentinel_per_doc.ts`)**: el MISMO producto suele venir en varios docs (mensual + mora + liquidación) → se deduplican por `(banco canónico + normalizeOperationId)` conservando el de mejor `doc_type`/confianza (`normalizeOperationId` quita ceros a la izquierda y paréntesis). Productos con `monto ≤ 0` se descartan (G2: nunca $0; ej. multas en UTM sin convertir → se caen, ver lección L17). Límite: si el mismo producto trae números distintos por doc (last-4 vs PAN), el dedup exacto no los une — un dedup fuzzy violaría G2 → queda la alerta `posible_duplicado` + lección L20.
 - **Gate 260→261 multiproducto NO inyecta el total del CMF (`sentinel_backstops.ts`)**: cuando un banco 90+d es multiproducto (cert con N ops, 1 fila CMF), el gate degrada los **override(s) reales** del banco (a su propio monto, los quita de `cmf260DirectOverrides`); si el banco ya está representado por sus productos (snapshot pre-gate de id261/reclass/additional) NO inyecta nada; SOLO inyecta el total del CMF si el banco 90+d no tiene NINGÚN documento (G2). Arregla el doble conteo (fila fantasma = total CMF encima de los sub-productos). Testigo: Santander de Jaime.
 - **Aliases del nombre CORTO del CMF + " / " compuestos**: el CMF imprime la institución sin "Banco" ("De Crédito e Inversiones", "Internacional") y abreviada ("CAT (ex CENCOSUD)" = Cencosud Administradora de Tarjetas, mismo RUT; "Santander Consumer Finance" = Santander Consumer) → aliases en `acreedor_matcher.ts`. `canonicalInstitutionKey` corta también en `" / "` (nombres compuestos del LLM: "CMR Falabella / Banco Falabella").
-- **Validación de los 13 casos reales sin API**: `tools/paso3_validacion/test_renegociacion_docs.ts` (fixtures `reneg_fixtures/`) corre el ensamblador + backstops sobre 13 clientes previos y compara contra la verdad-terreno; integrado en `run_all.ts` como guard de regresión (6/6 suites).
+- **Validación de los 13 casos reales sin API**: `tools/paso3_validacion/test_renegociacion_docs.ts` (fixtures `reneg_fixtures/`) corre el ensamblador + backstops sobre 13 clientes previos y compara contra la verdad-terreno; integrado en `run_all.ts` como guard de regresión. **`run_all.ts` corre hoy 18 suites** (el 26-jul se incorporaron 5 que existían en el repo y no corrían —dedup sin nº de operación, firma de documentos, fecha de emisión, estado consolidado, caso Yasmín— más 2 nuevas: `test_carpeta_tributaria.ts` y `test_cert_line_items.ts`). Si agregás un test, agregalo también a la lista de `run_all.ts` o no protege de nada.
 
 ### Step 3 — Alertas al dashboard de acreedores no declarados
 `fillStep3` devuelve `Step3Report { added[], skipped[] }`; `fillAllSteps` lo propaga (`Promise<Step3Report|undefined>`) y **`worker.ts` emite una `automation_alert` (`alert_type:'needs_review'`, step 3) consolidada** listando cada acreedor que el Paso 3 NO pudo declarar (sin match en `acreedores_canonicos` sin RUT, comuna del catálogo sin región, cert faltante, etc.). Es **informativo** (no bloquea ni marca `failed`; el borrador igual queda cargado) → el abogado lo ve en el panel `/automatizacion` y carga manual. Aplica a ambos caminos (Paso 3 individual y flujo completo step:0).
@@ -149,7 +161,7 @@ El Paso 3 ingresa el **monto del documento de acreditación** (más actual que e
 - **Monto efectivo**: cuando el monto del documento sobrescribe al del CMF, ese valor se propaga a `isCreditorAlreadyInTable` y a `attachDocumentoAcreedor` (que matchean por monto). **Nunca usar `creditor.totalCredito` del CMF directamente si hay override** — la fila quedaría con un monto y el attach buscaría otro.
 
 ### Step 3 — Multiproducto (un certificado de liquidación cubre N créditos)
-Un certificado de liquidación de un banco puede cubrir VARIOS créditos del mismo deudor (ej. Santander con 3 créditos de consumo). El Centinela emite **un `cmfDocumentOverride` por producto** (sufijo de producto entre paréntesis en `institucion_cmf`, ej. `"Banco Santander-Chile (Consumo 05/06/2025 — Op. ...)"`). `step3` los agrupa por institución base (`overrideBaseKey`, quita el sufijo); si hay ≥2 → **multiproducto**: se omiten en el loop principal y se crea **una fila 260 por producto** con su "Monto total a pagar" (NO un monto consolidado). **"VARIOS DEUDORES"/"OTROS DEUDORES" SÍ se declaran** (deuda directa del deudor como titular junto a otros — regla del abogado, 2026-06-23); solo se **excluye** la deuda **indirecta** (codeudor/fiador/aval de un *tercero*) y los montos triviales (<1 UF, remanentes/comisiones). ⚠️ El CMF puede partir UN crédito en 2 filas (mora + vigente, misma fecha de otorgamiento) → es un solo crédito, se declara UNA vez al payoff total (no declarar la porción vigente aparte = doble conteo).
+Un certificado de liquidación de un banco puede cubrir VARIOS créditos del mismo deudor (ej. Santander con 3 créditos de consumo). El Centinela emite **un `cmfDocumentOverride` por producto** (sufijo de producto entre paréntesis en `institucion_cmf`, ej. `"Banco Santander-Chile (Consumo 05/06/2025 — Op. ...)"`). `step3` los agrupa por institución base (`overrideBaseKey`, quita el sufijo); si hay ≥2 → **multiproducto**: se omiten en el loop principal y se crea **una fila 260 por producto** con su "Monto total a pagar" (NO un monto consolidado). **"VARIOS DEUDORES"/"OTROS DEUDORES" SÍ se declaran** (deuda directa del deudor como titular junto a otros — regla del abogado, 2026-06-23); solo se **excluye** la deuda **indirecta** (codeudor/fiador/aval de un *tercero*). ⚠️ **No hay filtro por monto** en este camino (se quitó el `< 1 UF` el 2026-07-26: se comía una TGR de $18.000 acreditada por certificado, L30 revisada). Un producto multiproducto sin fecha de vencimiento acreditable **se declara en Art. 261** con su monto, no se descarta. ⚠️ El CMF puede partir UN crédito en 2 filas (mora + vigente, misma fecha de otorgamiento) → es un solo crédito, se declara UNA vez al payoff total (no declarar la porción vigente aparte = doble conteo).
 
 ### Step 3 — Adjunción Art.260 = tipo 22 + tipo 23 por separado
 Los acreedores **Art.260** suben el MISMO certificado **dos veces**: una como "Acredita Monto" (tipo 22) y otra como "Acredita Vencimiento" (tipo 23) — así lo hace el abogado. En `step3_acreedores.ts` la fase de adjunción usa `neededTipos = isOtros ? [22] : [22,23]` y fuerza el `tipo_documento` del `AcreditacionDoc` base (que puede venir como 24) a cada tipo necesario. Los **Art.261** suben solo tipo 22 (Monto). `attachDocumentoAcreedor` distingue por el texto del tipo ("monto" vs "vencimiento"), así ambos adjuntos conviven sin pisarse.
@@ -158,7 +170,7 @@ Los acreedores **Art.260** suben el MISMO certificado **dos veces**: una como "A
 Antes del Centinela, `resolveCertInstitutions(supabase, client, logger)` deriva el `institucion_cmf` de cada `client_document` por **RUT** (descarga el PDF → `pdftotext` → `extractRutsFromText` → `findCatalogEntryByRut`), con fallback por keyword del filename (`FILENAME_KEYWORDS` → `matchAcreedor`). Persiste el nombre canónico en `client_documents.institucion_cmf`. El dashboard ya **no exige** que el abogado elija el banco. `deterministic_mapeador` propaga ese nombre a `AcreditacionDoc.catalogInstitucion`, que `step3` usa como **fallback** para hallar el RUT cuando el nombre CMF/Centinela no matchea el catálogo (ej. "Tenpo Payments" vs "Tenpo Prepago"). Los NO-CMF cuyo RUT no aparece en el documento (ej. La Polar, cuyo cert solo imprime el RUT del administrador) los identifica el Centinela por contenido.
 - **Aliases-como-dato + crosswalk**: cuando el nombre del CMF/cert no calza con el catálogo (ej. "Tenpo Payments" vs "Tenpo Prepago", "Santander Consumer Finance Limitada" vs "Santander Consumer Chile"), la variante se registra en **`docs/acreedores-crosswalk.md`** y se carga en la columna **`acreedores_canonicos.nombres_alternativos`** (sandbox; `migration_sandbox_v7.sql`). **Regla de oro: verificar que el RUT de la fila sea la MISMA empresa que el alias** (RUT del cert > catálogo; ojo Banco Falabella≠CMR, Banco Ripley≠CAR). Pendiente: que `acreedor_matcher.ts` lea esa columna.
 - **Lectura nativa de PDF/imagen por Claude (Mejora #1, reemplaza a Tesseract)** (`sentinel.ts`): muchos certs son escaneos/fotos PNG/JPEG o PDFs sin capa de texto limpia. `pdfNativeReason` decide ante la duda (texto <50 chars, imagen raster grande embebida, o densidad <200 chars/página) y adjunta el PDF **nativo** a Claude (`nativePdfBase64`, ≤6 MB) en vez de OCR; las imágenes van como bloque `image`. El OCR de Tesseract fue **eliminado** (la lectura nativa demostró leer mejor montos/tablas/escaneos). Si el PDF es ilegible y supera el tope, queda placeholder + alerta (no tumba el job). El texto digital limpio (`pdftotext`) se sigue confiando sin llamar a Claude nativo.
-- **Validación anti-error de la lectura de Claude** (`sentinel.ts`, REGLA 11): como Claude lee nativo (sin red determinista por-texto en escaneos), se le exige un objeto **`evidence`** por acreedor (`rut_emisor`, `numero_operacion`, `moneda`, `cita_monto`, `cita_fecha`, `confidence`) en las **4 listas** (reclassified/identified261/deReclassified/additional/cmf260Override). TS verifica los HECHOS, **no la estructura**: (1) **auto-cita** — el monto debe aparecer verbatim en `cita_monto` (anti-alucinación; tolera UF y sumas de cupos); (2) **cross-check de RUT** — `rut_emisor`→catálogo debe ser la institución asignada; (3) **confianza** <0.70 → alerta. Las discrepancias salen en `SentinelResult.claudeReadIssues[]` (informativo, no bloquea). ⚠️ Pendiente: propagar `claudeReadIssues` a la `automation_alert` del worker. Lecciones vivas en `lecciones/paso3-acreedores.md`.
+- **Validación anti-error de la lectura de Claude** (`sentinel.ts`, REGLA 11): como Claude lee nativo (sin red determinista por-texto en escaneos), se le exige un objeto **`evidence`** por acreedor (`rut_emisor`, `numero_operacion`, `moneda`, `cita_monto`, `cita_fecha`, `confidence`) en las **4 listas** (reclassified/identified261/deReclassified/additional/cmf260Override). TS verifica los HECHOS, **no la estructura**: (1) **auto-cita** — el monto debe aparecer verbatim en `cita_monto` (anti-alucinación; tolera UF y sumas de cupos); (2) **cross-check de RUT** — `rut_emisor`→catálogo debe ser la institución asignada; (3) **confianza** <0.70 → alerta. Las discrepancias salen en `SentinelResult.claudeReadIssues[]` (informativo, no bloquea) y el worker **ya las propaga** a una `automation_alert` (`buildReadIssuesAlert`). ⚠️ Hueco conocido: la auto-cita **se auto-aprueba cuando `moneda === 'UF'`**, que es justo donde el error de lectura es multiplicativo (×1.000 / ×39.000) — ahí no queda señal. Lecciones vivas en `lecciones/paso3-acreedores.md`.
 
 ### Agente Tributario — Contribuciones (Impuesto Territorial)
 - **Función**: `detectContribucionesDeuda(pdfPath, logger)` en `src/utils/pdf_analyzer.ts`. Usa `pdftotext -layout` para preservar columnas.
@@ -172,7 +184,7 @@ Antes del Centinela, `resolveCertInstitutions(supabase, client, logger)` deriva 
 Para que el cliente pueda iniciar una sesión de renegociación deben cumplirse **dos condiciones simultáneas**:
 
 1. **Mínimo 2 productos con mora > 90 días (≥ 91 días)**: Al menos dos líneas de crédito distintas deben tener valor > 0 en la columna "90 o más días de atraso" del CMF. Los dos productos **pueden ser del mismo banco** (por ejemplo, un crédito de consumo y una tarjeta de crédito de Banco Estado).
-2. **Suma de `totalCredito` ≥ 80 UF (~$3.253.000 CLP)**: Se suman los campos `totalCredito` de esos productos (no el monto atrasado). Si el CMF no alcanza el umbral, se deben revisar documentos adicionales.
+2. **Suma de `totalCredito` ≥ 80 UF (~$3.253.000 CLP)**: Se suman los campos `totalCredito` de esos productos (no el monto atrasado). El valor de la UF y el umbral viven en **una sola constante** (`UF_CLP` / `UF_80_CLP` en `cmf_analyzer.ts`) — estaba triplicado con valores distintos (40662.5 / 39000 / 3253000); si hay que actualizar la UF, es ahí y solo ahí. Si el CMF no alcanza el umbral, se deben revisar documentos adicionales.
 
 **Chequeo "mínimo 2 productos" (implementado en `worker.ts`)**: el worker cuenta `totalQualifyingCount = productos CMF con 90+d + reclasificados por el Centinela + NO-CMF Art.260`. Si `< 2`, el cliente **no califica**: en un Paso 3 individual el job queda `status='blocked'` (no `failed` — reintentar no resuelve un requisito de fondo) con `automation_alert` (`blocked`) + `error_message` legible para el panel del dashboard; en el flujo completo (step:0) se **omite solo el Paso 3** y se guardan los Pasos 1, 2 y 4, con la alerta registrada. La condición **2 (80 UF)** sí es **no bloqueante** (solo `⚠️ ADVERTENCIA`); el abogado debe confirmarla antes de presentar.
 
@@ -221,12 +233,41 @@ CMF download → analyzeCmfPdf (TS)
 - **El Centinela corre por defecto**: A partir de 2026-06-18, el Centinela se ejecuta siempre en el worker. Para desactivarlo (sin detección NO-CMF, sin gasto de créditos API) usar `DISABLE_SENTINEL=true` en `.env`. **NO usar `DISABLE_SENTINEL=true` en producción** — los acreedores NO-CMF (TGR, cajas, fintechs, tarjetas no reportadas) quedarían sin declarar.
 - **Datos personales en `clients` deben usar valores exactos del portal**: `selectBootstrap` en `step1_personal.ts` usa `locator.selectOption(value)` que requiere el atributo `value` exacto del `<option>`. Texto libre o etiquetas descriptivas causan timeout de 60s. Valores conocidos: `estado_civil='1'` (Soltero/a), `region='Región Metropolitana'` (value=13), `comuna='LO BARNECHEA'` (uppercase, value=293), `profesion_oficio='Administrativos'` (value=4), `ocupacion='Trabajador/a dependiente'` (value=13). Para descubrir valores desconocidos: revisar el HTML dump en `outputs/failure_step1_*.html`.
 
-### Worker — Gate del abogado (`pending_review` + reanudación)
-Cuando el Paso 3 produce señales que requieren revisión humana (acreedores NO-CMF a confirmar, `amount_mismatch` del Mapeador), el worker se comporta distinto según el modo del job:
-- **Run real (`dry_run === false`) sin confirmar**: marca el job `status='pending_review'` + `needs_lawyer_review=true`, inserta una `automation_alert` (`alert_type:'needs_review'`) y **NO corre Playwright** (`return` temprano). El abogado debe revisar y re-encolar desde el dashboard.
-- **Supervisado (`dry_run`)**: llena el borrador igual (para que el abogado lo revise) y solo marca `needs_lawyer_review=true`.
-- **Reanudación**: el dashboard (`/automatizacion`, botón "Confirmar y reanudar" → `POST /api/automatizacion {job_id, action:'resume'}`) hace `status='pending'` + `lawyer_confirmed=true` (idempotente vía `.eq('status','pending_review')`; maneja 23505 del índice de job activo). El poller retoma el job; el worker, al ver `lawyer_confirmed === true` en el gate, **continúa el Paso 3** pese a las señales y limpia `needs_lawyer_review=false` (revisión resuelta).
-- **Columna**: `automation_jobs.lawyer_confirmed` (BOOLEAN, default `false`; `supabase/migration_sandbox_v5.sql`). ⚠️ **Esa migración debe correrse en el SQL Editor del sandbox `fnz...`** — sin la columna, el POST de reanudar falla.
+### Worker — Gate del abogado: ❌ ELIMINADO (decisión del abogado, 2026-06-19)
+**No existe** el gate de `pending_review`: cuando el abogado sube la carpeta y autoriza la
+automatización, el flujo corre de corrido. Ningún job entra en `pending_review`, y el camino de
+reanudación del dashboard (`lawyer_confirmed`) es código muerto del lado del worker. Se documenta
+solo para que nadie lo busque en el código ni lo "arregle".
+
+Las señales que antes frenaban ahora **se declaran igual y se alertan**:
+- `amount_mismatch` (cert vs CMF) y acreedores NO-CMF por confirmar → `automation_alert`
+  (`needs_review`, step 3). Se declara el monto del **certificado** (G1) y la contradicción se avisa.
+- `missing_document` → se declaran los acreedores acreditables y los faltantes quedan en
+  `Step3Report.skipped` → alerta.
+- `rut_mismatch` → **sí bloquea**: el certificado está mal atribuido.
+
+### Worker — Invariantes que NO hay que deshacer (review 2026-07-26)
+Cada uno arregla un bug que ya pasó; si un cambio futuro los toca, hay que entender por qué están:
+- **Deuda indirecta del CMF** (`esIndirecta`): no se declara ni cuenta para los requisitos de fondo.
+  Es deuda de un tercero (aval/fiador).
+- **Conteo de productos en mora**: solo la de-reclasificación de la **REGLA 10** (cert que dice
+  "vigente") resta del conteo. Las degradadas a 261 por falta del documento del vencimiento
+  (`degradedForMissingVenc`) **siguen contando**: la mora existe, falta el papel.
+- **Bloqueo por F29**: exige `categoria === 'primera'` (`f29BlockingMonths`). El camino de visión
+  devuelve meses sin mirar la categoría → sin el guard se bloquea a un cliente de segunda.
+- **Temporales de documentos**: nombre derivado del `storage_path` completo (nunca del basename) y
+  **siempre re-descargar**. El caché por basename cruzaba certificados entre clientes y servía
+  para siempre la versión vieja de un cert corregido.
+- **`WORKER_CONCURRENCY` clampeado a 1**: el modo dry-run viaja por `process.env.DRY_RUN`, que es
+  del proceso. Para subirlo hay que pasar el flag como parámetro por `fillAllSteps`/`fillStepN`.
+- **Institución vacía nunca es comodín** en el match de reclasificados/overrides.
+- **Clear-before-fill que no logra vaciar → se corta** (Pasos 3 y 5), en vez de apilar filas o
+  declarar el ingreso dos veces.
+- **Paso 4 respeta un apoderado ya declarado**; `cleanupDraft(page, logger, scope)` limpia solo los
+  pasos que se le piden (el bloqueo del Paso 3 no borra el Paso 2 ni el 5).
+- **Un flujo completo sin Paso 3 termina `blocked`**, no `success`.
+- Códigos de `Step3Report.skipped` nuevos: `deuda_indirecta` (informativo) y `posible_duplicado`
+  (accionable, del dedup de id261).
 
 ### Step 3 — Resilience Pattern (`withRetry`)
 All critical Playwright operations in `step3_acreedores.ts` are wrapped in `withRetry<T>(fn, opts)` with linear back-off:
