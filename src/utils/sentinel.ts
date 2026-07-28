@@ -434,9 +434,13 @@ export async function runSentinelCheck(
     // y el agente de Ingresos los lee después con su propio prompt. Leerlos acá es una
     // llamada a Opus por documento, tirada.
     const antesFiltro = documents.length;
-    const deIngreso = documents.filter((d) => esDocumentoDeIngreso(d));
+    const deIngreso: typeof documents = [];
+    const noDeIngreso: typeof documents = [];
+    for (const d of documents) {
+      (esDocumentoDeIngreso(d) ? deIngreso : noDeIngreso).push(d);
+    }
     if (deIngreso.length > 0) {
-      documents = documents.filter((d) => !esDocumentoDeIngreso(d));
+      documents = noDeIngreso;
       log(
         `💰 ${deIngreso.length} de ${antesFiltro} documento(s) son de ingreso y los lee el Paso 5, ` +
         `no el Paso 3: ${deIngreso.map((d) => d.filename).join(', ')}.`

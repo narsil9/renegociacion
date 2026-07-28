@@ -47,5 +47,25 @@ check('liquidación de prepago sin marcas se lee en Paso 3',
   !esDocumentoDeIngreso({ filename: 'liquidacion_prepago_credito.pdf' }),
   'debe leerse en Paso 3: puede ser un payoff');
 
+// Variantes REALES de un certificado de liquidación/prepago: la palabra de deuda no está
+// pegada a "liquidacion". Antes se colaban como ingreso y el acreedor desaparecía.
+check('liquidación final de crédito NO es ingreso',
+  !esDocumentoDeIngreso({ filename: 'liquidacion final de credito hipotecario.pdf' }));
+check('comprobante de liquidación de crédito entre paréntesis NO es ingreso',
+  !esDocumentoDeIngreso({ filename: 'Comprobante de liquidacion (credito hipotecario BancoEstado).pdf' }));
+check('liquidación total crédito consumo NO es ingreso',
+  !esDocumentoDeIngreso({ filename: 'liquidacion total credito consumo.pdf' }));
+check('cualquier mención de deuda desactiva el filtro',
+  !esDocumentoDeIngreso({ filename: 'liquidacion 2026 deuda banco.pdf' }));
+
+// Los nombres que EXISTEN hoy en producción tienen que seguir siendo ingreso: si el filtro
+// se vuelve tan estricto que no saca nada, la tarea deja de ahorrar.
+check('liquidacion.pdf (nombre real de producción) sí es ingreso',
+  esDocumentoDeIngreso({ filename: 'liquidacion.pdf' }));
+check('liquidacion (1).pdf (nombre real de producción) sí es ingreso',
+  esDocumentoDeIngreso({ filename: 'liquidacion (1).pdf' }));
+check('cotizaciones (2).pdf (nombre real de producción) sí es ingreso',
+  esDocumentoDeIngreso({ filename: 'cotizaciones (2).pdf' }));
+
 console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
 process.exit(fail === 0 ? 0 : 1);

@@ -17,8 +17,6 @@
 
 /** Nombres que solo tiene un documento de ingreso. Sin ambigüedad con deuda. */
 const NOMBRES_DE_INGRESO = [
-  'liquidacion de sueldo',
-  'liquidacion sueldo',
   'liquidacion',
   'cotizacion',
   'cotizaciones',
@@ -27,6 +25,18 @@ const NOMBRES_DE_INGRESO = [
   'finiquito',
   'pension',
 ];
+
+/**
+ * Palabras que delatan un documento de DEUDA. Si aparece cualquiera de estas, el documento
+ * NO es de ingreso — sin importar en qué posición esté ni qué palabras haya en el medio.
+ *
+ * Antes esto era una regex que exigía que la palabra de deuda estuviera PEGADA a
+ * "liquidacion". Con eso, "liquidacion final de credito hipotecario.pdf" (un certificado de
+ * prepago, o sea DEUDA) se clasificaba como ingreso y su acreedor desaparecía de la
+ * declaración. El sesgo tiene que ser el contrario: ante cualquier señal de deuda, lo lee
+ * el Paso 3.
+ */
+const PALABRAS_DE_DEUDA = ['credito', 'prepago', 'deuda', 'hipotecario'];
 
 // Mismo transform que `normalizeText` de acreedor_matcher.ts:43-44 (forma escapada a
 // propósito: los caracteres combinantes crudos son invisibles y se corrompen al copiar).
@@ -54,7 +64,6 @@ export function esDocumentoDeIngreso(doc: {
   if (esCertificadoDeAcreedor(doc)) return false;
   const n = sinTildes(doc.filename ?? '');
   if (!n) return false;
-  // "liquidacion_prepago" / "liquidacion de credito" son documentos de DEUDA.
-  if (/liquidacion[\s_-]*(de[\s_-]*)?(prepago|credito|deuda)/.test(n)) return false;
+  if (PALABRAS_DE_DEUDA.some((k) => n.includes(k))) return false;
   return NOMBRES_DE_INGRESO.some((k) => n.includes(k));
 }
