@@ -40,6 +40,7 @@ const TESTS = [
   'test_dedup_contenido.ts',             // el mismo PDF por correo y por Drive es UN documento
   'test_extraccion_pura.ts',             // el prompt per-doc no depende de la fecha (requisito del caché)
   'test_doc_scope.ts',                   // el Paso 3 no lee documentos de ingreso
+  'test_degradacion_261.ts',             // toda degradación 260→261 dice por qué (rule_id + evidencia)
 ];
 
 const results: { test: string; passed: boolean }[] = [];

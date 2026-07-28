@@ -152,6 +152,18 @@ export interface DeReclassified261Creditor {
    * la mora SÍ existe y el producto SIGUE contando para los 2 productos con 91+ días.
    */
   degradedForMissingVenc?: boolean;
+  /**
+   * Cuál de las tres ramas del backstop degradó esta deuda. Es la respuesta a "¿por qué
+   * quedó en 261?", y hasta ahora solo existía en una línea de log:
+   *   · BACKSTOP_OVERRIDE_DEGRADADO — había un override 260 pero sin fecha de vencimiento acreditada.
+   *   · BACKSTOP_SIN_DOCUMENTO     — mora 90+d en el CMF y ningún documento del acreedor.
+   *
+   * NO existe un valor para "el banco ya está cubierto por sus productos": esa rama del
+   * backstop hace `continue` sin emitir fila, para no duplicar el pasivo con el total del CMF.
+   */
+  rule_id: 'BACKSTOP_OVERRIDE_DEGRADADO' | 'BACKSTOP_SIN_DOCUMENTO';
+  /** La misma evidencia que llevan sus cuatro tipos hermanos: cita textual, confianza, RUT del emisor. */
+  evidence?: ExtractionEvidence;
 }
 
 /**
