@@ -75,9 +75,10 @@ El **worker es el daemon** (un solo proceso): pollea la cola `automation_jobs` c
 - `tools/` - **Scripts dev/diagnóstico/one-off — NO producción.** (inspect_*, check_*, migrate_*, run_*, upload_*, el CLI legacy `index.ts`, etc.) Fuera del build de producción. Los `*_*` con prefijo de diagnóstico están gitignored.
 
 > ### ⚙️ Superficie de PRODUCCIÓN (qué corre en el robot)
-> El único entry de producción es **`src/worker.ts`** (daemon). Su grafo de imports = lo que corre en producción: `src/worker.ts` + `src/automation/*` (incl. `step5_ingresos.ts`) + `src/agents/*` (incl. `ingresos_agent.ts`) + módulos de `src/utils/` (acreedor_matcher, alerts, browser, cert_institution_resolver, cert_line_items, cmf_analyzer, cognitive_orchestrator, date_helper, deterministic_mapeador, income_extractor, logger, pdf_analyzer, pdf_optimizer, sentinel, sentinel_backstops, sentinel_per_doc, supabaseWorker).
+> El único entry de producción es **`src/worker.ts`** (daemon). Su grafo de imports = lo que corre en producción: `src/worker.ts` + `src/automation/*` (incl. `step5_ingresos.ts`) + `src/agents/*` (incl. `ingresos_agent.ts`) + módulos de `src/utils/` (acreedor_matcher, alerts, browser, calculadora-mora/, cert_institution_resolver, cert_line_items, cmf_analyzer, cognitive_orchestrator, date_helper, deterministic_mapeador, doc_scope, document_reads, income_extractor, logger, pdf_analyzer, pdf_optimizer, sentinel, sentinel_backstops, sentinel_per_doc, supabaseWorker).
 > **`src/` contiene SOLO producción.** Todo lo de prueba/dev vive en `tools/` (scripts sueltos) y `casos/` (tests por cliente).
-> Build production-only: **`npm run build:prod`** (`tsconfig.build.json`, compila solo el grafo del worker → `dist/`). Deploy: ship `dist/`. El daemon: `bash scripts/sistema.sh start`.
+> Build production-only: **`npm run build:prod`** (`tsconfig.build.json`, compila solo el grafo del worker → `dist/`). Deploy: ship `dist/`.
+> **El daemon en producción lo maneja pm2, proceso `superir-worker`, con `deploy.sh` en el Mac Mini.** ⚠️ `scripts/sistema.sh` usa otro nombre de proceso y **NO controla producción** — arrancarlo con eso levanta un worker paralelo al que ya corre.
 
 > ⚠️ The local `dashboard/` directory has been **removed**. All UI control is now handled by the supervisor's external dashboard.
 
@@ -278,6 +279,32 @@ Cada uno arregla un bug que ya pasó; si un cambio futuro los toca, hay que ente
 - Códigos de `Step3Report.skipped` nuevos: `deuda_indirecta` (informativo) y `posible_duplicado`
   (accionable, del dedup de id261).
 
+### Step 3 — Caché de lectura por documento (`document_reads`, 2026-07-28)
+Cada documento se lee con el LLM **una sola vez en la historia del estudio**. La lectura se guarda en `document_reads` y se reutiliza en cualquier corrida futura, de cualquier cliente, que traiga el mismo archivo. Módulos: `src/utils/document_reads.ts` (el único que conoce la tabla) y `src/utils/doc_scope.ts` (qué documentos merecen la lectura).
+
+**La llave es el contenido, no el nombre ni la fila.** `doc_sha256` se calcula sobre el Buffer recién bajado del bucket, nunca releyendo de disco — así el bug de los temporales no puede envenenar el caché. Un documento sin `sha256` recibe llave propia y no colapsa con nada.
+
+**Se cachea lo que dice el papel, nunca lo que decidimos declarar.** La clasificación 260/261, el dedup de productos y los backstops corren en cada corrida. Solo se guarda el `DocFacts`.
+
+**Nada relativo a hoy entra al caché.** Es la regla que más fácil se rompe sin darse cuenta:
+- Los prompts NO llevan la fecha de hoy. `perDocSystemPrompt` no consulta la fecha por ninguna vía; hay un test estructural sobre su `toString()` que lo vigila.
+- `emision` se deriva de hoy (`extractEmissionDateFromText` descarta candidatos futuros) → se persiste `emision_llm` (el crudo del modelo) y `emision` se recompone en cada corrida. **Si en `facts_json` aparece `emision`, alguien volvió a guardar la derivación.**
+- Lo mismo con `dias_mora` en la cita de la calculadora de mora.
+
+**Dos ejes de versión, y hay que subir el correcto:**
+- `PER_DOC_PROMPT_VERSION` — cambió el prompt del extractor.
+- `READ_UNIT_VERSION` — cambió cualquier otra cosa de la unidad de lectura: `isCollectionNotice`, `resolveEmision`, `n_periodos`, `recomputarEstados`. Su lista de disparadores está junto a la constante.
+- El prompt de la mora se hashea solo (sobre un placeholder `'__FECHA__'`, no la fecha real — si no, el caché se invalidaría todos los días).
+- `CENTINELA_LOGIC_VERSION` sigue siendo lo suyo: el armado, no la extracción.
+
+**Solo se persiste una unidad de lectura COMPLETA.** Una falla transitoria de la mora (un 529) no lanza por diseño; si se persistiera esa lectura, esa deuda quedaría declarada en Art. 261 en vez de 260 **para siempre y para cualquier cliente con ese PDF**, y el único remedio sería un DELETE a mano en una tabla append-only. `enrichUnDocConMora` devuelve `'no_aplica' | 'ok' | 'fallo'` justamente para esto. Un estado de cuenta al día SÍ se cachea (respuesta negativa ≠ respuesta ausente).
+
+**Un hit devuelve la lectura guardada pero con el `filename` y la `institucion_asignada` de ESTA corrida.** `filename` está fuera de la llave a propósito, pero es la llave de asociación de medio pipeline — incluido el chequeo de RUT que es BLOQUEANTE.
+
+**El Paso 3 no lee documentos de ingreso** (`esDocumentoDeIngreso`). Se omite solo con evidencia positiva: la metadata manda sobre el filename, y `document_type = 24` NO significa "ingreso". Toda omisión se loguea con nombre y motivo.
+
+📌 **Pendiente decidido, no implementado:** reemplazar ese filtro por nombre con un clasificador de contenido con Haiku, y medir el ahorro real contra el sistema anterior. Diseño, medición y protocolo de comparación: `renegociacion-cockpit/.claude/PENDIENTE-clasificador-haiku.md`.
+
 ### Step 3 — Resilience Pattern (`withRetry`)
 All critical Playwright operations in `step3_acreedores.ts` are wrapped in `withRetry<T>(fn, opts)` with linear back-off:
 
@@ -353,8 +380,25 @@ Tabla de documentos de acreditación por cliente, usada por el **Orquestador Cog
 | `storage_path` | Ruta en Supabase Storage (`documentos` bucket) |
 | `filename` | Nombre del archivo (ej. `cert_bci.pdf`) |
 | `uploaded_at` | ISO timestamp de cuando se subió el archivo |
+| `sha256` | Hash de los bytes del archivo en el bucket. Lo escribe el worker al descargar; es el join hacia `document_reads`. |
 
-**Nota:** La tabla `client_documents` se consulta en el sandbox. El bucket `documentos` contiene las 4 categorías de archivos del cliente (CMF, carpeta tributaria, agentes retenedores, certificados de acreditación).
+El bucket `documentos` contiene las 4 categorías de archivos del cliente (CMF, carpeta tributaria, agentes retenedores, certificados de acreditación).
+
+⚠️ **El proyector del panel inserta DOS filas por PDF** cuando el documento llegó por email y por Drive: dos `storage_path` distintos, mismos bytes. Y las dos copias NO son intercambiables — una suele traer `institucion_cmf` y la otra no. Al elegir una, preferir la que trae información (ver `dedupPorContenido` en `doc_scope.ts`).
+
+#### `document_reads` (PASO 3 — caché de lectura por documento)
+Append-only. Una fila = un documento leído una vez por el LLM. Ver la sección **Step 3 — Caché de lectura por documento** más arriba.
+
+| Campo | Descripción |
+|-------|-------------|
+| `doc_sha256` | Identidad del contenido. Join → `client_documents.sha256`. |
+| `reader` | Qué lector produjo la fila (`per_doc`, `mora`). Es parte de la llave. |
+| `prompt_version` / `context_hash` | Versión de la extracción y hash del contexto (pista del CMF). Parte de la llave. |
+| `facts_json` | El `DocFacts` crudo del papel. Nunca lo que decidimos declarar. |
+| `status` | `completed` o `failed`. El índice único parcial solo aplica a `completed`. |
+| `automation_job_id` | uuid de `automation_jobs` — qué corrida produjo la lectura. |
+
+El invariante "una sola lectura vigente por llave" lo garantiza el **índice único parcial `document_reads_vigente`**, no una convención del código. RLS activa con cero policies y sin grants a `anon`.
 
 ---
 
@@ -436,31 +480,11 @@ No clonar ni sincronizar todo (evita duplicar PII de ~1.200 casos, ventana de st
 
 ---
 
-## Dashboard del abogado — repo `rp_carga_documentos` — ☠️ YA NO EXISTE (histórico)
-
-> **Estado (2026-07-27):** **jubilado y borrado.** No está en `/Users/patomartini/Desktop/rp_carga_documentos` ni en ningún lado del disco. El input de producción es el panel `auth-admin` (botón "Ejecutar" → `lib/superir-proyector.ts`). Lo de abajo se conserva solo como referencia de qué campos llenaba cada vista; no describe nada que corra hoy.
-
-Tenía dos vistas:
-
-### Vista "Datos Personales" (`app/datos-personales/`)
-Crea/edita la fila del cliente en `clients` con los mismos `<select>` del portal (Paso 1).
-- **`GET /api/datos-personales?rut=`**: trae la fila para precargar (match por `rut.ilike`, case/puntos-insensible).
-- **`POST /api/datos-personales`**: valida contra los enums del portal y hace **upsert** en `clients`. Opcional `enqueue` → encola `automation_jobs` (idempotente: reusa job `pending`/`running`).
-- **Convención de valores** (validada con Cinthia, que corrió 1→4): `estado_civil` = **value** (`'1'`..`'7'`, el worker decide casado por `=== '2'`); `profesion_oficio`/`ocupacion`/`region`/`comuna` = **label exacto** (comuna en MAYÚSCULA). `selectBootstrap` matchea por value O label. Enums en `lib/portal_select_values.json` (copia de `supabase/portal_select_values.json`).
-- ⚠️ **Régimen patrimonial**: opciones provisionales (sin verificar contra el portal) — pendiente un dump de cliente casado. **Comunas**: solo RM cargadas; otras regiones caen a texto libre.
-
-### Vista "Cargar Caso" (`app/subir-caso/`)
-Sube la carpeta local del cliente y la clasifica.
-- **`classify()`** clasifica por **nombre de archivo** (no por ruta): CMF, Carpeta Tributaria, Agentes Retenedores, certificados CMF / NO-CMF. Lo no reconocido se muestra para revisión (no se descarta en silencio).
-- **Checklist de requisitos** bloquea la carga si falta el CMF (obligatorio aguas abajo en `worker.ts`).
-- **`GET/POST /api/subir-caso`** (`action=init|file|finalize`): sube a Storage (`documentos`, preserva extensión real), llena `client_documents` (tipo 24 general / 22 monto / 23 vencimiento, elegible por certificado), setea `informe_cmf_path`/`carpeta_tributaria_path`/`carpeta_retenedores_path`, y `finalize` encola el job (idempotente). Match de cliente por `rut.ilike`.
-- **`GET /api/acreedores`**: catálogo `acreedores_canonicos` (cap 1000).
-
-El worker consume todo esto: CMF vía `informe_cmf_path`, certificados vía `client_documents`, CT vía `carpeta_tributaria_path`, retenedores vía `carpeta_retenedores_path`.
-
----
-
 ## Flujo de datos para la automatización Superir
+
+De dónde toma el worker cada input: CMF vía `clients.informe_cmf_path`, certificados vía `client_documents`, carpeta tributaria vía `carpeta_tributaria_path`, agentes retenedores vía `carpeta_retenedores_path`.
+
+> El dashboard `rp_carga_documentos` que llenaba estas columnas fue **jubilado y borrado** (2026-07-27). Hoy las llena el panel `auth-admin` con `lib/superir-proyector.ts`. Convenciones de los `<select>` del Paso 1 (`estado_civil` = value `'1'`..`'7'`; `region`/`comuna`/`profesion_oficio` = label exacto, comuna en MAYÚSCULA): `supabase/portal_select_values.json`.
 
 **UNA sola Supabase: `tonrzmlrrcnizamtzqte`.** El sandbox `fnz…` NO existe en ningún entorno vivo (verificado 2026-07-27 contra el `.env` del Mac Mini y `.env.example`: solo hay `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`). Las tablas del worker y las de Milo conviven ahí.
 
@@ -499,9 +523,14 @@ Before implementing ANY task, check if relevant skills apply:
 ## Common Commands
 
 ```bash
-# Batería determinista del Paso 3 — 19 suites, NO gasta API, no toca nada.
+# Batería determinista del Paso 3 — 25 suites, NO gasta API, no toca nada.
 # Es el chequeo de siempre antes de commitear. Una suite nueva va en el array TESTS.
 npx ts-node --transpile-only tools/paso3_validacion/run_all.ts
+
+# Verificación en vivo del LLM (GASTA API): compara contra la verdad-terreno de la abogada.
+# Ojo: sus 3 casos (cristian_mancilla, miguel_lugo, nector_ruiz) NO existen en la base —
+# imprime "Cliente no encontrado" y no prueba nada. Para un caso real usar debug_perdoc.ts.
+npx ts-node --transpile-only -r dotenv/config tools/paso3_validacion/debug_perdoc.ts 16991741-8
 
 # Start the worker daemon
 npm run worker
