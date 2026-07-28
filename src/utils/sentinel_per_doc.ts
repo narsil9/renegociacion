@@ -77,6 +77,17 @@ export interface DocFacts {
   read_failed?: boolean;
 }
 
+/** Metadatos de una llamada al modelo, para la telemetría de `herramientas_uso`. */
+export interface LlmCallMeta {
+  model: string;
+  usage: {
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+    cache_creation_input_tokens?: number | null;
+    cache_read_input_tokens?: number | null;
+  };
+}
+
 /**
  * ¿El documento es un AVISO DE COBRANZA / mora (por CONTENIDO, no por filename)? Señales fuertes de
  * morosidad: "N días de mora", "deuda castigada", "cartera vencida", "cobranza judicial/prejudicial".
@@ -121,8 +132,34 @@ const PER_DOC_MAX_OUTPUT = 4000;
 /** Filas del CMF de la institución asignada al doc — referencia de cuántos productos esperar. */
 export interface CmfRowRef { tipoCredito: string; totalCredito: number; overdue90Days: number; }
 
-function perDocSystemPrompt(todayStr: string): string {
-  return `Eres un EXTRACTOR de datos de UN certificado de deuda chileno (Ley 20.720 — renegociación). Hoy es ${todayStr}.
+/**
+ * Versión del prompt de extracción per-doc. Va en la llave del caché de lecturas:
+ * subirla invalida todas las lecturas hechas con el prompt anterior.
+ *
+ * ⚠️ Es DISTINTA de `CENTINELA_LOGIC_VERSION`. Aquella versiona el ENSAMBLADO (cómo se
+ * arma la declaración a partir de los hechos) y se bumpeó 8 veces en un mes. Ésta
+ * versiona la EXTRACCIÓN (qué se le pide al modelo sobre un papel). Si fueran una sola,
+ * cada arreglo del ensamblador tiraría a la basura todas las lecturas — que es
+ * exactamente lo que hay que evitar.
+ *
+ * Subirla cuando cambie: el texto de `perDocSystemPrompt`, el esquema de salida, o el
+ * criterio de lectura. NO cuando cambie el ensamblador ni los backstops.
+ */
+export const PER_DOC_PROMPT_VERSION = 'pd-v1-sin-fecha-2026-07-27';
+
+/**
+ * System prompt del extractor. NO recibe la fecha, a propósito.
+ *
+ * La extracción es una función pura del papel: todos los campos que pide son datos
+ * impresos (doc_type, emisor, RUT del emisor, fecha de emisión, montos, citas). Nada es
+ * relativo a hoy — los días de mora se calculan después, determinísticamente, en
+ * `assembleRawFromDocFacts`. Meter la fecha acá tenía dos costos y ningún beneficio:
+ *   1. la lectura dejaba de ser cacheable entre días;
+ *   2. rompía el prompt cache de Anthropic TODOS LOS DÍAS, porque el bloque `system`
+ *      lleva `cache_control: ephemeral` y su texto cambiaba con la fecha.
+ */
+export function perDocSystemPrompt(): string {
+  return `Eres un EXTRACTOR de datos de UN certificado de deuda chileno (Ley 20.720 — renegociación).
 
 Tu ÚNICA tarea es leer ESTE documento y reportar los HECHOS que contiene. NO clasifiques Art. 260/261, NO decidas si es deuda del CMF o no, NO sumes ni promedies entre documentos. Solo extrae lo que ves en ESTE documento.
 
@@ -213,7 +250,7 @@ export async function extractDocFacts(
   model: string,
   todayStr: string,
   logger?: SimpleLogger
-): Promise<DocFacts> {
+): Promise<{ facts: DocFacts; meta: LlmCallMeta | null }> {
   const log = (m: string) => (logger ? logger.log(`🛡️ [PerDoc] ${m}`) : console.log(m));
   const empty: DocFacts = { filename: doc.filename, institucion_asignada: doc.institucion_cmf, doc_type: 'otro', productos: [], read_failed: true };
 
@@ -242,9 +279,10 @@ export async function extractDocFacts(
         // System idéntico en todas las llamadas por-doc del caso → cache_control ephemeral: la 1ª llamada
         // paga los tokens, las demás lo leen del cache (~10% costo, TTL 5 min). Permite un system rico
         // (reglas + few-shot + lecciones vivas) sin costo por-documento. Ver lessons_loader.ts.
-        system: [{ type: 'text', text: perDocSystemPrompt(todayStr), cache_control: { type: 'ephemeral' } }],
+        system: [{ type: 'text', text: perDocSystemPrompt(), cache_control: { type: 'ephemeral' } }],
         messages: [{ role: 'user', content: parts }],
       });
+      const meta: LlmCallMeta = { model, usage: (resp as { usage?: LlmCallMeta['usage'] }).usage ?? {} };
       const textBlock = resp.content.find((b) => b.type === 'text');
       const text = textBlock && textBlock.type === 'text' ? textBlock.text : '';
       const m = text.match(/<json>([\s\S]*?)<\/json>/);
@@ -285,7 +323,7 @@ export async function extractDocFacts(
       const np = Math.floor(Number(raw.n_periodos));
       facts.n_periodos = Number.isFinite(np) && np > 0 ? np : 1;
       log(`${doc.filename}: doc_type=${facts.doc_type}, ${productos.length} producto(s)${facts.n_periodos > 1 ? `, ${facts.n_periodos} períodos` : ''}${facts.rut_emisor ? `, rut_emisor=${facts.rut_emisor}` : ''}.`);
-      return facts;
+      return { facts, meta };
     } catch (err: any) {
       log(`⚠️ ${doc.filename}: error de extracción (intento ${attempt}): ${err?.message || err}`);
       // Backoff antes del reintento: los dos intentos eran inmediatos, así que un 429/529
@@ -294,7 +332,7 @@ export async function extractDocFacts(
     }
   }
   log(`⚠️ ${doc.filename}: NO se pudo leer tras 2 intentos → se marca read_failed (error técnico, reintentable).`);
-  return empty;
+  return { facts: empty, meta: null };
 }
 
 /** Corre las extracciones por-documento con un pool de concurrencia. */
@@ -336,9 +374,11 @@ export async function runPerDocExtraction(
     rowsByBank.get(k)!.push({ tipoCredito: c.tipoCredito, totalCredito: c.totalCredito, overdue90Days: c.overdue90Days });
   }
   log(`Leyendo ${documents.length} documento(s) UNO POR UNO con ${model} (pool 5)...`);
-  const factsList = await mapPool(documents, 5, (doc) => {
+  const factsList = await mapPool(documents, 5, async (doc) => {
     const rows = doc.institucion_cmf ? (rowsByBank.get(canonicalInstitutionKey(doc.institucion_cmf)) ?? []) : [];
-    return extractDocFacts(doc, rows, anthropic, model, todayStr, logger);
+    // Provisional: la Task 4 reescribe esta función para usar el meta (telemetría/caché).
+    const { facts } = await extractDocFacts(doc, rows, anthropic, model, todayStr, logger);
+    return facts;
   });
   // Un documento que no se pudo LEER no es un documento sin productos: seguir dejaría al
   // acreedor fuera de la declaración (o diagnosticado como "falta el documento" cuando existe).
@@ -357,7 +397,9 @@ export async function runPerDocExtraction(
     const runCalc = async (facts: DocFacts): Promise<unknown[]> => {
       const src = docByName.get(facts.filename);
       if (!src) throw new Error(`sin doc fuente para ${facts.filename}`);
-      return runCalculadoraMora(src, anthropic, model, todayStr, logger);
+      // Provisional: la Task 4 reescribe esta función para usar el meta (telemetría/caché).
+      const { estados } = await runCalculadoraMora(src, anthropic, model, todayStr, logger);
+      return estados;
     };
     await enrichEstadosCuentaConMora(factsList, runCalc, (m) => log(m));
   }

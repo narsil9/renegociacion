@@ -14,6 +14,7 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import crypto from 'crypto';
 
 type Step = 'paso3' | 'paso5';
 const FILE_BY_STEP: Record<Step, string> = { paso3: 'paso3-acreedores.md', paso5: 'paso5-ingresos.md' };
@@ -86,4 +87,19 @@ export function loadReaderLessons(step: Step): string {
     : '';
   cache.set(step, out);
   return out;
+}
+
+/**
+ * Versión de las lecciones = hash del TEXTO QUE REALMENTE SE INYECTA en el prompt.
+ *
+ * Se hashea la salida de `loadReaderLessons`, no los archivos, así no puede
+ * desincronizarse: si cambia lo que se inyecta, cambia la versión, y el caché de
+ * lecturas se invalida solo. Hoy `CENTINELA_LOGIC_VERSION` se bumpea a mano y no está
+ * atado a los `.md` — con esto, editar una lección ya no pasa desapercibido.
+ *
+ * Ojo: `loadReaderLessons` memoiza por proceso, así que esto también. Editar un `.md`
+ * con el worker corriendo sigue requiriendo reiniciar pm2.
+ */
+export function lessonsVersion(step: Step): string {
+  return crypto.createHash('sha256').update(loadReaderLessons(step)).digest('hex').slice(0, 16);
 }

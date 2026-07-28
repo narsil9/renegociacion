@@ -38,6 +38,7 @@ const TESTS = [
   'test_catalogo_acreedores.ts',         // el catálogo LANZA ante error de base (contrato del que depende el fix del catch{} de sentinel.ts)
   'test_document_reads.ts',              // llaves de document_reads (contenido y contexto)
   'test_dedup_contenido.ts',             // el mismo PDF por correo y por Drive es UN documento
+  'test_extraccion_pura.ts',             // el prompt per-doc no depende de la fecha (requisito del caché)
 ];
 
 const results: { test: string; passed: boolean }[] = [];
