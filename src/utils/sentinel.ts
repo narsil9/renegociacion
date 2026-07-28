@@ -14,6 +14,7 @@ import {
   AcreedorCatalogEntry,
 } from './acreedor_matcher';
 import { extractDatesFromText, extractEmissionDateFromText, ClientDocument } from './cognitive_orchestrator';
+import { contentHash } from './document_reads';
 import { runPerDocExtraction } from './sentinel_per_doc';
 import { loadReaderLessons } from './lessons_loader';
 import { applyDeterministicBackstops, isChatDocument, classifyNonAccreditingDoc } from './sentinel_backstops';
@@ -257,6 +258,44 @@ export function clampDocTextForClaude(text: string): string {
 }
 
 /**
+ * Colapsa los documentos que son el MISMO papel.
+ *
+ * Por qué hace falta: el proyector del panel arma el destino como
+ * `{rut}/certs/{email-<id>|drive-<id>}_{filename}`, así que un PDF que existe como
+ * adjunto de correo Y como archivo de Drive genera dos rutas, dos objetos en el bucket
+ * y dos filas en `client_documents`. Su dedup compara `storage_path`, que difiere.
+ * Acá se compara el CONTENIDO.
+ *
+ * Un documento sin `sha256` nunca se agrupa: se le da una clave propia. Es preferible
+ * leer de más a colapsar dos papeles distintos.
+ *
+ * Desempate entre copias idénticas: gana la que declara más períodos (`n_periodos`),
+ * misma regla que el dedup del Centinela — un PDF con los últimos 4 estados de cuenta
+ * vale más que el estado suelto.
+ */
+export function dedupPorContenido<
+  T extends { sha256?: string; storage_path: string; filename: string; n_periodos?: number }
+>(docs: T[], log: (m: string) => void): T[] {
+  const porClave = new Map<string, T>();
+  for (const doc of docs) {
+    const clave = doc.sha256 ? `sha:${doc.sha256}` : `unico:${doc.storage_path}`;
+    const previo = porClave.get(clave);
+    if (!previo) {
+      porClave.set(clave, doc);
+      continue;
+    }
+    const gana = (doc.n_periodos ?? 1) > (previo.n_periodos ?? 1) ? doc : previo;
+    const pierde = gana === doc ? previo : doc;
+    porClave.set(clave, gana);
+    log(
+      `🧬 Mismo contenido: "${pierde.filename}" (${pierde.storage_path}) ya está como ` +
+      `"${gana.filename}" (${gana.storage_path}) — se lee una sola vez.`
+    );
+  }
+  return Array.from(porClave.values());
+}
+
+/**
  * Executes API Key #1 (Sentinel) to analyze the CMF and certificates uploaded by the lawyer.
  * Bypassed only if DISABLE_SENTINEL=true is set explicitly.
  */
@@ -404,7 +443,12 @@ export async function runSentinelCheck(
       log(`Descargando "${doc.filename}"...`);
       const { data, error } = await supabase.storage.from('documentos').download(doc.storage_path);
       if (error || !data) throw new Error(`Error al descargar ${doc.filename}: ${error?.message || 'vacío'}`);
-      fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer()));
+      const buf = Buffer.from(await data.arrayBuffer());
+      fs.writeFileSync(localPath, buf);
+      // Identidad de CONTENIDO. Se calcula sobre los bytes recién bajados del bucket,
+      // NUNCA sobre lo que haya en outputs/: el resolver de instituciones todavía sirve
+      // archivos viejos desde disco, y hashear eso envenenaría el caché de lecturas.
+      doc.sha256 = contentHash(buf);
 
       // Determinar si es PDF de texto, PDF escaneado o Imagen
       const extLower = ext.toLowerCase();
@@ -451,6 +495,15 @@ export async function runSentinelCheck(
           log(`⚠️ ${doc.filename}: no legible automáticamente${stat ? ` (${(stat.size / 1024 / 1024).toFixed(1)} MB > tope nativo ${(NATIVE_PDF_MAX_BYTES / 1024 / 1024)} MB)` : ' (sin stat)'} → revisión manual.`);
         }
       }
+    }
+
+    // Los duplicados los fabrica el proyector (mismo PDF por correo y por Drive = dos
+    // rutas). Se colapsan ACÁ, después de bajar los bytes, porque recién ahí se conoce
+    // el contenido. `documents` es `let`, así que la reasignación compila.
+    const antesDedup = documents.length;
+    documents = dedupPorContenido(documents, log);
+    if (documents.length < antesDedup) {
+      log(`🧬 ${antesDedup} documentos → ${documents.length} únicos por contenido (${antesDedup - documents.length} duplicado(s) del proyector).`);
     }
 
     // 3. Ejecutar pre-análisis TypeScript determinista

@@ -257,6 +257,7 @@ export interface ClientDocument {
   uploaded_at: string;
   local_path?: string;
   textContent?: string;
+  sha256?: string;
   /**
    * doc_type SEMÁNTICO que devolvió el LLM por documento (camino per-doc): 'chat',
    * 'comprobante_pago', 'cartola', 'desglose_por_producto', etc. Cuando está presente, las
