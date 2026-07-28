@@ -11,7 +11,9 @@
  * anclando el conteo de productos al CMF. La salida final (raw-shaped) la siguen refinando los
  * backstops post-LLM existentes en sentinel.ts (reconciliación, completitud, gate 260→261, anti-error).
  */
+import crypto from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   AcreedorCatalogEntry,
   canonicalInstitutionKey,
@@ -21,11 +23,21 @@ import {
 } from './acreedor_matcher';
 import { normalizeOperationId } from './cert_line_items';
 import { UF_CLP } from './cmf_analyzer';
-import { loadReaderLessons } from './lessons_loader';
+import { loadReaderLessons, lessonsVersion } from './lessons_loader';
 import { extractEmissionDateFromText } from './cognitive_orchestrator';
 import { getCurrentChileDate, parseDateString } from './date_helper';
 import { runCalculadoraMora } from './calculadora-mora/mora-api';
-import { enrichEstadosCuentaConMora } from './calculadora-mora/mora-runner';
+import { enrichUnDocConMora, necesitaMora } from './calculadora-mora/mora-runner';
+import { buildMoraSystemPrompt } from './calculadora-mora/mora-prompt';
+import {
+  contextHash,
+  findLecturaVigente,
+  registrarLectura,
+  registrarConsumo,
+  PER_DOC_READER,
+  MORA_READER,
+  type LlmCallRecord,
+} from './document_reads';
 
 // --- Tipos de extracción (lo único que devuelve el LLM, por documento) ---
 
@@ -62,7 +74,14 @@ export interface DocFacts {
   doc_type: DocType;
   emisor_nombre?: string;
   rut_emisor?: string;
-  emision?: string;                        // fecha de emisión del documento (YYYY-MM-DD), resuelta híbrida (determinista→Claude)
+  /**
+   * Fecha de emisión resuelta (YYYY-MM-DD), híbrida determinista→Claude.
+   * ⚠️ DERIVACIÓN RELATIVA A HOY (el extractor determinista descarta candidatos posteriores
+   * a la fecha de la corrida) → NO se persiste en el caché; se recalcula en cada corrida.
+   */
+  emision?: string;
+  /** La fecha de emisión CRUDA que reportó el LLM (función pura del papel) — esta SÍ se persiste. */
+  emision_llm?: string;
   n_periodos?: number;                      // cuántos períodos/estados de cuenta distintos trae el doc (estado_cuenta/cartola). 1 por defecto. Un PDF con los últimos 4 estados unidos = 4 → se prefiere sobre el estado suelto en el dedup.
   totales_por_moneda?: { moneda: 'CLP' | 'UF' | 'USD'; monto: number; cita: string }[];
   productos: DocProduct[];
@@ -75,6 +94,17 @@ export interface DocFacts {
    * DESAPARECER al acreedor de la declaración sin alerta y sin marcar error técnico.
    */
   read_failed?: boolean;
+}
+
+/** Metadatos de una llamada al modelo, para la telemetría de `herramientas_uso`. */
+export interface LlmCallMeta {
+  model: string;
+  usage: {
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+    cache_creation_input_tokens?: number | null;
+    cache_read_input_tokens?: number | null;
+  };
 }
 
 /**
@@ -107,6 +137,7 @@ export interface SentinelDocLike {
   filename: string;
   institucion_cmf: string | null;
   acreditacion_tipo?: string | null;
+  sha256?: string;
   isImageDoc?: boolean;
   imageMimeType?: string;
   imageBase64?: string;
@@ -121,8 +152,70 @@ const PER_DOC_MAX_OUTPUT = 4000;
 /** Filas del CMF de la institución asignada al doc — referencia de cuántos productos esperar. */
 export interface CmfRowRef { tipoCredito: string; totalCredito: number; overdue90Days: number; }
 
-function perDocSystemPrompt(todayStr: string): string {
-  return `Eres un EXTRACTOR de datos de UN certificado de deuda chileno (Ley 20.720 — renegociación). Hoy es ${todayStr}.
+/**
+ * Versión del prompt de extracción per-doc. Va en la llave del caché de lecturas:
+ * subirla invalida todas las lecturas hechas con el prompt anterior.
+ *
+ * ⚠️ Es DISTINTA de `CENTINELA_LOGIC_VERSION`. Aquella versiona el ENSAMBLADO (cómo se
+ * arma la declaración a partir de los hechos) y se bumpeó 8 veces en un mes. Ésta
+ * versiona la EXTRACCIÓN (qué se le pide al modelo sobre un papel). Si fueran una sola,
+ * cada arreglo del ensamblador tiraría a la basura todas las lecturas — que es
+ * exactamente lo que hay que evitar.
+ *
+ * Subirla cuando cambie: el texto de `perDocSystemPrompt`, el esquema de salida, o el
+ * criterio de lectura. NO cuando cambie el ensamblador ni los backstops.
+ */
+export const PER_DOC_PROMPT_VERSION = 'pd-v1-sin-fecha-2026-07-27';
+
+/**
+ * Versión de la UNIDAD CACHEADA — la lógica TypeScript que corre alrededor del prompt y cuyo
+ * resultado también queda guardado en `facts_json`. `PER_DOC_PROMPT_VERSION` versiona el texto
+ * que se le manda al modelo; esto versiona lo que hacemos con su respuesta.
+ *
+ * SUBIRLA cuando cambie cualquiera de estas (todas escriben en los hechos persistidos):
+ *   · `isCollectionNotice`            → `facts.es_cobranza`
+ *   · `resolveEmision` / `extractEmissionDateFromText` → `facts.emision`
+ *   · la normalización de `n_periodos`
+ *   · `recomputarEstados` / `pickCard` de la calculadora de mora → `fecha_mora` / `cita_fecha`
+ *   · el esquema de `DocFacts` (campos nuevos, renombrados o con otro significado)
+ *
+ * NO subirla por cambios del ensamblador (`assembleRawFromDocFacts`) ni de los backstops:
+ * eso corre DESPUÉS de la lectura y no queda cacheado — para eso está `CENTINELA_LOGIC_VERSION`.
+ */
+export const READ_UNIT_VERSION = 'ru-v1-2026-07-28';
+
+/**
+ * Hash del system prompt de la calculadora de mora, que también viaja dentro de la unidad
+ * cacheada (`mora-prompt.ts` no tiene versión propia y nadie se va a acordar de bumpear nada).
+ * Mismo patrón que `lessonsVersion`: se hashea el texto realmente inyectado, así editarlo
+ * invalida el caché solo. La fecha se reemplaza por un placeholder fijo a propósito: es lo
+ * único variable del prompt y meterla anularía el caché todos los días.
+ */
+export function moraPromptVersion(): string {
+  return crypto.createHash('sha256').update(buildMoraSystemPrompt('__FECHA__')).digest('hex').slice(0, 16);
+}
+
+/**
+ * Componente de versión que va en la llave del caché: prompt del extractor + lógica TS de la
+ * unidad + prompt de la mora. Los tres cambian lo que queda guardado en `facts_json`.
+ */
+export function readUnitPromptVersion(): string {
+  return `${PER_DOC_PROMPT_VERSION}|${READ_UNIT_VERSION}|mora=${moraPromptVersion()}`;
+}
+
+/**
+ * System prompt del extractor. NO recibe la fecha, a propósito.
+ *
+ * La extracción es una función pura del papel: todos los campos que pide son datos
+ * impresos (doc_type, emisor, RUT del emisor, fecha de emisión, montos, citas). Nada es
+ * relativo a hoy — los días de mora se calculan después, determinísticamente, en
+ * `assembleRawFromDocFacts`. Meter la fecha acá tenía dos costos y ningún beneficio:
+ *   1. la lectura dejaba de ser cacheable entre días;
+ *   2. rompía el prompt cache de Anthropic TODOS LOS DÍAS, porque el bloque `system`
+ *      lleva `cache_control: ephemeral` y su texto cambiaba con la fecha.
+ */
+export function perDocSystemPrompt(): string {
+  return `Eres un EXTRACTOR de datos de UN certificado de deuda chileno (Ley 20.720 — renegociación).
 
 Tu ÚNICA tarea es leer ESTE documento y reportar los HECHOS que contiene. NO clasifiques Art. 260/261, NO decidas si es deuda del CMF o no, NO sumes ni promedies entre documentos. Solo extrae lo que ves en ESTE documento.
 
@@ -203,6 +296,28 @@ Extracción correcta: UNA tarjeta = UN producto; monto = "COSTO MONETARIO PREPAG
 }
 
 /**
+ * Fecha de emisión del documento PARA ESTA CORRIDA.
+ *
+ * Se calcula siempre (no se cachea) porque `extractEmissionDateFromText` descarta los
+ * candidatos posteriores a la fecha de hoy: el resultado es función de (texto, día de la
+ * lectura). Y no es cosmético — la emisión es el desempate del dedup de productos sin Nº de
+ * operación (gana la más nueva) y el agrupado por mes, así que una emisión congelada de julio
+ * puede hacer ganar la copia equivocada, con el monto equivocado. Del LLM solo se reutiliza
+ * `emision_llm`, que sí es función pura del papel.
+ */
+export function emisionDeLaCorrida(
+  doc: Pick<SentinelDocLike, 'isImageDoc' | 'textContent'>,
+  emisionLlm: string | undefined,
+  todayStr: string
+): string | undefined {
+  const todayDate = parseDateString(todayStr) ?? getCurrentChileDate();
+  const deterministic = (!doc.isImageDoc && doc.textContent)
+    ? extractEmissionDateFromText(doc.textContent, todayDate).date
+    : null;
+  return resolveEmision(deterministic, emisionLlm);
+}
+
+/**
  * Lee UN documento con Claude (una llamada, solo extracción) → DocFacts.
  * Reintenta una vez ante respuesta vacía / sin <json>.
  */
@@ -213,7 +328,7 @@ export async function extractDocFacts(
   model: string,
   todayStr: string,
   logger?: SimpleLogger
-): Promise<DocFacts> {
+): Promise<{ facts: DocFacts; meta: LlmCallMeta | null }> {
   const log = (m: string) => (logger ? logger.log(`🛡️ [PerDoc] ${m}`) : console.log(m));
   const empty: DocFacts = { filename: doc.filename, institucion_asignada: doc.institucion_cmf, doc_type: 'otro', productos: [], read_failed: true };
 
@@ -242,9 +357,10 @@ export async function extractDocFacts(
         // System idéntico en todas las llamadas por-doc del caso → cache_control ephemeral: la 1ª llamada
         // paga los tokens, las demás lo leen del cache (~10% costo, TTL 5 min). Permite un system rico
         // (reglas + few-shot + lecciones vivas) sin costo por-documento. Ver lessons_loader.ts.
-        system: [{ type: 'text', text: perDocSystemPrompt(todayStr), cache_control: { type: 'ephemeral' } }],
+        system: [{ type: 'text', text: perDocSystemPrompt(), cache_control: { type: 'ephemeral' } }],
         messages: [{ role: 'user', content: parts }],
       });
+      const meta: LlmCallMeta = { model, usage: (resp as { usage?: LlmCallMeta['usage'] }).usage ?? {} };
       const textBlock = resp.content.find((b) => b.type === 'text');
       const text = textBlock && textBlock.type === 'text' ? textBlock.text : '';
       const m = text.match(/<json>([\s\S]*?)<\/json>/);
@@ -277,15 +393,12 @@ export async function extractDocFacts(
         productos,
         es_cobranza: isCollectionNotice(doc.textContent),
       };
-      const todayDate = parseDateString(todayStr) ?? getCurrentChileDate();
-      const deterministic = (!doc.isImageDoc && doc.textContent)
-        ? extractEmissionDateFromText(doc.textContent, todayDate).date
-        : null;
-      facts.emision = resolveEmision(deterministic, raw.emision ? String(raw.emision) : undefined);
+      facts.emision_llm = raw.emision ? String(raw.emision) : undefined;
+      facts.emision = emisionDeLaCorrida(doc, facts.emision_llm, todayStr);
       const np = Math.floor(Number(raw.n_periodos));
       facts.n_periodos = Number.isFinite(np) && np > 0 ? np : 1;
       log(`${doc.filename}: doc_type=${facts.doc_type}, ${productos.length} producto(s)${facts.n_periodos > 1 ? `, ${facts.n_periodos} períodos` : ''}${facts.rut_emisor ? `, rut_emisor=${facts.rut_emisor}` : ''}.`);
-      return facts;
+      return { facts, meta };
     } catch (err: any) {
       log(`⚠️ ${doc.filename}: error de extracción (intento ${attempt}): ${err?.message || err}`);
       // Backoff antes del reintento: los dos intentos eran inmediatos, así que un 429/529
@@ -294,7 +407,7 @@ export async function extractDocFacts(
     }
   }
   log(`⚠️ ${doc.filename}: NO se pudo leer tras 2 intentos → se marca read_failed (error técnico, reintentable).`);
-  return empty;
+  return { facts: empty, meta: null };
 }
 
 /** Corre las extracciones por-documento con un pool de concurrencia. */
@@ -324,9 +437,13 @@ export async function runPerDocExtraction(
   todayStr: string,
   anthropic: Anthropic,
   model: string,
-  logger?: SimpleLogger
+  logger: SimpleLogger | undefined,
+  supabase: SupabaseClient,
+  ctx: { automationJobId: string | null; rut: string | null }
 ): Promise<any> {
   const log = (m: string) => (logger ? logger.log(`🛡️ [PerDoc] ${m}`) : console.log(m));
+  const logErr = (m: string, e?: unknown) => (logger ? logger.error(`🛡️ [PerDoc] ${m}`, e) : console.error(m, e));
+
   // Filas del CMF por banco canónico (referencia para cada doc)
   const rowsByBank = new Map<string, CmfRowRef[]>();
   for (const c of cmfResult.creditors) {
@@ -335,11 +452,135 @@ export async function runPerDocExtraction(
     if (!rowsByBank.has(k)) rowsByBank.set(k, []);
     rowsByBank.get(k)!.push({ tipoCredito: c.tipoCredito, totalCredito: c.totalCredito, overdue90Days: c.overdue90Days });
   }
-  log(`Leyendo ${documents.length} documento(s) UNO POR UNO con ${model} (pool 5)...`);
-  const factsList = await mapPool(documents, 5, (doc) => {
+
+  const versionLecciones = lessonsVersion('paso3');
+  let reutilizadas = 0;
+  let leidas = 0;
+
+  log(`Procesando ${documents.length} documento(s) con ${model} (pool 5)...`);
+
+  const factsList = await mapPool(documents, 5, async (doc): Promise<DocFacts> => {
     const rows = doc.institucion_cmf ? (rowsByBank.get(canonicalInstitutionKey(doc.institucion_cmf)) ?? []) : [];
-    return extractDocFacts(doc, rows, anthropic, model, todayStr, logger);
+
+    // Sin sha256 no hay identidad de contenido → se lee siempre, sin cachear.
+    // Es preferible pagar la lectura a servir la de otro papel.
+    const key = doc.sha256
+      ? {
+          docSha256: doc.sha256,
+          reader: PER_DOC_READER,
+          promptVersion: readUnitPromptVersion(),
+          lessonsVersion: versionLecciones,
+          model,
+          contextHash: contextHash({
+            institucionCmf: doc.institucion_cmf,
+            acreditacionTipo: doc.acreditacion_tipo,
+            cmfRows: rows,
+          }),
+        }
+      : null;
+
+    if (key) {
+      const vigente = await findLecturaVigente(supabase, key, logger);
+      if (vigente) {
+        reutilizadas++;
+        log(`♻️ ${doc.filename}: lectura reutilizada (sin llamada al modelo).`);
+        const guardados = vigente as DocFacts;
+        return {
+          ...guardados,
+          // `filename` NO entra en la llave a propósito (dos copias del mismo PDF con nombres
+          // distintos comparten lectura), así que el guardado puede ser el de OTRA copia del
+          // mismo papel. Pero medio pipeline asocia por ese campo — `__docTypeByFilename`, el
+          // `document_filename` de cada fila declarada, `docsByFilename` de los backstops, el
+          // `detectedByFilename` del chequeo de RUT (bloqueante) y el fallback del catálogo del
+          // Paso 3. Un filename que ya no existe en la lista los rompe todos en silencio.
+          filename: doc.filename,
+          // Igual que `filename`: `institucion_asignada` es un dato del DOCUMENTO, no del papel,
+          // y `contextHash` solo lo compara normalizado (`.trim().toLowerCase()`) — la copia
+          // guardada pudo tener '  BANCO DE CHILE ' donde esta corrida tiene 'Banco de Chile'.
+          // El ensamblador lo usa crudo como `bankName` → `bank`/`institucion_cmf` de cada fila
+          // declarada: es el string que lee el abogado y que se teclea en el portal.
+          institucion_asignada: doc.institucion_cmf,
+          // La emisión no se persiste (es relativa a hoy): se recalcula con los datos de esta corrida.
+          emision: emisionDeLaCorrida(doc, guardados.emision_llm, todayStr),
+        };
+      }
+    }
+
+    // --- Lectura real: extracción + mora, como una sola unidad ---
+    const t0 = Date.now();
+    const llamadas: LlmCallRecord[] = [];
+
+    const { facts, meta } = await extractDocFacts(doc, rows, anthropic, model, todayStr, logger);
+    if (meta) llamadas.push({ skill: PER_DOC_READER, model: meta.model, usage: meta.usage });
+
+    const moraActiva = process.env.CENTINELA_CALCULADORA_MORA !== 'false';
+    // Misma condición que usa `enrichUnDocConMora`, importada de ahí para que no puedan divergir.
+    const habriaNecesitadoMora = necesitaMora(facts);
+    let mora: 'no_aplica' | 'ok' | 'fallo' | 'apagada' = 'no_aplica';
+
+    if (!facts.read_failed && moraActiva) {
+      mora = await enrichUnDocConMora(
+        facts,
+        async () => {
+          const { estados, meta: m } = await runCalculadoraMora(doc, anthropic, model, todayStr, logger);
+          if (m) llamadas.push({ skill: MORA_READER, model: m.model, usage: m.usage });
+          return estados;
+        },
+        (m) => log(m)
+      );
+    } else if (!facts.read_failed && habriaNecesitadoMora) {
+      // El toggle `CENTINELA_CALCULADORA_MORA` NO está en la llave del caché (y no debería:
+      // apagarlo es una excepción operativa, no otra forma de leer el papel). Pero una corrida
+      // con el toggle apagado produce una lectura SIN `fecha_mora` que, si se guardara,
+      // envenenaría todas las corridas siguientes con el toggle prendido. Se marca incompleta.
+      mora = 'apagada';
+    }
+
+    leidas++;
+
+    // Solo se persiste la unidad COMPLETA (extracción + mora). Motivos para no guardar:
+    //  · `read_failed` → 429/529/JSON truncado en la extracción;
+    //  · mora 'fallo'  → de algún producto no se obtuvo RESPUESTA de la calculadora (lanzó, no
+    //    devolvió estados, no reportó ese producto, o la fecha no se pudo parsear): ese producto
+    //    quedó sin `fecha_mora` y el hit de la corrida siguiente retornaría ANTES del bloque de
+    //    mora, así que nunca se reintentaría
+    //    (una respuesta NEGATIVA —"este producto no está en mora"— es 'ok' y sí se cachea)
+    //    → esa deuda quedaría en Art. 261 en vez de 260 para siempre y para cualquier cliente
+    //    con ese PDF, y bajaría el conteo de productos con 91+ días (requisito de admisibilidad);
+    //  · mora 'apagada' → ver arriba.
+    // Un caché caído encarece la corrida; no puede degradarla en silencio.
+    const unidadCompleta = !facts.read_failed && mora !== 'fallo' && mora !== 'apagada';
+    if (!unidadCompleta && !facts.read_failed) {
+      log(`🚫 ${doc.filename}: NO se cachea la lectura — la sub-etapa de mora quedó ${mora === 'fallo' ? 'INCOMPLETA (ver el ⚠️ de arriba: algún producto no obtuvo respuesta de la calculadora)' : 'SIN CORRER (CENTINELA_CALCULADORA_MORA=false)'}. Se reintentará en la próxima corrida.`);
+    }
+
+    if (key && unidadCompleta) {
+      await registrarLectura(
+        supabase,
+        key,
+        {
+          // `emision` se OMITE a propósito: es una derivación relativa al día de la lectura
+          // (`extractEmissionDateFromText` descarta lo posterior a hoy) y es el desempate del
+          // dedup de productos. Se recalcula al servir el hit desde `emision_llm`.
+          facts: { ...facts, emision: undefined },
+          filename: doc.filename,
+          durationMs: Date.now() - t0,
+          llmCalls: llamadas,
+          automationJobId: ctx.automationJobId,
+          rut: ctx.rut,
+        },
+        logger
+      );
+    } else if (llamadas.length > 0) {
+      // Aunque no se guarde la lectura, el gasto ocurrió: se registra igual.
+      await registrarConsumo(supabase, llamadas, { rut: ctx.rut, automationJobId: ctx.automationJobId, filename: doc.filename }, logger);
+    }
+
+    return facts;
   });
+
+  log(`📖 Lecturas: ${reutilizadas} reutilizada(s), ${leidas} leída(s) del modelo.`);
+
   // Un documento que no se pudo LEER no es un documento sin productos: seguir dejaría al
   // acreedor fuera de la declaración (o diagnosticado como "falta el documento" cuando existe).
   // Es un error TÉCNICO → se lanza para que el retry loop del worker reintente el job.
@@ -350,17 +591,7 @@ export async function runPerDocExtraction(
       `Es un error técnico (API/red): se reintenta el job en vez de declarar el caso incompleto.`
     );
   }
-  // Enganche calculadora de mora: por cada estado_cuenta, derivar fecha_inicio_mora (Ley 20.720)
-  // y estamparla como fecha_mora del producto ANTES del ruteo 260/261. Toggle CENTINELA_CALCULADORA_MORA.
-  if (process.env.CENTINELA_CALCULADORA_MORA !== 'false') {
-    const docByName = new Map(documents.map((d) => [d.filename, d]));
-    const runCalc = async (facts: DocFacts): Promise<unknown[]> => {
-      const src = docByName.get(facts.filename);
-      if (!src) throw new Error(`sin doc fuente para ${facts.filename}`);
-      return runCalculadoraMora(src, anthropic, model, todayStr, logger);
-    };
-    await enrichEstadosCuentaConMora(factsList, runCalc, (m) => log(m));
-  }
+
   const raw = assembleRawFromDocFacts(factsList, cmfResult, catalog, clientRut, todayStr, logger);
   // Exponer el doc_type que el LLM clasificó por documento, para que las heurísticas
   // deterministas aguas abajo (isChatDocument / classifyNonAccreditingDoc) CONFÍEN en él en

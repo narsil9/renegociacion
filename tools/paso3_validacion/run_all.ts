@@ -36,6 +36,12 @@ const TESTS = [
   'test_carpeta_tributaria.ts',          // categoría tributaria + falsos positivos de actividad F29
   'test_cert_line_items.ts',             // ítems de un cert: no emitir el TOTAL GLOBAL como producto
   'test_catalogo_acreedores.ts',         // el catálogo LANZA ante error de base (contrato del que depende el fix del catch{} de sentinel.ts)
+  'test_document_reads.ts',              // llaves de document_reads (contenido y contexto)
+  'test_dedup_contenido.ts',             // el mismo PDF por correo y por Drive es UN documento
+  'test_extraccion_pura.ts',             // el prompt per-doc no depende de la fecha (requisito del caché)
+  'test_doc_scope.ts',                   // el Paso 3 no lee documentos de ingreso
+  'test_degradacion_261.ts',             // toda degradación 260→261 dice por qué (rule_id + evidencia)
+  'test_cache_lectura.ts',               // el caché no congela lo degradado: mora fallada no se persiste, filename/emisión del hit
 ];
 
 const results: { test: string; passed: boolean }[] = [];

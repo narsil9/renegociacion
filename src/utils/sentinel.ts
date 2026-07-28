@@ -14,9 +14,11 @@ import {
   AcreedorCatalogEntry,
 } from './acreedor_matcher';
 import { extractDatesFromText, extractEmissionDateFromText, ClientDocument } from './cognitive_orchestrator';
+import { contentHash } from './document_reads';
 import { runPerDocExtraction } from './sentinel_per_doc';
 import { loadReaderLessons } from './lessons_loader';
 import { applyDeterministicBackstops, isChatDocument, classifyNonAccreditingDoc } from './sentinel_backstops';
+import { esDocumentoDeIngreso } from './doc_scope';
 // Re-export para compatibilidad (otros módulos/tests importan estos helpers desde sentinel.ts).
 export { isChatDocument, classifyNonAccreditingDoc } from './sentinel_backstops';
 import * as fs from 'fs';
@@ -150,6 +152,18 @@ export interface DeReclassified261Creditor {
    * la mora SÍ existe y el producto SIGUE contando para los 2 productos con 91+ días.
    */
   degradedForMissingVenc?: boolean;
+  /**
+   * Cuál de las tres ramas del backstop degradó esta deuda. Es la respuesta a "¿por qué
+   * quedó en 261?", y hasta ahora solo existía en una línea de log:
+   *   · BACKSTOP_OVERRIDE_DEGRADADO — había un override 260 pero sin fecha de vencimiento acreditada.
+   *   · BACKSTOP_SIN_DOCUMENTO     — mora 90+d en el CMF y ningún documento del acreedor.
+   *
+   * NO existe un valor para "el banco ya está cubierto por sus productos": esa rama del
+   * backstop hace `continue` sin emitir fila, para no duplicar el pasivo con el total del CMF.
+   */
+  rule_id: 'BACKSTOP_OVERRIDE_DEGRADADO' | 'BACKSTOP_SIN_DOCUMENTO';
+  /** La misma evidencia que llevan sus cuatro tipos hermanos: cita textual, confianza, RUT del emisor. */
+  evidence?: ExtractionEvidence;
 }
 
 /**
@@ -257,6 +271,72 @@ export function clampDocTextForClaude(text: string): string {
 }
 
 /**
+ * Colapsa los documentos que son el MISMO papel.
+ *
+ * Por qué hace falta: el proyector del panel arma el destino como
+ * `{rut}/certs/{email-<id>|drive-<id>}_{filename}`, así que un PDF que existe como
+ * adjunto de correo Y como archivo de Drive genera dos rutas, dos objetos en el bucket
+ * y dos filas en `client_documents`. Su dedup compara `storage_path`, que difiere.
+ * Acá se compara el CONTENIDO.
+ *
+ * Un documento sin `sha256` nunca se agrupa: se le da una clave propia. Es preferible
+ * leer de más a colapsar dos papeles distintos.
+ *
+ * Desempate: gana la copia con MÁS INFORMACIÓN, no cualquiera. Las dos filas del proyector
+ * NO son intercambiables — el resolver de instituciones corre por fila y resuelve por RUT o,
+ * si falla, por NOMBRE DE ARCHIVO (que difiere entre copias), y el abogado puede haber
+ * asignado la institución a mano a una sola de las dos. Si gana la copia sin
+ * `institucion_cmf`, se pierde el ancla del CMF en el prompt, el banco queda sin documento
+ * asociado y el backstop inyecta el TOTAL DEL CMF en Art. 261 en vez del monto del certificado.
+ * Orden: (1) `institucion_cmf` no vacía, (2) `document_type` 22/23 (acredita monto o
+ * vencimiento), (3) más períodos (`n_periodos`, el criterio original — misma regla que el
+ * dedup del Centinela: un PDF con los últimos 4 estados vale más que el estado suelto).
+ */
+export function puntajeInfoCopia(
+  d: { institucion_cmf?: string | null; document_type?: number | null; n_periodos?: number }
+): [number, number, number] {
+  return [
+    (d.institucion_cmf ?? '').trim() ? 1 : 0,
+    d.document_type === 22 || d.document_type === 23 ? 1 : 0,
+    d.n_periodos ?? 1,
+  ];
+}
+
+export function dedupPorContenido<
+  T extends {
+    sha256?: string;
+    storage_path: string;
+    filename: string;
+    n_periodos?: number;
+    institucion_cmf?: string | null;
+    document_type?: number | null;
+  }
+>(docs: T[], log: (m: string) => void): T[] {
+  const porClave = new Map<string, T>();
+  const masInfo = (a: T, b: T): T => {
+    const pa = puntajeInfoCopia(a), pb = puntajeInfoCopia(b);
+    for (let i = 0; i < pa.length; i++) if (pa[i] !== pb[i]) return pa[i] > pb[i] ? a : b;
+    return a; // empate total: gana el primero (el `select` viene con ORDER BY estable)
+  };
+  for (const doc of docs) {
+    const clave = doc.sha256 ? `sha:${doc.sha256}` : `unico:${doc.storage_path}`;
+    const previo = porClave.get(clave);
+    if (!previo) {
+      porClave.set(clave, doc);
+      continue;
+    }
+    const gana = masInfo(previo, doc);
+    const pierde = gana === doc ? previo : doc;
+    porClave.set(clave, gana);
+    log(
+      `🧬 Mismo contenido: "${pierde.filename}" (${pierde.storage_path}) ya está como ` +
+      `"${gana.filename}" (${gana.storage_path}) — se lee una sola vez.`
+    );
+  }
+  return Array.from(porClave.values());
+}
+
+/**
  * Executes API Key #1 (Sentinel) to analyze the CMF and certificates uploaded by the lawyer.
  * Bypassed only if DISABLE_SENTINEL=true is set explicitly.
  */
@@ -335,14 +415,23 @@ export async function runSentinelCheck(
     // 2. Obtener y descargar certificados
     log('Obteniendo certificados de acreditación desde Supabase...');
     let documents: ClientDocument[] = [];
+    // sha256 que ya tiene cada fila de `client_documents` (para escribir solo lo que cambió).
+    // Solo se puebla con filas REALES de la tabla: los documentos del fallback desde
+    // `acreditacion_documentos_json` tienen ids inventados y no se pueden actualizar.
+    const shaPrevioPorId = new Map<string, string | null>();
     const { data: dbDocs, error: dbErr } = await supabase
       .from('client_documents')
       .select('*')
-      .eq('client_id', client.id);
+      .eq('client_id', client.id)
+      // ORDER BY estable: sin él, el ganador del dedup por contenido a igualdad de información
+      // dependía del orden que devolviera Postgres (no garantizado) y podía cambiar entre corridas.
+      .order('uploaded_at', { ascending: true })
+      .order('id', { ascending: true });
 
     if (dbErr) {
       log(`⚠️ Tabla client_documents no disponible, usando fallback desde client.acreditacion_documentos_json. Detalle: ${dbErr.message}`);
     } else if (dbDocs && dbDocs.length > 0) {
+      for (const d of dbDocs as any[]) shaPrevioPorId.set(d.id, d.sha256 ?? null);
       documents = dbDocs.map((d: any) => ({
         id: d.id,
         client_id: d.client_id,
@@ -390,6 +479,23 @@ export async function runSentinelCheck(
       };
     }
 
+    // El Paso 3 no lee documentos de ingreso: no pueden generar un producto declarable,
+    // y el agente de Ingresos los lee después con su propio prompt. Leerlos acá es una
+    // llamada a Opus por documento, tirada.
+    const antesFiltro = documents.length;
+    const deIngreso: typeof documents = [];
+    const noDeIngreso: typeof documents = [];
+    for (const d of documents) {
+      (esDocumentoDeIngreso(d) ? deIngreso : noDeIngreso).push(d);
+    }
+    if (deIngreso.length > 0) {
+      documents = noDeIngreso;
+      log(
+        `💰 ${deIngreso.length} de ${antesFiltro} documento(s) son de ingreso y los lee el Paso 5, ` +
+        `no el Paso 3: ${deIngreso.map((d) => d.filename).join(', ')}.`
+      );
+    }
+
     // Descargar cada certificado y extraer texto/imagen
     for (const doc of documents) {
       const ext = path.extname(doc.storage_path) || '.pdf';
@@ -404,7 +510,12 @@ export async function runSentinelCheck(
       log(`Descargando "${doc.filename}"...`);
       const { data, error } = await supabase.storage.from('documentos').download(doc.storage_path);
       if (error || !data) throw new Error(`Error al descargar ${doc.filename}: ${error?.message || 'vacío'}`);
-      fs.writeFileSync(localPath, Buffer.from(await data.arrayBuffer()));
+      const buf = Buffer.from(await data.arrayBuffer());
+      fs.writeFileSync(localPath, buf);
+      // Identidad de CONTENIDO. Se calcula sobre los bytes recién bajados del bucket,
+      // NUNCA sobre lo que haya en outputs/: el resolver de instituciones todavía sirve
+      // archivos viejos desde disco, y hashear eso envenenaría el caché de lecturas.
+      doc.sha256 = contentHash(buf);
 
       // Determinar si es PDF de texto, PDF escaneado o Imagen
       const extLower = ext.toLowerCase();
@@ -451,6 +562,43 @@ export async function runSentinelCheck(
           log(`⚠️ ${doc.filename}: no legible automáticamente${stat ? ` (${(stat.size / 1024 / 1024).toFixed(1)} MB > tope nativo ${(NATIVE_PDF_MAX_BYTES / 1024 / 1024)} MB)` : ' (sin stat)'} → revisión manual.`);
         }
       }
+    }
+
+    // Persistir el sha256 en `client_documents`. Sin esto la columna y su índice nacen muertos
+    // y la pregunta "¿qué leímos del caso de X?" no se puede contestar en SQL: `document_reads`
+    // no lleva `client_id` a propósito, el join es contra `client_documents.sha256`.
+    // Se escriben SOLO las filas cuyo hash cambió o estaba null, y un error NO rompe la corrida
+    // (es trazabilidad, no correctitud del cálculo) — pero se loguea, nunca en silencio.
+    // ponytail: un UPDATE por fila cambiada (normalmente 0 después de la primera corrida);
+    // si algún día son cientos, un upsert con onConflict=id en una sola llamada.
+    const shaPorEscribir = documents.filter(
+      (d) => d.sha256 && shaPrevioPorId.has(d.id) && shaPrevioPorId.get(d.id) !== d.sha256
+    );
+    if (shaPorEscribir.length > 0) {
+      const resultados = await Promise.all(
+        shaPorEscribir.map(async (d) => {
+          const { error } = await supabase.from('client_documents').update({ sha256: d.sha256 }).eq('id', d.id);
+          return { filename: d.filename, error };
+        })
+      );
+      const fallidos = resultados.filter((r) => r.error);
+      if (fallidos.length > 0) {
+        logError(
+          `⚠️ No se pudo guardar el sha256 de ${fallidos.length}/${shaPorEscribir.length} documento(s) ` +
+          `(${fallidos.map((f) => f.filename).join(', ')}) — la corrida sigue; solo se pierde trazabilidad.`,
+          fallidos[0].error
+        );
+      }
+      log(`🔗 sha256 registrado en client_documents: ${shaPorEscribir.length - fallidos.length}/${shaPorEscribir.length} fila(s).`);
+    }
+
+    // Los duplicados los fabrica el proyector (mismo PDF por correo y por Drive = dos
+    // rutas). Se colapsan ACÁ, después de bajar los bytes, porque recién ahí se conoce
+    // el contenido. `documents` es `let`, así que la reasignación compila.
+    const antesDedup = documents.length;
+    documents = dedupPorContenido(documents, log);
+    if (documents.length < antesDedup) {
+      log(`🧬 ${antesDedup} documentos → ${documents.length} únicos por contenido (${antesDedup - documents.length} duplicado(s) del proyector).`);
     }
 
     // 3. Ejecutar pre-análisis TypeScript determinista
@@ -949,7 +1097,9 @@ ${loadReaderLessons('paso3')}
         todayStr,
         anthropic,
         perDocModel,
-        logger
+        logger,
+        supabase,
+        { automationJobId: process.env.CURRENT_JOB_ID ?? null, rut: client.rut ?? null }
       );
     } else {
     const userMessageParts: any[] = [];

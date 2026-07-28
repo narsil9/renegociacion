@@ -7,7 +7,7 @@
  * (imagen / PDF nativo / texto).
  */
 import Anthropic from '@anthropic-ai/sdk';
-import type { SentinelDocLike, SimpleLogger } from '../sentinel_per_doc';
+import type { SentinelDocLike, SimpleLogger, LlmCallMeta } from '../sentinel_per_doc';
 import { buildMoraSystemPrompt, MORA_USER_MESSAGE } from './mora-prompt';
 
 const MORA_MAX_OUTPUT = 4000;
@@ -39,7 +39,7 @@ export async function runCalculadoraMora(
   model: string,
   todayStr: string,
   logger?: SimpleLogger
-): Promise<unknown[]> {
+): Promise<{ estados: unknown[]; meta: LlmCallMeta | null }> {
   const log = (m: string) => (logger ? logger.log(`🧮 [Mora] ${m}`) : console.log(m));
   const parts: any[] = [];
   if (doc.isImageDoc && doc.imageBase64) {
@@ -59,6 +59,7 @@ export async function runCalculadoraMora(
     system: [{ type: 'text', text: buildMoraSystemPrompt(todayToChileLabel(todayStr)), cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: parts }],
   });
+  const meta: LlmCallMeta = { model, usage: (resp as { usage?: LlmCallMeta['usage'] }).usage ?? {} };
   const block = resp.content.find((b) => b.type === 'text');
   const parsed = parseJsonLoose(block && block.type === 'text' ? block.text : '');
   const estados = Array.isArray(parsed)
@@ -66,7 +67,7 @@ export async function runCalculadoraMora(
     : parsed && typeof parsed === 'object' && Array.isArray((parsed as { estados?: unknown }).estados)
       ? (parsed as { estados: unknown[] }).estados
       : null;
-  if (!estados) { log(`${doc.filename}: respuesta no interpretable → sin estados`); return []; }
+  if (!estados) { log(`${doc.filename}: respuesta no interpretable → sin estados`); return { estados: [], meta }; }
   log(`${doc.filename}: ${estados.length} estado(s) analizado(s).`);
-  return estados as unknown[];
+  return { estados: estados as unknown[], meta };
 }
