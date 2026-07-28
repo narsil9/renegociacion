@@ -458,6 +458,14 @@ async function processJob(job: any): Promise<void> {
   // descargar el CMF, para evitar la doble descarga y limitar el coste a los
   // pasos que realmente necesitan el análisis de acreedores.
 
+  // Id del job para la trazabilidad de las lecturas y del consumo. Se fija acá, al
+  // arranque de processJob, y no más abajo junto a DRY_RUN, porque el Centinela corre
+  // antes que el bloque de Playwright: si se seteara junto a DRY_RUN llegaría 240
+  // líneas tarde y automation_job_id quedaría null en cada corrida real. Viaja por env
+  // por la misma razón que DRY_RUN: el worker corre 1 job a la vez (WORKER_CONCURRENCY
+  // clampeado a 1). Si algún día corre más de uno, esto tiene que pasar a parámetro.
+  process.env.CURRENT_JOB_ID = String(job.id);
+
   // Safety interlock: set DRY_RUN env dynamically for this job
   const originalDryRun = process.env.DRY_RUN;
   const maxAttempts = 3;
@@ -818,11 +826,6 @@ async function processJob(job: any): Promise<void> {
 
       process.env.DRY_RUN = job.dry_run === false ? 'false' : 'true';
       logger.log(`⚙️  Configurando DRY_RUN para esta ejecución: ${process.env.DRY_RUN}`);
-
-      // Id del job para la trazabilidad de las lecturas y del consumo. Viaja por env por
-      // la misma razón que DRY_RUN: el worker corre 1 job a la vez (WORKER_CONCURRENCY
-      // clampeado a 1). Si algún día corre más de uno, esto tiene que pasar a parámetro.
-      process.env.CURRENT_JOB_ID = String(job.id);
 
       logger.log('🚀 Iniciando navegador Playwright (Headless)...');
       await reportProgress(job.id, 'Abriendo el portal de la Superintendencia…');
