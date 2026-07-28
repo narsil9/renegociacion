@@ -1,6 +1,10 @@
 node_modules
 dist/
-.env
+# Cualquier variante de .env, no solo el nombre exacto: en el Mac Mini había un
+# `.env.bak.20260723120520` con credenciales que el patrón `.env` NO cubría, untracked
+# dentro de un repo con remote a GitHub (un `git add -A` lo habría publicado).
+.env*
+!.env.example
 .DS_Store
 .vscode/
 outputs/*.png
