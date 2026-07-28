@@ -18,6 +18,7 @@ import { contentHash } from './document_reads';
 import { runPerDocExtraction } from './sentinel_per_doc';
 import { loadReaderLessons } from './lessons_loader';
 import { applyDeterministicBackstops, isChatDocument, classifyNonAccreditingDoc } from './sentinel_backstops';
+import { esDocumentoDeIngreso } from './doc_scope';
 // Re-export para compatibilidad (otros módulos/tests importan estos helpers desde sentinel.ts).
 export { isChatDocument, classifyNonAccreditingDoc } from './sentinel_backstops';
 import * as fs from 'fs';
@@ -427,6 +428,19 @@ export async function runSentinelCheck(
           requiredCertificatesPresent: false,
         },
       };
+    }
+
+    // El Paso 3 no lee documentos de ingreso: no pueden generar un producto declarable,
+    // y el agente de Ingresos los lee después con su propio prompt. Leerlos acá es una
+    // llamada a Opus por documento, tirada.
+    const antesFiltro = documents.length;
+    const deIngreso = documents.filter((d) => esDocumentoDeIngreso(d));
+    if (deIngreso.length > 0) {
+      documents = documents.filter((d) => !esDocumentoDeIngreso(d));
+      log(
+        `💰 ${deIngreso.length} de ${antesFiltro} documento(s) son de ingreso y los lee el Paso 5, ` +
+        `no el Paso 3: ${deIngreso.map((d) => d.filename).join(', ')}.`
+      );
     }
 
     // Descargar cada certificado y extraer texto/imagen
