@@ -46,19 +46,34 @@ function pickCard(estados: MoraEstado[], operacion?: string): MoraEstado | undef
  *
  * No lanza: si la calculadora falla, el documento queda sin `fecha_mora` y se avisa —
  * el ruteo 260/261 lo degradará a 261, que es el comportamiento correcto y ya existente.
+ *
+ * Pero SÍ informa qué pasó, con el resultado:
+ *   'no_aplica' → el documento no necesita mora (no es estado_cuenta o no tiene productos);
+ *   'ok'        → la calculadora corrió;
+ *   'fallo'     → la calculadora lanzó (429/529/JSON ilegible) y el doc quedó sin fecha_mora.
+ * El caller lo necesita para NO persistir en el caché una unidad incompleta: si se guardara,
+ * el índice único la volvería la lectura vigente y la mora nunca se reintentaría — un 529
+ * transitorio dejaría esa deuda en Art. 261 para siempre y para todos los clientes con ese PDF.
  */
 export async function enrichUnDocConMora(
   facts: DocFacts,
   runCalc: RunCalculadora,
   log: (m: string) => void = () => {}
-): Promise<void> {
-  if (facts.doc_type !== 'estado_cuenta' || facts.productos.length === 0) return;
+): Promise<'no_aplica' | 'ok' | 'fallo'> {
+  if (facts.doc_type !== 'estado_cuenta' || facts.productos.length === 0) return 'no_aplica';
   let estados: MoraEstado[];
   try {
     estados = recomputarEstados(await runCalc(facts)); // la mitad determinista de la calculadora
   } catch (e) {
     log(`⚠️ calculadora de mora falló en ${facts.filename}: ${e instanceof Error ? e.message : String(e)} — se deja sin fecha_mora`);
-    return;
+    return 'fallo';
+  }
+  if (estados.length === 0) {
+    // `runCalculadoraMora` no lanza cuando la respuesta del modelo no es interpretable:
+    // devuelve `estados: []`. El efecto sobre el documento es el MISMO que un 529 (queda sin
+    // `fecha_mora`), así que también cuenta como fallo y la lectura no se cachea.
+    log(`⚠️ calculadora de mora no devolvió estados para ${facts.filename} (respuesta no interpretable) — se deja sin fecha_mora`);
+    return 'fallo';
   }
   for (const p of facts.productos) {
     const card = pickCard(estados, p.operacion);
@@ -80,6 +95,7 @@ export async function enrichUnDocConMora(
     p.cita_fecha = `${canon} — inicio de mora (calculadora Ley 20.720)`;
     log(`📅 ${facts.filename}: fecha_mora=${iso} por calculadora (${card.dias_mora}d) → ${p.operacion ?? p.etiqueta_monto}. Motivo: ${(card.explicacion ?? '').slice(0, 200)}`);
   }
+  return 'ok';
 }
 
 /** Versión por lista. Se conserva por compatibilidad con los tests existentes. */
