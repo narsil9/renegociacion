@@ -36,6 +36,7 @@ const TESTS = [
   'test_carpeta_tributaria.ts',          // categoría tributaria + falsos positivos de actividad F29
   'test_cert_line_items.ts',             // ítems de un cert: no emitir el TOTAL GLOBAL como producto
   'test_catalogo_acreedores.ts',         // el catálogo LANZA ante error de base (contrato del que depende el fix del catch{} de sentinel.ts)
+  'test_document_reads.ts',              // llaves de document_reads (contenido y contexto)
 ];
 
 const results: { test: string; passed: boolean }[] = [];
