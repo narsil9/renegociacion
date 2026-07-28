@@ -26,6 +26,7 @@ import { fetchAcreedoresCatalog, topNCandidates } from './utils/acreedor_matcher
 import { buildReadIssuesAlert } from './utils/read_issues_alert';
 import { runMapeadorAgent } from './agents/mapeador_agent';
 import { CentinelaOutput } from './agents/types';
+import { esCertificadoDeAcreedor } from './utils/doc_scope';
 
 /**
  * BUG-08 FIX: Dedicated error class for cases that must not be retried and
@@ -292,14 +293,7 @@ async function gatherStep5Input(
     // para NO depender del nombre del archivo (un 'ilovepdf_merged.pdf' o 'scan1.pdf' se perdía y el
     // Paso 5 se omitía en silencio). Un cert mal-resuelto (institucion_cmf vacío) que se cuele lo
     // descarta aguas abajo el LLM (paso "0)" del prompt → category 'otro'); nunca declara un ingreso falso.
-    const isAcreedorCert = (d: any): boolean => {
-      const inst = (d?.institucion_cmf ?? '').toString().trim();
-      const tipo = (d?.acreditacion_tipo ?? '').toString().trim().toLowerCase();
-      const dt = Number(d?.document_type);
-      return inst.length > 0 || tipo === 'monto' || tipo === 'vencimiento' || dt === 22 || dt === 23;
-    };
-
-    const incomeRows = rows.filter((d: any) => isCotiz(d.filename) || isIncome(d.filename) || !isAcreedorCert(d));
+    const incomeRows = rows.filter((d: any) => isCotiz(d.filename) || isIncome(d.filename) || !esCertificadoDeAcreedor(d));
     if (incomeRows.length === 0) {
       logger.log('ℹ️ [Paso 5] No se encontraron documentos de ingreso en client_documents — se omite el Paso 5.');
       return alertarOmision('el cliente no tiene ningún documento de ingreso cargado (liquidaciones, pensión, honorarios, etc.).');
