@@ -819,6 +819,11 @@ async function processJob(job: any): Promise<void> {
       process.env.DRY_RUN = job.dry_run === false ? 'false' : 'true';
       logger.log(`⚙️  Configurando DRY_RUN para esta ejecución: ${process.env.DRY_RUN}`);
 
+      // Id del job para la trazabilidad de las lecturas y del consumo. Viaja por env por
+      // la misma razón que DRY_RUN: el worker corre 1 job a la vez (WORKER_CONCURRENCY
+      // clampeado a 1). Si algún día corre más de uno, esto tiene que pasar a parámetro.
+      process.env.CURRENT_JOB_ID = String(job.id);
+
       logger.log('🚀 Iniciando navegador Playwright (Headless)...');
       await reportProgress(job.id, 'Abriendo el portal de la Superintendencia…');
       const { browser, page } = await launchBrowser();
@@ -1340,6 +1345,7 @@ async function processJob(job: any): Promise<void> {
   } else {
     delete process.env.DRY_RUN;
   }
+  delete process.env.CURRENT_JOB_ID;
 
   logger.log(`🏁 Finalizado procesamiento del Job ${job.id}.\n`);
 }

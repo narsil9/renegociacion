@@ -1002,7 +1002,9 @@ ${loadReaderLessons('paso3')}
         todayStr,
         anthropic,
         perDocModel,
-        logger
+        logger,
+        supabase,
+        { automationJobId: process.env.CURRENT_JOB_ID ?? null, rut: client.rut ?? null }
       );
     } else {
     const userMessageParts: any[] = [];

@@ -12,6 +12,7 @@
  * backstops post-LLM existentes en sentinel.ts (reconciliación, completitud, gate 260→261, anti-error).
  */
 import Anthropic from '@anthropic-ai/sdk';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   AcreedorCatalogEntry,
   canonicalInstitutionKey,
@@ -21,11 +22,20 @@ import {
 } from './acreedor_matcher';
 import { normalizeOperationId } from './cert_line_items';
 import { UF_CLP } from './cmf_analyzer';
-import { loadReaderLessons } from './lessons_loader';
+import { loadReaderLessons, lessonsVersion } from './lessons_loader';
 import { extractEmissionDateFromText } from './cognitive_orchestrator';
 import { getCurrentChileDate, parseDateString } from './date_helper';
 import { runCalculadoraMora } from './calculadora-mora/mora-api';
-import { enrichEstadosCuentaConMora } from './calculadora-mora/mora-runner';
+import { enrichUnDocConMora } from './calculadora-mora/mora-runner';
+import {
+  contextHash,
+  findLecturaVigente,
+  registrarLectura,
+  registrarConsumo,
+  PER_DOC_READER,
+  MORA_READER,
+  type LlmCallRecord,
+} from './document_reads';
 
 // --- Tipos de extracción (lo único que devuelve el LLM, por documento) ---
 
@@ -118,6 +128,7 @@ export interface SentinelDocLike {
   filename: string;
   institucion_cmf: string | null;
   acreditacion_tipo?: string | null;
+  sha256?: string;
   isImageDoc?: boolean;
   imageMimeType?: string;
   imageBase64?: string;
@@ -362,9 +373,13 @@ export async function runPerDocExtraction(
   todayStr: string,
   anthropic: Anthropic,
   model: string,
-  logger?: SimpleLogger
+  logger: SimpleLogger | undefined,
+  supabase: SupabaseClient,
+  ctx: { automationJobId: string | null; rut: string | null }
 ): Promise<any> {
   const log = (m: string) => (logger ? logger.log(`🛡️ [PerDoc] ${m}`) : console.log(m));
+  const logErr = (m: string, e?: unknown) => (logger ? logger.error(`🛡️ [PerDoc] ${m}`, e) : console.error(m, e));
+
   // Filas del CMF por banco canónico (referencia para cada doc)
   const rowsByBank = new Map<string, CmfRowRef[]>();
   for (const c of cmfResult.creditors) {
@@ -373,13 +388,89 @@ export async function runPerDocExtraction(
     if (!rowsByBank.has(k)) rowsByBank.set(k, []);
     rowsByBank.get(k)!.push({ tipoCredito: c.tipoCredito, totalCredito: c.totalCredito, overdue90Days: c.overdue90Days });
   }
-  log(`Leyendo ${documents.length} documento(s) UNO POR UNO con ${model} (pool 5)...`);
-  const factsList = await mapPool(documents, 5, async (doc) => {
+
+  const versionLecciones = lessonsVersion('paso3');
+  let reutilizadas = 0;
+  let leidas = 0;
+
+  log(`Procesando ${documents.length} documento(s) con ${model} (pool 5)...`);
+
+  const factsList = await mapPool(documents, 5, async (doc): Promise<DocFacts> => {
     const rows = doc.institucion_cmf ? (rowsByBank.get(canonicalInstitutionKey(doc.institucion_cmf)) ?? []) : [];
-    // Provisional: la Task 4 reescribe esta función para usar el meta (telemetría/caché).
-    const { facts } = await extractDocFacts(doc, rows, anthropic, model, todayStr, logger);
+
+    // Sin sha256 no hay identidad de contenido → se lee siempre, sin cachear.
+    // Es preferible pagar la lectura a servir la de otro papel.
+    const key = doc.sha256
+      ? {
+          docSha256: doc.sha256,
+          reader: PER_DOC_READER,
+          promptVersion: PER_DOC_PROMPT_VERSION,
+          lessonsVersion: versionLecciones,
+          model,
+          contextHash: contextHash({
+            institucionCmf: doc.institucion_cmf,
+            acreditacionTipo: doc.acreditacion_tipo,
+            cmfRows: rows,
+          }),
+        }
+      : null;
+
+    if (key) {
+      const vigente = await findLecturaVigente(supabase, key, logger);
+      if (vigente) {
+        reutilizadas++;
+        log(`♻️ ${doc.filename}: lectura reutilizada (sin llamada al modelo).`);
+        return vigente as DocFacts;
+      }
+    }
+
+    // --- Lectura real: extracción + mora, como una sola unidad ---
+    const t0 = Date.now();
+    const llamadas: LlmCallRecord[] = [];
+
+    const { facts, meta } = await extractDocFacts(doc, rows, anthropic, model, todayStr, logger);
+    if (meta) llamadas.push({ skill: PER_DOC_READER, model: meta.model, usage: meta.usage });
+
+    if (!facts.read_failed && process.env.CENTINELA_CALCULADORA_MORA !== 'false') {
+      await enrichUnDocConMora(
+        facts,
+        async () => {
+          const { estados, meta: m } = await runCalculadoraMora(doc, anthropic, model, todayStr, logger);
+          if (m) llamadas.push({ skill: MORA_READER, model: m.model, usage: m.usage });
+          return estados;
+        },
+        (m) => log(m)
+      );
+    }
+
+    leidas++;
+
+    // Solo se persiste lo COMPLETADO. Una lectura fallida (429/529/JSON truncado) no
+    // puede quedar cacheada: el reintento del worker tiene que volver a intentar de verdad.
+    if (key && !facts.read_failed) {
+      await registrarLectura(
+        supabase,
+        key,
+        {
+          facts,
+          filename: doc.filename,
+          durationMs: Date.now() - t0,
+          llmCalls: llamadas,
+          automationJobId: ctx.automationJobId,
+          rut: ctx.rut,
+        },
+        logger
+      );
+    } else if (llamadas.length > 0) {
+      // Aunque no se guarde la lectura, el gasto ocurrió: se registra igual.
+      await registrarConsumo(supabase, llamadas, { rut: ctx.rut, automationJobId: ctx.automationJobId, filename: doc.filename }, logger);
+    }
+
     return facts;
   });
+
+  log(`📖 Lecturas: ${reutilizadas} reutilizada(s), ${leidas} leída(s) del modelo.`);
+
   // Un documento que no se pudo LEER no es un documento sin productos: seguir dejaría al
   // acreedor fuera de la declaración (o diagnosticado como "falta el documento" cuando existe).
   // Es un error TÉCNICO → se lanza para que el retry loop del worker reintente el job.
@@ -390,19 +481,7 @@ export async function runPerDocExtraction(
       `Es un error técnico (API/red): se reintenta el job en vez de declarar el caso incompleto.`
     );
   }
-  // Enganche calculadora de mora: por cada estado_cuenta, derivar fecha_inicio_mora (Ley 20.720)
-  // y estamparla como fecha_mora del producto ANTES del ruteo 260/261. Toggle CENTINELA_CALCULADORA_MORA.
-  if (process.env.CENTINELA_CALCULADORA_MORA !== 'false') {
-    const docByName = new Map(documents.map((d) => [d.filename, d]));
-    const runCalc = async (facts: DocFacts): Promise<unknown[]> => {
-      const src = docByName.get(facts.filename);
-      if (!src) throw new Error(`sin doc fuente para ${facts.filename}`);
-      // Provisional: la Task 4 reescribe esta función para usar el meta (telemetría/caché).
-      const { estados } = await runCalculadoraMora(src, anthropic, model, todayStr, logger);
-      return estados;
-    };
-    await enrichEstadosCuentaConMora(factsList, runCalc, (m) => log(m));
-  }
+
   const raw = assembleRawFromDocFacts(factsList, cmfResult, catalog, clientRut, todayStr, logger);
   // Exponer el doc_type que el LLM clasificó por documento, para que las heurísticas
   // deterministas aguas abajo (isChatDocument / classifyNonAccreditingDoc) CONFÍEN en él en

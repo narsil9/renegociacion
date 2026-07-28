@@ -120,6 +120,16 @@ export async function runCentinelaAgent(
   await markRunning(supabase, runId);
   log(`Run centinela iniciado (runId: ${runId})`);
 
+  // El Centinela corre antes, en el flujo del worker, de donde éste fija
+  // `process.env.CURRENT_JOB_ID` (worker.ts lo setea junto a DRY_RUN, más abajo en
+  // processJob). Si todavía no llegó — o si quien llama a este agente no es el worker
+  // (p. ej. una herramienta de prueba) — se propaga el runId de este agent_run como
+  // identificador de trazabilidad para `document_reads`/`herramientas_uso`, en vez de
+  // dejarlo null.
+  if (!process.env.CURRENT_JOB_ID) {
+    process.env.CURRENT_JOB_ID = runId;
+  }
+
   try {
     // runSentinelCheck descarga el CMF internamente usando client.informe_cmf_path.
     // El CMF ya está en cmfLocalPath (descargado por el worker), pero sentinel.ts
