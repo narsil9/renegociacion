@@ -27,7 +27,7 @@ import { loadReaderLessons, lessonsVersion } from './lessons_loader';
 import { extractEmissionDateFromText } from './cognitive_orchestrator';
 import { getCurrentChileDate, parseDateString } from './date_helper';
 import { runCalculadoraMora } from './calculadora-mora/mora-api';
-import { enrichUnDocConMora } from './calculadora-mora/mora-runner';
+import { enrichUnDocConMora, necesitaMora } from './calculadora-mora/mora-runner';
 import { buildMoraSystemPrompt } from './calculadora-mora/mora-prompt';
 import {
   contextHash,
@@ -494,6 +494,12 @@ export async function runPerDocExtraction(
           // `detectedByFilename` del chequeo de RUT (bloqueante) y el fallback del catálogo del
           // Paso 3. Un filename que ya no existe en la lista los rompe todos en silencio.
           filename: doc.filename,
+          // Igual que `filename`: `institucion_asignada` es un dato del DOCUMENTO, no del papel,
+          // y `contextHash` solo lo compara normalizado (`.trim().toLowerCase()`) — la copia
+          // guardada pudo tener '  BANCO DE CHILE ' donde esta corrida tiene 'Banco de Chile'.
+          // El ensamblador lo usa crudo como `bankName` → `bank`/`institucion_cmf` de cada fila
+          // declarada: es el string que lee el abogado y que se teclea en el portal.
+          institucion_asignada: doc.institucion_cmf,
           // La emisión no se persiste (es relativa a hoy): se recalcula con los datos de esta corrida.
           emision: emisionDeLaCorrida(doc, guardados.emision_llm, todayStr),
         };
@@ -508,7 +514,8 @@ export async function runPerDocExtraction(
     if (meta) llamadas.push({ skill: PER_DOC_READER, model: meta.model, usage: meta.usage });
 
     const moraActiva = process.env.CENTINELA_CALCULADORA_MORA !== 'false';
-    const habriaNecesitadoMora = facts.doc_type === 'estado_cuenta' && facts.productos.length > 0;
+    // Misma condición que usa `enrichUnDocConMora`, importada de ahí para que no puedan divergir.
+    const habriaNecesitadoMora = necesitaMora(facts);
     let mora: 'no_aplica' | 'ok' | 'fallo' | 'apagada' = 'no_aplica';
 
     if (!facts.read_failed && moraActiva) {
@@ -533,15 +540,18 @@ export async function runPerDocExtraction(
 
     // Solo se persiste la unidad COMPLETA (extracción + mora). Motivos para no guardar:
     //  · `read_failed` → 429/529/JSON truncado en la extracción;
-    //  · mora 'fallo'  → la calculadora lanzó: el doc quedó sin `fecha_mora` y el hit de la
-    //    corrida siguiente retornaría ANTES del bloque de mora, así que nunca se reintentaría
+    //  · mora 'fallo'  → de algún producto no se obtuvo RESPUESTA de la calculadora (lanzó, no
+    //    devolvió estados, no reportó ese producto, o la fecha no se pudo parsear): ese producto
+    //    quedó sin `fecha_mora` y el hit de la corrida siguiente retornaría ANTES del bloque de
+    //    mora, así que nunca se reintentaría
+    //    (una respuesta NEGATIVA —"este producto no está en mora"— es 'ok' y sí se cachea)
     //    → esa deuda quedaría en Art. 261 en vez de 260 para siempre y para cualquier cliente
     //    con ese PDF, y bajaría el conteo de productos con 91+ días (requisito de admisibilidad);
     //  · mora 'apagada' → ver arriba.
     // Un caché caído encarece la corrida; no puede degradarla en silencio.
     const unidadCompleta = !facts.read_failed && mora !== 'fallo' && mora !== 'apagada';
     if (!unidadCompleta && !facts.read_failed) {
-      log(`🚫 ${doc.filename}: NO se cachea la lectura — la sub-etapa de mora quedó ${mora === 'fallo' ? 'FALLADA (la calculadora lanzó)' : 'SIN CORRER (CENTINELA_CALCULADORA_MORA=false)'}. Se reintentará en la próxima corrida.`);
+      log(`🚫 ${doc.filename}: NO se cachea la lectura — la sub-etapa de mora quedó ${mora === 'fallo' ? 'INCOMPLETA (ver el ⚠️ de arriba: algún producto no obtuvo respuesta de la calculadora)' : 'SIN CORRER (CENTINELA_CALCULADORA_MORA=false)'}. Se reintentará en la próxima corrida.`);
     }
 
     if (key && unidadCompleta) {

@@ -6,6 +6,8 @@
  *  C1  una lectura cuya sub-etapa de mora falló NO se persiste (pero el gasto sí se registra).
  *  C2  un hit devuelve el `filename` del documento ACTUAL, no el guardado en la fila.
  *  I2  un hit recalcula `emision` (derivación relativa a hoy) y no la sirve congelada.
+ *  C3  respuesta AUSENTE (sin `card`, o fecha no parseable) no se persiste; respuesta NEGATIVA
+ *      (`card` con fecha vacía = estado de cuenta al día) SÍ se persiste.
  *  REG `cita_fecha` de la calculadora no lleva nada relativo a hoy (ni días, ni "análisis").
  *
  * Uso: npx ts-node --transpile-only tools/paso3_validacion/test_cache_lectura.ts
@@ -180,6 +182,52 @@ async function main() {
     check('respuesta de mora no interpretable = fallo', (await enrichUnDocConMora(facts, async () => [])) === 'fallo');
     const sinProductos: DocFacts = { filename: 'cert.pdf', doc_type: 'desglose_por_producto', productos: [] };
     check('documento que no necesita mora = no_aplica', (await enrichUnDocConMora(sinProductos, async () => [])) === 'no_aplica');
+  }
+
+  // ── C3: respuesta AUSENTE vs respuesta NEGATIVA de la calculadora ─────────────────────────
+  // 'ok' tiene que medir que la calculadora RESPONDIÓ sobre este producto, no que el producto
+  // haya quedado con `fecha_mora`. Si midiera lo segundo, un estado de cuenta AL DÍA (respuesta
+  // negativa legítima) nunca se cachearía y el ahorro se cae.
+  {
+    // Multiproducto: con >=2 estados `pickCard` exige los últimos 4 dígitos. El extractor
+    // reporta el Nº de operación del crédito y la calculadora la tarjeta enmascarada → no matchea.
+    const sinCard: DocFacts = {
+      filename: 'ec_multi.pdf', doc_type: 'estado_cuenta',
+      productos: [{ operacion: 'D26400005756', monto: 1_000_000, etiqueta_monto: 'Saldo', moneda: 'CLP', cita_monto: '$1.000.000', confidence: 0.9 }],
+    };
+    const rSinCard = await enrichUnDocConMora(sinCard, async () => [
+      { numero: 1, numero_contrato: 'XXXX1111', fecha_inicio_mora: '05/02/2026', dias_mora: 10 },
+      { numero: 2, numero_contrato: 'XXXX2222', fecha_inicio_mora: '06/03/2026', dias_mora: 10 },
+    ]);
+    check('C3 — producto sin `card` (la calculadora no dijo nada de él) = fallo → no se persiste',
+      rSinCard === 'fallo', `res=${rSinCard} ${JSON.stringify(sinCard.productos[0])}`);
+    check('C3 — y el producto quedó sin fecha_mora', sinCard.productos[0].fecha_mora === undefined);
+
+    // Respuesta NEGATIVA: la calculadora encontró el producto y dice que no está en mora.
+    const alDia: DocFacts = {
+      filename: 'ec_al_dia.pdf', doc_type: 'estado_cuenta',
+      productos: [{ operacion: '1234', monto: 1_000_000, etiqueta_monto: 'Saldo', moneda: 'CLP', cita_monto: '$1.000.000', confidence: 0.9 }],
+    };
+    const rAlDia = await enrichUnDocConMora(alDia, async () => [
+      { numero: 1, numero_contrato: 'XXXX1234', fecha_inicio_mora: null, dias_mora: 0 },
+    ]);
+    check('C3 — `card` con fecha vacía (estado de cuenta al día) = ok → SÍ se persiste',
+      rAlDia === 'ok', `res=${rAlDia}`);
+    check('C3 — y no se inventó una fecha_mora', alDia.productos[0].fecha_mora === undefined);
+
+    // Respuesta que se pierde al parsear: año de 2 dígitos.
+    const impresentable: DocFacts = {
+      filename: 'ec_fecha_rara.pdf', doc_type: 'estado_cuenta',
+      productos: [{ operacion: '1234', monto: 1_000_000, etiqueta_monto: 'Saldo', moneda: 'CLP', cita_monto: '$1.000.000', confidence: 0.9 }],
+    };
+    const logs: string[] = [];
+    const rRara = await enrichUnDocConMora(impresentable, async () => [
+      { numero: 1, numero_contrato: 'XXXX1234', fecha_inicio_mora: '05/02/26', dias_mora: 10 },
+    ], (m) => logs.push(m));
+    check('C3 — `card` con fecha que no parsea ("05/02/26") = fallo → no se persiste',
+      rRara === 'fallo', `res=${rRara}`);
+    check('C3 — el log trae el valor crudo que no se pudo parsear',
+      logs.some((m) => m.includes('05/02/26')), JSON.stringify(logs));
   }
 
   console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);

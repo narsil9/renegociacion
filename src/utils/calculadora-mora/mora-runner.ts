@@ -30,6 +30,18 @@ export function toIsoDate(fecha: string | null | undefined): string | null {
 /** Últimos 4 dígitos de un identificador (para matchear tarjeta de la calculadora ↔ producto). */
 const last4 = (s?: string) => (s ? s.replace(/\D/g, '').slice(-4) : '');
 
+/**
+ * ÚNICA definición de "este documento necesita la calculadora de mora".
+ *
+ * Es la condición de entrada de `enrichUnDocConMora` Y el guard que usa el caller para saber
+ * que una corrida con el toggle apagado dejó una unidad incompleta. Estaba duplicada en los dos
+ * lugares: si esta función ampliara su alcance (p. ej. a `cartola`), el guard del toggle dejaría
+ * de coincidir y volvería a colarse una lectura sin `fecha_mora` al caché, en silencio.
+ */
+export function necesitaMora(facts: DocFacts): boolean {
+  return facts.doc_type === 'estado_cuenta' && facts.productos.length > 0;
+}
+
 function pickCard(estados: MoraEstado[], operacion?: string): MoraEstado | undefined {
   if (estados.length === 1) return estados[0]; // 1 doc = 1 tarjeta (caso común)
   const want = last4(operacion);
@@ -48,9 +60,17 @@ function pickCard(estados: MoraEstado[], operacion?: string): MoraEstado | undef
  * el ruteo 260/261 lo degradará a 261, que es el comportamiento correcto y ya existente.
  *
  * Pero SÍ informa qué pasó, con el resultado:
- *   'no_aplica' → el documento no necesita mora (no es estado_cuenta o no tiene productos);
- *   'ok'        → la calculadora corrió;
- *   'fallo'     → la calculadora lanzó (429/529/JSON ilegible) y el doc quedó sin fecha_mora.
+ *   'no_aplica' → el documento no necesita mora (ver `necesitaMora`);
+ *   'ok'        → la calculadora RESPONDIÓ sobre todos los productos de este documento
+ *                 (incluida la respuesta negativa "este producto no está en mora");
+ *   'fallo'     → de al menos un producto no se obtuvo respuesta: la calculadora lanzó
+ *                 (429/529/JSON ilegible), no devolvió estados, no reportó ese producto,
+ *                 o reportó una fecha que no se pudo interpretar.
+ *
+ * ⚠️ 'ok' NO significa "algún producto quedó con fecha_mora". Un estado de cuenta AL DÍA no
+ * tiene mora y esa es una respuesta válida que SÍ hay que cachear; medir "ningún producto
+ * obtuvo fecha" como fallo mataría el ahorro para todos los papeles sanos. La distinción que
+ * importa es respuesta AUSENTE (no se cachea) vs respuesta NEGATIVA (se cachea).
  * El caller lo necesita para NO persistir en el caché una unidad incompleta: si se guardara,
  * el índice único la volvería la lectura vigente y la mora nunca se reintentaría — un 529
  * transitorio dejaría esa deuda en Art. 261 para siempre y para todos los clientes con ese PDF.
@@ -60,7 +80,7 @@ export async function enrichUnDocConMora(
   runCalc: RunCalculadora,
   log: (m: string) => void = () => {}
 ): Promise<'no_aplica' | 'ok' | 'fallo'> {
-  if (facts.doc_type !== 'estado_cuenta' || facts.productos.length === 0) return 'no_aplica';
+  if (!necesitaMora(facts)) return 'no_aplica';
   let estados: MoraEstado[];
   try {
     estados = recomputarEstados(await runCalc(facts)); // la mitad determinista de la calculadora
@@ -75,10 +95,36 @@ export async function enrichUnDocConMora(
     log(`⚠️ calculadora de mora no devolvió estados para ${facts.filename} (respuesta no interpretable) — se deja sin fecha_mora`);
     return 'fallo';
   }
+  // Respuesta AUSENTE sobre algún producto. Se sigue procesando el resto (la clasificación de
+  // esta corrida no cambia: cada producto que sí obtuvo fecha la conserva), pero el resultado
+  // es 'fallo' para que el caller NO congele la unidad en el caché.
+  let ausente = false;
   for (const p of facts.productos) {
+    const idProd = p.operacion ?? p.etiqueta_monto;
     const card = pickCard(estados, p.operacion);
-    const iso = toIsoDate(card?.fecha_inicio_mora);
-    if (!card || !iso) continue;
+    if (!card) {
+      // `pickCard` con >=2 estados exige los últimos 4 dígitos: si el extractor reporta el
+      // número de operación del crédito y la calculadora la tarjeta enmascarada, no matchea.
+      // La calculadora no dijo NADA de este producto → respuesta ausente, no negativa.
+      ausente = true;
+      log(`⚠️ ${facts.filename}: la calculadora no reportó ningún estado para la operación "${idProd}" (contratos reportados: ${estados.map((e) => e.numero_contrato ?? '(sin numero_contrato)').join(', ')}) — sin fecha_mora y la lectura NO se cachea`);
+      continue;
+    }
+    const cruda = (card.fecha_inicio_mora ?? '').trim();
+    if (!cruda) {
+      // Respuesta NEGATIVA: la calculadora encontró el producto y dice que no está en mora
+      // (estado de cuenta al día). Es información válida → 'ok', se cachea.
+      log(`✅ ${facts.filename}: la calculadora reporta "${idProd}" SIN mora (fecha_inicio_mora vacía) — respuesta válida, la lectura se cachea`);
+      continue;
+    }
+    const iso = toIsoDate(cruda);
+    if (!iso) {
+      // Hubo respuesta pero se perdió al parsear (p. ej. "05/02/26": `toIsoDate` exige 4
+      // dígitos de año). El valor crudo va al log: es lo que hace falta para arreglar `toIsoDate`.
+      ausente = true;
+      log(`⚠️ ${facts.filename}: fecha_inicio_mora=${JSON.stringify(cruda)} de "${idProd}" no se pudo interpretar (toIsoDate) — hubo respuesta pero se perdió al parsear; la lectura NO se cachea`);
+      continue;
+    }
     p.fecha_mora = iso;
     const [cy, cm, cd] = iso.split('-');
     const canon = `${cd}/${cm}/${cy}`; // DD/MM/YYYY canónico → siempre corrobora la Capa 2
@@ -95,7 +141,7 @@ export async function enrichUnDocConMora(
     p.cita_fecha = `${canon} — inicio de mora (calculadora Ley 20.720)`;
     log(`📅 ${facts.filename}: fecha_mora=${iso} por calculadora (${card.dias_mora}d) → ${p.operacion ?? p.etiqueta_monto}. Motivo: ${(card.explicacion ?? '').slice(0, 200)}`);
   }
-  return 'ok';
+  return ausente ? 'fallo' : 'ok';
 }
 
 /** Versión por lista. Se conserva por compatibilidad con los tests existentes. */
