@@ -47,6 +47,37 @@ const r4 = dedupPorContenido(
 );
 check('desempata por n_periodos', r4.length === 1 && r4[0].n_periodos === 4, JSON.stringify(r4));
 
+// Desempate por INFORMACIÓN: las dos copias del proyector no son intercambiables. El resolver
+// de instituciones resuelve por RUT o, si falla, por nombre de archivo (que difiere), así que
+// una copia puede tener `institucion_cmf` y la otra no. Si gana la que no la tiene, el banco
+// queda sin documento y el backstop declara el total del CMF en Art. 261.
+const conInst = { sha256: 'eee', storage_path: 'x/1.pdf', filename: 'santander_cert.pdf', institucion_cmf: 'Banco Santander' };
+const sinInst = { sha256: 'eee', storage_path: 'x/2.pdf', filename: 'documento (1).pdf', institucion_cmf: null };
+for (const [nombre, lista] of [
+  ['la que tiene institución primero', [conInst, sinInst]],
+  ['la que tiene institución última', [sinInst, conInst]],
+] as [string, typeof conInst[]][]) {
+  const r = dedupPorContenido(lista, noop);
+  check(`gana la copia con institucion_cmf (${nombre})`,
+    r.length === 1 && r[0].institucion_cmf === 'Banco Santander', JSON.stringify(r));
+}
+
+// Segundo criterio: document_type 22/23 (acredita monto/vencimiento) por sobre otro tipo.
+const r6 = dedupPorContenido(
+  [{ sha256: 'fff', storage_path: 'x/1.pdf', filename: 'a.pdf', document_type: 24 },
+   { sha256: 'fff', storage_path: 'x/2.pdf', filename: 'b.pdf', document_type: 22 }],
+  noop
+);
+check('desempata por document_type 22/23', r6.length === 1 && r6[0].document_type === 22, JSON.stringify(r6));
+
+// La institución pesa MÁS que n_periodos: perder el ancla del CMF es peor que perder períodos.
+const r7 = dedupPorContenido(
+  [{ sha256: 'ggg', storage_path: 'x/1.pdf', filename: 'a.pdf', institucion_cmf: null, n_periodos: 4 },
+   { sha256: 'ggg', storage_path: 'x/2.pdf', filename: 'b.pdf', institucion_cmf: 'Banco de Chile', n_periodos: 1 }],
+  noop
+);
+check('la institución pesa más que n_periodos', r7.length === 1 && r7[0].institucion_cmf === 'Banco de Chile', JSON.stringify(r7));
+
 // No pierde nada cuando no hay duplicados.
 const r5 = dedupPorContenido([otro], noop);
 check('lista sin duplicados queda igual', r5.length === 1);

@@ -282,14 +282,42 @@ export function clampDocTextForClaude(text: string): string {
  * Un documento sin `sha256` nunca se agrupa: se le da una clave propia. Es preferible
  * leer de más a colapsar dos papeles distintos.
  *
- * Desempate entre copias idénticas: gana la que declara más períodos (`n_periodos`),
- * misma regla que el dedup del Centinela — un PDF con los últimos 4 estados de cuenta
- * vale más que el estado suelto.
+ * Desempate: gana la copia con MÁS INFORMACIÓN, no cualquiera. Las dos filas del proyector
+ * NO son intercambiables — el resolver de instituciones corre por fila y resuelve por RUT o,
+ * si falla, por NOMBRE DE ARCHIVO (que difiere entre copias), y el abogado puede haber
+ * asignado la institución a mano a una sola de las dos. Si gana la copia sin
+ * `institucion_cmf`, se pierde el ancla del CMF en el prompt, el banco queda sin documento
+ * asociado y el backstop inyecta el TOTAL DEL CMF en Art. 261 en vez del monto del certificado.
+ * Orden: (1) `institucion_cmf` no vacía, (2) `document_type` 22/23 (acredita monto o
+ * vencimiento), (3) más períodos (`n_periodos`, el criterio original — misma regla que el
+ * dedup del Centinela: un PDF con los últimos 4 estados vale más que el estado suelto).
  */
+export function puntajeInfoCopia(
+  d: { institucion_cmf?: string | null; document_type?: number | null; n_periodos?: number }
+): [number, number, number] {
+  return [
+    (d.institucion_cmf ?? '').trim() ? 1 : 0,
+    d.document_type === 22 || d.document_type === 23 ? 1 : 0,
+    d.n_periodos ?? 1,
+  ];
+}
+
 export function dedupPorContenido<
-  T extends { sha256?: string; storage_path: string; filename: string; n_periodos?: number }
+  T extends {
+    sha256?: string;
+    storage_path: string;
+    filename: string;
+    n_periodos?: number;
+    institucion_cmf?: string | null;
+    document_type?: number | null;
+  }
 >(docs: T[], log: (m: string) => void): T[] {
   const porClave = new Map<string, T>();
+  const masInfo = (a: T, b: T): T => {
+    const pa = puntajeInfoCopia(a), pb = puntajeInfoCopia(b);
+    for (let i = 0; i < pa.length; i++) if (pa[i] !== pb[i]) return pa[i] > pb[i] ? a : b;
+    return a; // empate total: gana el primero (el `select` viene con ORDER BY estable)
+  };
   for (const doc of docs) {
     const clave = doc.sha256 ? `sha:${doc.sha256}` : `unico:${doc.storage_path}`;
     const previo = porClave.get(clave);
@@ -297,7 +325,7 @@ export function dedupPorContenido<
       porClave.set(clave, doc);
       continue;
     }
-    const gana = (doc.n_periodos ?? 1) > (previo.n_periodos ?? 1) ? doc : previo;
+    const gana = masInfo(previo, doc);
     const pierde = gana === doc ? previo : doc;
     porClave.set(clave, gana);
     log(
@@ -387,14 +415,23 @@ export async function runSentinelCheck(
     // 2. Obtener y descargar certificados
     log('Obteniendo certificados de acreditación desde Supabase...');
     let documents: ClientDocument[] = [];
+    // sha256 que ya tiene cada fila de `client_documents` (para escribir solo lo que cambió).
+    // Solo se puebla con filas REALES de la tabla: los documentos del fallback desde
+    // `acreditacion_documentos_json` tienen ids inventados y no se pueden actualizar.
+    const shaPrevioPorId = new Map<string, string | null>();
     const { data: dbDocs, error: dbErr } = await supabase
       .from('client_documents')
       .select('*')
-      .eq('client_id', client.id);
+      .eq('client_id', client.id)
+      // ORDER BY estable: sin él, el ganador del dedup por contenido a igualdad de información
+      // dependía del orden que devolviera Postgres (no garantizado) y podía cambiar entre corridas.
+      .order('uploaded_at', { ascending: true })
+      .order('id', { ascending: true });
 
     if (dbErr) {
       log(`⚠️ Tabla client_documents no disponible, usando fallback desde client.acreditacion_documentos_json. Detalle: ${dbErr.message}`);
     } else if (dbDocs && dbDocs.length > 0) {
+      for (const d of dbDocs as any[]) shaPrevioPorId.set(d.id, d.sha256 ?? null);
       documents = dbDocs.map((d: any) => ({
         id: d.id,
         client_id: d.client_id,
@@ -525,6 +562,34 @@ export async function runSentinelCheck(
           log(`⚠️ ${doc.filename}: no legible automáticamente${stat ? ` (${(stat.size / 1024 / 1024).toFixed(1)} MB > tope nativo ${(NATIVE_PDF_MAX_BYTES / 1024 / 1024)} MB)` : ' (sin stat)'} → revisión manual.`);
         }
       }
+    }
+
+    // Persistir el sha256 en `client_documents`. Sin esto la columna y su índice nacen muertos
+    // y la pregunta "¿qué leímos del caso de X?" no se puede contestar en SQL: `document_reads`
+    // no lleva `client_id` a propósito, el join es contra `client_documents.sha256`.
+    // Se escriben SOLO las filas cuyo hash cambió o estaba null, y un error NO rompe la corrida
+    // (es trazabilidad, no correctitud del cálculo) — pero se loguea, nunca en silencio.
+    // ponytail: un UPDATE por fila cambiada (normalmente 0 después de la primera corrida);
+    // si algún día son cientos, un upsert con onConflict=id en una sola llamada.
+    const shaPorEscribir = documents.filter(
+      (d) => d.sha256 && shaPrevioPorId.has(d.id) && shaPrevioPorId.get(d.id) !== d.sha256
+    );
+    if (shaPorEscribir.length > 0) {
+      const resultados = await Promise.all(
+        shaPorEscribir.map(async (d) => {
+          const { error } = await supabase.from('client_documents').update({ sha256: d.sha256 }).eq('id', d.id);
+          return { filename: d.filename, error };
+        })
+      );
+      const fallidos = resultados.filter((r) => r.error);
+      if (fallidos.length > 0) {
+        logError(
+          `⚠️ No se pudo guardar el sha256 de ${fallidos.length}/${shaPorEscribir.length} documento(s) ` +
+          `(${fallidos.map((f) => f.filename).join(', ')}) — la corrida sigue; solo se pierde trazabilidad.`,
+          fallidos[0].error
+        );
+      }
+      log(`🔗 sha256 registrado en client_documents: ${shaPorEscribir.length - fallidos.length}/${shaPorEscribir.length} fila(s).`);
     }
 
     // Los duplicados los fabrica el proyector (mismo PDF por correo y por Drive = dos
