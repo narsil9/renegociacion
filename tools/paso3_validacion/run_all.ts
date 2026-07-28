@@ -35,6 +35,7 @@ const TESTS = [
   'test_yasmin.ts',                      // caso Yasmín (cobranza La Polar) contra la declaración de la abogada
   'test_carpeta_tributaria.ts',          // categoría tributaria + falsos positivos de actividad F29
   'test_cert_line_items.ts',             // ítems de un cert: no emitir el TOTAL GLOBAL como producto
+  'test_catalogo_acreedores.ts',         // el catálogo LANZA ante error de base (contrato del que depende el fix del catch{} de sentinel.ts)
 ];
 
 const results: { test: string; passed: boolean }[] = [];

@@ -457,10 +457,28 @@ export async function runSentinelCheck(
     const todayDate = getCurrentChileDate();
     const todayStr = todayDate.toISOString().split('T')[0];
 
-    let catalog: AcreedorCatalogEntry[] = [];
-    try {
-      catalog = await fetchAcreedoresCatalog(supabase);
-    } catch {}
+    // G2 — el catálogo es load-bearing, NO se traga el error. Un catálogo vacío no degrada
+    // una cosa: apaga CINCO, y el síntoma es indistinguible de "el abogado no subió los
+    // certificados":
+    //   1. `computeRutCheckLocal` devuelve vacío → `rutMismatch` nunca es true → un
+    //      certificado del banco equivocado se declara igual (y `rut_mismatch` es BLOQUEANTE).
+    //   2. `matchAcreedor` sobre los acreedores del CMF → el set de RUT queda vacío.
+    //   3. `findCatalogEntryByRut` → no se detecta el emisor de ningún documento.
+    //   4. `runPerDocExtraction` lee cada documento sin el catálogo.
+    //   5. `applyDeterministicBackstops` corre sin él.
+    // Dejar propagar es lo correcto: el catch de nivel superior de `runSentinelCheck`
+    // devuelve `technicalError: true`, y `runCentinelaAgent` lo convierte en un error
+    // reintentable (el worker reintenta 3 veces) en vez de bloquear al cliente.
+    const catalog: AcreedorCatalogEntry[] = await fetchAcreedoresCatalog(supabase);
+    if (catalog.length === 0) {
+      // Fetch OK pero 0 filas activas: no es transitorio (reintentar no sirve), pero
+      // seguir sería declarar a ciegas. Se corta con un motivo accionable.
+      throw new Error(
+        'El catálogo acreedores_canonicos cargó vacío (0 filas con activo=true). Sin él no ' +
+        'corre el chequeo de RUT del emisor ni la reconciliación NO-CMF: se corta antes de declarar.'
+      );
+    }
+    log(`✓ Catálogo acreedores_canonicos: ${catalog.length} acreedores activos.`);
 
     const clientRutForCerts = client.rut ?? null;
 

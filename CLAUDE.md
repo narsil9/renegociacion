@@ -28,10 +28,9 @@ This is consistent with the principles already established in this file (see *"E
 
 - **Stack**: Node.js, TypeScript, Playwright, Ghostscript (PDF compression), Supabase (Client Data & Cookie Sharing), Anthropic SDK (`@anthropic-ai/sdk` — Cognitive Orchestrator / Mente Pensante)
 - **Runtime Environment**: Mac Mini (Headless Server)
-- **Start / Run Command**: `npm run automate -- --rut=<RUT> --step=<STEP_NUMBER>`
 - **Worker Command**: `npm run worker`
 - **Build Command**: `npm run build`
-- **Test Command**: `npm test`
+- **Test Command**: `npm test` (⚠️ solo Paso 5). La batería determinista del Paso 3 son **19 suites** y no tiene script: `npx ts-node --transpile-only tools/paso3_validacion/run_all.ts`. Una suite nueva hay que registrarla en el array `TESTS` o no corre.
 
 ## 🟢 Encender el sistema (worker / daemon)
 
@@ -99,6 +98,16 @@ El **worker es el daemon** (un solo proceso): pollea la cola `automation_jobs` c
 
 ## Critical Rules
 
+### Gotchas verificados contra producción (2026-07-27)
+- **`content_hash` mezcla dos largos**: 4.939 filas tienen un prefijo de 16 caracteres y 238 el sha256 completo. Un join contra un hash recién calculado falla en silencio en el 95%.
+- **RLS: `setup.sql` miente.** Declara `POLICY FOR ALL TO public` que nunca se aplicó. En prod las tablas del worker tienen RLS activa **sin policies** (= cerradas). El bucket `screenshots` sí es **público**.
+- **`uq_active_job_per_client` NO existe en prod**, aunque `superir-proyector.ts:341` atrapa el 23505 como si existiera.
+- **El caché de `agent_runs` es "el último run", no un store por llave.** Si el input va A→B→A, volver a A NO es un hit.
+- **Re-correr un caso NO re-lee documentos**: `docsSig` no cambia → el Centinela pega en caché y solo se re-ejecuta Playwright. Para forzar lectura: `delete from agent_runs where client_id = …`.
+- **La verdad-terreno de los 36 fixtures es sintética** (`ground_truth_source: "derivado"`, la derivó una IA). Mejorar el scorecard puede ser mejorar el acuerdo con otra IA. Los contrastes reales: `oracle_truth.ts` (3 casos) y los conteos de `scorecard.ts`.
+- **Las suites verdes no prueban el código que declara en el portal**: `planStep3Rows` y `fillStep3` son la misma lógica dos veces y ya divergió; los golden corren sobre la copia pura. `deep_compare.ts` no está en la batería.
+- **El panel se queda atrás rápido** (43 commits en 5 días). `git fetch origin && git log origin/auth-admin` antes de planificar algo que lo toque. `lib/models.ts` es un contrato: debe ser idéntico en los dos repos.
+
 ### Error Handling
 - NEVER swallow errors silently. Always catch, log via `RunnerLogger`, and update the job status in Supabase.
 - Playwright scripts must capture a screenshot upon failure and save the page HTML to the `outputs/` directory.
@@ -106,7 +115,7 @@ El **worker es el daemon** (un solo proceso): pollea la cola `automation_jobs` c
 ### Portal State Integrity (Testing & Dry-Runs)
 - **Dry Runs**: By default, runs are executed with `DRY_RUN=true`. Under dry runs, do NOT commit/submit forms to proceed to the next step.
 - **Auto-Cleanup**: In Step 2, if `DRY_RUN=true`, the script must automatically delete the uploaded files at the end of the test so that subsequent trials start with a clean draft state.
-- **Database Safety / Sandbox-como-producción**: El sistema opera HOY sobre el proyecto Supabase **sandbox (`fnz…`)** como si fuera producción. El worker usa las tablas `clients` y `automation_jobs` del sandbox (las viejas `pato_prueba_*` quedaron **obsoletas**, no se usan). **NUNCA** crear, escribir ni importar datos del proyecto del abogado (`ton…`); solo se lee de prod (read-only) para credenciales cuando un cliente tiene `airtable_id` (hoy no aplica: los clientes nuevos llevan su ClaveÚnica propia en `clients.clave_unica_password`).
+- **Database Safety**: hay **una sola** Supabase (`tonrzmlrrcnizamtzqte`) y es la del estudio. El sandbox `fnz…` no existe (verificado 2026-07-27). El worker **escribe** ahí: `clients`, `automation_jobs`, `agent_runs`, `automation_alerts`, `client_documents` y el bucket `documentos`. Todo lo demás de esa base es de Milo o del warehouse del estudio: **no escribir fuera de esas cinco tablas y ese bucket**. Sin sandbox no hay red de seguridad, y la service-role key da acceso total.
 
 ### Modal Bypass & Direct Submissions
 - **Step 1 Modal Workaround**: If the preview modal `#confirmarInformacionModal` doesn't become visible within 5 seconds of clicking Save, programmatically trigger the submission via page evaluation:
@@ -289,10 +298,10 @@ All critical Playwright operations in `step3_acreedores.ts` are wrapped in `with
 
 ## Supabase Database — Supabase de Producción
 
-La base de datos del estudio del Abogado Ricardo Puelma es la fuente de verdad de todos los clientes y casos de renegociación. Se accede vía Supabase con las variables `PROD_SUPABASE_URL` y `PROD_SUPABASE_SERVICE_ROLE_KEY` en el `.env`. Hay **48 tablas** en total; abajo se documentan solo las relevantes para la automatización.
+La base de datos del estudio del Abogado Ricardo Puelma es la fuente de verdad de todos los clientes y casos de renegociación. Se accede con `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (las únicas que existen). `public` tiene **48 tablas y 17 vistas**; la base completa son 8 esquemas. Abajo se documentan solo las relevantes para la automatización.
 
-> 🗺️ **Mapa verificado de fuentes:** para saber **a qué tabla/columna/bucket ir por cada dato o documento**, ver **[`docs/integracion/mapa-fuentes-produccion.md`](docs/integracion/mapa-fuentes-produccion.md)** (verificado en vivo contra `ton…`, con columnas reales y cobertura). Re-verificar con `tools/audit_prod_sources.ts`.
-> ⚠️ **SOLO LECTURA sobre `ton…`** (SELECT/GET). NUNCA insert/update/delete. La service-role key da acceso total → la disciplina de solo-lectura es nuestra.
+> 🗺️ **Mapa de fuentes:** [`docs/integracion/mapa-fuentes-produccion.md`](docs/integracion/mapa-fuentes-produccion.md) — ⚠️ su arquitectura (sandbox + prod) es FALSA desde el 2026-07-27; sus columnas y coberturas siguen sirviendo. Los `tools/audit_*` que cita fueron borrados en `cbec1e5`.
+> ⚠️ El worker **escribe** en esta base (jobs, agent_runs, alertas). La regla vieja de "solo lectura sobre `ton…`" ya no aplica: es la única base que hay.
 
 La clave de unión entre las tablas de renegociación es **`airtable_id`** (el record ID del caso en Airtable, ej. `recXXXXXXXXXXXXXX`). **Excepciones a tener en cuenta:**
 - `cmf_informes`: el `airtable_id` es el record del *attachment*; el caso se enlaza por **`case_airtable_id`**.
@@ -427,11 +436,11 @@ No clonar ni sincronizar todo (evita duplicar PII de ~1.200 casos, ventana de st
 
 ---
 
-## Dashboard del abogado — repo `rp_carga_documentos` (Next.js 16, separado) — ⚠️ TRANSITORIO (se jubila)
+## Dashboard del abogado — repo `rp_carga_documentos` — ☠️ YA NO EXISTE (histórico)
 
-> **Estado (2026-06-27):** este dashboard fue el **input provisional** mientras no existía la conexión con el dashboard del supervisor. Su función (recopilar y clasificar la carpeta del cliente) la cubre el agente del dashboard del supervisor. **Se jubila** cuando se concrete la integración (ver sección anterior). Sigue documentado porque es lo que corre HOY.
+> **Estado (2026-07-27):** **jubilado y borrado.** No está en `/Users/patomartini/Desktop/rp_carga_documentos` ni en ningún lado del disco. El input de producción es el panel `auth-admin` (botón "Ejecutar" → `lib/superir-proyector.ts`). Lo de abajo se conserva solo como referencia de qué campos llenaba cada vista; no describe nada que corra hoy.
 
-Ubicación: `/Users/patomartini/Desktop/rp_carga_documentos`. Es el **input de producción HOY**: el abogado NO entra a Supabase. Apunta al sandbox `fnz…` (`lib/supabase.ts`). Tiene dos vistas:
+Tenía dos vistas:
 
 ### Vista "Datos Personales" (`app/datos-personales/`)
 Crea/edita la fila del cliente en `clients` con los mismos `<select>` del portal (Paso 1).
@@ -453,19 +462,24 @@ El worker consume todo esto: CMF vía `informe_cmf_path`, certificados vía `cli
 
 ## Flujo de datos para la automatización Superir
 
-Sandbox-como-producción: todo el flujo vive en el sandbox `fnz…`. El proyecto del abogado (`ton…`) NO se toca.
+**UNA sola Supabase: `tonrzmlrrcnizamtzqte`.** El sandbox `fnz…` NO existe en ningún entorno vivo (verificado 2026-07-27 contra el `.env` del Mac Mini y `.env.example`: solo hay `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`). Las tablas del worker y las de Milo conviven ahí.
 
 ```
-[Dashboard rp_carga_documentos] (abogado)
-  Datos Personales → upsert clients (datos Paso 1 + ClaveÚnica propia)
-  Cargar Caso      → Storage `documentos` + client_documents + *_path en clients
-                   → INSERT automation_jobs (client_id + step, dry_run)
+[Panel auth-admin] botón "Ejecutar" — solo-admin, gate `presentacion_pato`='manual'
+  lib/superir-proyector.ts → copia PDFs al bucket `documentos`
+                           → upsert clients (ClaveÚnica en claro; el panel la borra al terminar)
+                           → insert client_documents (dedup por storage_path, NUNCA borra)
+                           → INSERT automation_jobs (step 0, dry_run)
 
-[SANDBOX fnz… — Mac Mini ejecuta el worker]
+[Mac Mini — pm2 `superir-worker`, polling 5s]
   worker.ts toma el job → cadena de agentes (tributario→centinela→mapeador)
-                        → Playwright login → step1..step4
-  automation_jobs (UPDATE) → status/error/screenshot/logs al completar
+                        → Playwright login → pasos 1→5 (NUNCA radica)
+  automation_jobs (UPDATE) + automation_alerts + agent_runs
 ```
+
+⚠️ `prodSupabase` (`supabaseWorker.ts:32`) queda **null** en producción porque `PROD_SUPABASE_*` no existe → `resolveClaveUnica` nunca lee `renegociacion_overrides` (1.391 filas, misma base, misma key) y cae al fallback. Ya mató un job el 2026-07-23. `rp_carga_documentos` no existe en disco.
+
+📄 Estado desplegado, verificado en vivo: `renegociacion-cockpit/docs/2026-07-27-revision-completa-produccion.md`.
 
 ---
 
@@ -485,8 +499,9 @@ Before implementing ANY task, check if relevant skills apply:
 ## Common Commands
 
 ```bash
-# Run automation for a specific step
-npm run automate -- --rut=12345678-9 --step=2
+# Batería determinista del Paso 3 — 19 suites, NO gasta API, no toca nada.
+# Es el chequeo de siempre antes de commitear. Una suite nueva va en el array TESTS.
+npx ts-node --transpile-only tools/paso3_validacion/run_all.ts
 
 # Start the worker daemon
 npm run worker
