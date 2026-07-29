@@ -67,5 +67,52 @@ check('liquidacion (1).pdf (nombre real de producción) sí es ingreso',
 check('cotizaciones (2).pdf (nombre real de producción) sí es ingreso',
   esDocumentoDeIngreso({ filename: 'cotizaciones (2).pdf' }));
 
+// ── Vocabulario de deuda que NO está en PALABRAS_DE_DEUDA ────────────────────────────
+// Una lista negra de palabras de deuda es una carrera contra el vocabulario financiero
+// chileno entero, y se pierde: estas 7 se colaban como ingreso (medido el 2026-07-29),
+// o sea que ese acreedor no se declaraba → riesgo de inadmisibilidad.
+// La regla es al revés: una palabra AMBIGUA ("liquidacion") solo cuenta como ingreso si el
+// nombre no trae ninguna otra palabra con contenido. Cualquier palabra desconocida a su
+// lado manda el documento a leerse. Por eso estos casos pasan sin nombrar su vocabulario.
+check('liquidación de PRÉSTAMO no es ingreso',
+  !esDocumentoDeIngreso({ filename: 'liquidacion de prestamo de consumo.pdf' }));
+check('liquidación de PAGARÉ no es ingreso',
+  !esDocumentoDeIngreso({ filename: 'liquidacion pagare banco falabella.pdf' }));
+check('liquidación de MUTUO no es ingreso',
+  !esDocumentoDeIngreso({ filename: 'liquidacion de mutuo.pdf' }));
+check('liquidación de SALDO INSOLUTO no es ingreso',
+  !esDocumentoDeIngreso({ filename: 'liquidacion saldo insoluto.pdf' }));
+check('liquidación de REPACTACIÓN no es ingreso',
+  !esDocumentoDeIngreso({ filename: 'liquidacion repactacion tanner.pdf' }));
+check('liquidación de LEASING no es ingreso',
+  !esDocumentoDeIngreso({ filename: 'liquidacion leasing automotriz.pdf' }));
+check('liquidación de CASTIGO/COBRANZA no es ingreso',
+  !esDocumentoDeIngreso({ filename: 'liquidacion castigo cobranza.pdf' }));
+check('finiquito de deuda no es ingreso',
+  !esDocumentoDeIngreso({ filename: 'finiquito de deuda cmr.pdf' }));
+
+// Una palabra INEQUÍVOCA de ingreso manda aunque el nombre traiga otras palabras: no se
+// puede exigir que el nombre esté pelado o se deja de ahorrar en los casos legítimos.
+check('AFP con otras palabras sigue siendo ingreso',
+  esDocumentoDeIngreso({ filename: 'certificado cotizaciones AFP Capital.pdf' }));
+check('liquidación de SUELDO con mes sigue siendo ingreso',
+  esDocumentoDeIngreso({ filename: 'liquidacion de sueldo enero.pdf' }));
+check('finiquito LABORAL sigue siendo ingreso',
+  esDocumentoDeIngreso({ filename: 'finiquito laboral.pdf' }));
+check('previred con mes sigue siendo ingreso',
+  esDocumentoDeIngreso({ filename: 'previred marzo.pdf' }));
+
+// El ruido de descarga y del proyector no califica el nombre.
+check('liquidacion-2026-03-15.pdf (fecha) sigue siendo ingreso',
+  esDocumentoDeIngreso({ filename: 'liquidacion-2026-03-15.pdf' }));
+check('copia de liquidacion (3).pdf sigue siendo ingreso',
+  esDocumentoDeIngreso({ filename: 'copia de liquidacion (3).pdf' }));
+
+// La metadata sigue mandando sobre cualquier nombre.
+check('institucion_cmf poblada gana al nombre más inequívoco',
+  !esDocumentoDeIngreso({ filename: 'liquidacion de sueldo.pdf', institucion_cmf: 'Banco de Chile' }));
+check('document_type 22 gana al nombre',
+  !esDocumentoDeIngreso({ filename: 'liquidacion.pdf', document_type: 22 }));
+
 console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
 process.exit(fail === 0 ? 0 : 1);
