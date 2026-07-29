@@ -303,7 +303,7 @@ Cada documento se lee con el LLM **una sola vez en la historia del estudio**. La
 
 **El Paso 3 no lee documentos de ingreso** (`esDocumentoDeIngreso`). Se omite solo con evidencia positiva: la metadata manda sobre el filename, y `document_type = 24` NO significa "ingreso". Toda omisión se loguea con nombre y motivo.
 
-📌 **Pendiente decidido, no implementado:** reemplazar ese filtro por nombre con un clasificador de contenido con Haiku, y medir el ahorro real contra el sistema anterior. Diseño, medición y protocolo de comparación: `renegociacion-cockpit/.claude/PENDIENTE-clasificador-haiku.md`.
+📌 **Esto es la Etapa 0 de un plan de tres.** Las Etapas 1 y 2 —cortar los duplicados en el origen y **mover la lectura profunda al panel**, para que el sistema entero haga una clasificación barata + una sola lectura detallada— están sin empezar y requieren acuerdo con el lado de Milo. El worker necesita 13 campos por documento y el panel cubre 4, ninguno de los que disparan el Art. 260. Detalle, orden de negociación y protocolo de medición: `renegociacion-cockpit/.claude/PENDIENTE-lectura-unica.md`.
 
 ### Step 3 — Resilience Pattern (`withRetry`)
 All critical Playwright operations in `step3_acreedores.ts` are wrapped in `withRetry<T>(fn, opts)` with linear back-off:
