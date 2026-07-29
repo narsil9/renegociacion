@@ -111,7 +111,7 @@ export interface ClaudeReadIssue {
   document_filename: string;
   institucion: string;
   monto_clp: number;
-  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada';
+  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada' | 'nombre_de_archivo_repetido';
   detalle: string;
 }
 
@@ -300,6 +300,56 @@ export function puntajeInfoCopia(
     d.document_type === 22 || d.document_type === 23 ? 1 : 0,
     d.n_periodos ?? 1,
   ];
+}
+
+/**
+ * Detecta documentos DISTINTOS que comparten `filename`.
+ *
+ * Medio pipeline asocia por nombre de archivo: `__docTypeByFilename`, `docsByFilename` y
+ * `textByFilename` de los backstops, el `detectedByFilename` del cross-check de RUT, el
+ * `document_filename` de cada fila declarada, y —lo más grave— la elección de QUÉ archivo se
+ * adjunta al portal para un acreedor NO-CMF (`step3_acreedores.ts:1287,1395`). Todos esos son
+ * `Map`/objeto por nombre: con dos documentos homónimos, uno pisa al otro y el caso se declara
+ * con los datos mezclados, en silencio.
+ *
+ * Hoy no pasa (0 nombres repetidos en producción, medido el 2026-07-29), pero se vuelve
+ * probable con nombres genéricos —`imagen.jpg`, `documento.pdf`, `Compressed PDF.pdf`— que es
+ * justo lo que llega por correo y por Drive.
+ *
+ * Esto NO lo arregla: lo hace VISIBLE (regla G2). Arreglarlo de raíz es desambiguar el nombre
+ * en las DOS listas de documentos que carga el worker por separado —la del Centinela y la que
+ * recibe `fillStep3`— y eso toca el camino que adjunta documentos a una presentación judicial;
+ * merece su propio ciclo, no un parche al final de una sesión.
+ *
+ * Se llama DESPUÉS de `dedupPorContenido`: dos copias del MISMO archivo ya colapsaron y no
+ * deben alertar.
+ */
+export function detectarNombresRepetidos(
+  docs: Array<{ filename: string; storage_path: string }>
+): ClaudeReadIssue[] {
+  const porNombre = new Map<string, string[]>();
+  for (const d of docs) {
+    const k = (d.filename ?? '').trim().toLowerCase();
+    if (!k) continue;
+    if (!porNombre.has(k)) porNombre.set(k, []);
+    porNombre.get(k)!.push(d.storage_path);
+  }
+  const issues: ClaudeReadIssue[] = [];
+  for (const [nombre, rutas] of porNombre) {
+    if (rutas.length < 2) continue;
+    issues.push({
+      document_filename: nombre,
+      institucion: '',
+      monto_clp: 0,
+      tipo: 'nombre_de_archivo_repetido',
+      detalle:
+        `${rutas.length} documentos distintos del caso se llaman "${nombre}". El robot asocia ` +
+        `cada certificado a su acreedor por el nombre del archivo, así que sus datos pueden ` +
+        `haberse mezclado y el certificado adjuntado puede no ser el que corresponde. ` +
+        `Rutas: ${rutas.join(' | ')}. Verificar a mano y renombrar los archivos.`,
+    });
+  }
+  return issues;
 }
 
 export function dedupPorContenido<

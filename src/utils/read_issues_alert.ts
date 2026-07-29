@@ -21,6 +21,7 @@ const ETIQUETA: Record<ClaudeReadIssue['tipo'], string> = {
   posible_subdivision_operacion: 'la misma operación aparece con montos distintos y se declaró uno solo — si son sub-líneas de una tarjeta/crédito el monto correcto es la SUMA; verificar que no falte deuda',
   monto_trivial: 'monto menor a 1 UF — puede ser un remanente/comisión trivial (no declarar) o una deuda pequeña real (TGR/CCAF/multa); verificar',
   fecha_no_acreditada: 'el documento no acredita una fecha de vencimiento (la fecha leída era último pago / emisión / otorgamiento) — se declaró en Art. 261; verificar si corresponde Art. 260',
+  nombre_de_archivo_repetido: 'dos documentos distintos del caso tienen el MISMO nombre de archivo — el robot asocia por nombre, así que puede haber mezclado sus datos; verificar a mano qué certificado respalda a cada acreedor y renombrar los archivos',
 };
 
 const clp = (n: number | undefined): string =>

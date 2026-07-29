@@ -7,6 +7,7 @@
  *
  * Uso: npx ts-node --transpile-only tools/paso3_validacion/test_doc_scope.ts
  */
+import { detectarNombresRepetidos } from '../../src/utils/sentinel';
 import { esDocumentoDeIngreso } from '../../src/utils/doc_scope';
 
 let ok = 0, fail = 0;
@@ -113,6 +114,55 @@ check('institucion_cmf poblada gana al nombre más inequívoco',
   !esDocumentoDeIngreso({ filename: 'liquidacion de sueldo.pdf', institucion_cmf: 'Banco de Chile' }));
 check('document_type 22 gana al nombre',
   !esDocumentoDeIngreso({ filename: 'liquidacion.pdf', document_type: 22 }));
+
+
+// ── Nombres genéricos: el LLM los tiene que ver SÍ O SÍ ───────────────────────────────
+// Un nombre sin información no puede ser evidencia de nada. Como el filtro exige evidencia
+// POSITIVA de ingreso, la ausencia de nombre cae del lado seguro por construcción — pero se
+// fija con tests para que un cambio futuro no invierta el default.
+for (const generico of [
+  '', '   ', '.pdf', 'documento.pdf', 'documento 1.pdf', 'Compressed PDF.pdf',
+  'archivo.pdf', 'imagen.jpg', 'imagen 1.jpg', 'IMG_20260602.jpg', 'IMG-20230303-WA0020.jpeg',
+  'Captura de pantalla 2026-06-02 102417.png', 'scan0001.pdf', 'doc1.pdf',
+  '032CON105211041.PDF', '16uUkk1ytcvIMR2Bxct4rPJyrKNOwOMc9.pdf', 'ilovepdf_merged (21).pdf',
+  'VEH_500706760581_SWGC.21.pdf', 'WhatsApp Image 2026-06-02 at 10.24.30.jpeg',
+  'adjunto.pdf', 'sin titulo.pdf', '1.pdf', '(1).pdf',
+]) {
+  check(`nombre genérico ${JSON.stringify(generico)} → lo lee el Paso 3`,
+    !esDocumentoDeIngreso({ filename: generico }));
+}
+
+// ── Homónimos: dos documentos DISTINTOS con el mismo nombre ───────────────────────────
+// El pipeline asocia por filename en 5 lugares, incluido qué archivo se adjunta al portal.
+// No lo arreglamos acá, pero deja de ser silencioso.
+{
+  const issues = detectarNombresRepetidos([
+    { filename: 'imagen.jpg', storage_path: 'c/certs/drive-AAA_imagen.jpg' },
+    { filename: 'imagen.jpg', storage_path: 'c/certs/email-99_imagen.jpg' },
+    { filename: 'unico.pdf', storage_path: 'c/certs/drive-BBB_unico.pdf' },
+  ]);
+  check('dos documentos homónimos generan exactamente 1 señal', issues.length === 1);
+  check('la señal es del tipo correcto', issues[0]?.tipo === 'nombre_de_archivo_repetido');
+  check('la señal nombra las dos rutas para poder distinguirlos',
+    !!issues[0] && issues[0].detalle.includes('drive-AAA_imagen.jpg') && issues[0].detalle.includes('email-99_imagen.jpg'));
+  check('un nombre único no genera señal',
+    !issues.some((i) => i.detalle.includes('unico.pdf')));
+}
+check('homónimos con distinta capitalización también se detectan',
+  detectarNombresRepetidos([
+    { filename: 'Imagen.JPG', storage_path: 'a' },
+    { filename: 'imagen.jpg', storage_path: 'b' },
+  ]).length === 1);
+check('sin homónimos no hay señales',
+  detectarNombresRepetidos([
+    { filename: 'a.pdf', storage_path: 'x' },
+    { filename: 'b.pdf', storage_path: 'y' },
+  ]).length === 0);
+check('nombres vacíos no cuentan como homónimos entre sí',
+  detectarNombresRepetidos([
+    { filename: '', storage_path: 'x' },
+    { filename: '  ', storage_path: 'y' },
+  ]).length === 0);
 
 console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
 process.exit(fail === 0 ? 0 : 1);

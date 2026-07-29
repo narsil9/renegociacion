@@ -26,6 +26,7 @@ import type {
   ExtractionEvidence,
   ClaudeReadIssue,
 } from './sentinel';
+import { detectarNombresRepetidos } from './sentinel';
 import type { CmfCreditor } from './cmf_analyzer';
 import { UF_CLP } from './cmf_analyzer';
 import type { ClientDocument } from './cognitive_orchestrator';
@@ -765,6 +766,15 @@ export async function applyDeterministicBackstops(
     } else if (emitted.length > 0) {
       log(`🔎 Validación anti-error: sin discrepancias (${withEvidence}/${emitted.length} acreedores con evidencia verificable).`);
     }
+  }
+
+  // Nombres de archivo repetidos: fuera del bloque de validación de evidencia porque no
+  // depende del catálogo ni de que algún acreedor traiga `evidence` — es una propiedad del
+  // conjunto de documentos, y tiene que avisar siempre. Ver `detectarNombresRepetidos`.
+  const homonimos = detectarNombresRepetidos(documents);
+  if (homonimos.length > 0) {
+    result.claudeReadIssues = [...(result.claudeReadIssues ?? []), ...homonimos];
+    homonimos.forEach((i) => log(`⚠️ [${i.tipo}] ${i.detalle}`));
   }
 
   return { result, claudeReadIssues: result.claudeReadIssues ?? [] };
