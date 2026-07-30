@@ -149,13 +149,28 @@ export function contarMontosDistintosPorBanco(
   return out;
 }
 
-/** Filas de producto 261 a emitir para un banco multiproducto: una por MONTO distinto, no una
- *  por entrada. Mismo motivo que `contarMontosDistintosPorBanco`. */
-export function id261FilasAEmitir<T extends { total_credito_clp: number }>(ids: T[]): T[] {
+/**
+ * Filas de producto 261 a emitir para un banco multiproducto: una por MONTO distinto, no una
+ * por entrada. Mismo motivo que `contarMontosDistintosPorBanco`.
+ *
+ * Es una heurística, no una certeza: dos productos DISTINTOS del mismo banco pueden coincidir
+ * en el monto exacto por casualidad (montos redondos en CLP no son raros). Por eso, cuando
+ * `dropped` se provee, cada entrada colapsada se registra ahí — mismo patrón que
+ * `dedupeIdentified261Products` (arriba) usa para su propio dedup por monto casi-idéntico — para
+ * que el llamador pueda alertar con `posible_duplicado` (accionable) en vez de perderla en
+ * silencio (regla G2).
+ */
+export function id261FilasAEmitir<T extends { total_credito_clp: number }>(
+  ids: T[],
+  dropped?: T[]
+): T[] {
   const vistos = new Set<number>();
   const out: T[] = [];
   for (const r of ids) {
-    if (r.total_credito_clp > 0 && vistos.has(r.total_credito_clp)) continue;
+    if (r.total_credito_clp > 0 && vistos.has(r.total_credito_clp)) {
+      dropped?.push(r);
+      continue;
+    }
     if (r.total_credito_clp > 0) vistos.add(r.total_credito_clp);
     out.push(r);
   }
@@ -1293,8 +1308,19 @@ export async function fillStep3(
         for (const id of ids) report.skipped.push({ institucion: id.institucion_cmf, reason, code: 'comuna_sin_region' });
         continue;
       }
-      const idsAEmitir = id261FilasAEmitir(ids);
+      const idsDropped: Identified261Creditor[] = [];
+      const idsAEmitir = id261FilasAEmitir(ids, idsDropped);
       log(`→ Institución MULTIPRODUCTO 261 "${entry.nombre}": ${ids.length} producto(s) → ${idsAEmitir.length} fila(s) en Otros Acreedores.`);
+      for (const d of idsDropped) {
+        // G2: es una heurística (mismo monto exacto = misma deuda), no una certeza. Si son dos
+        // productos DISTINTOS que coinciden en el monto por casualidad, el abogado lo revisa acá.
+        report.skipped.push({
+          institucion: d.institucion_cmf,
+          reason: `Multiproducto 261 "${entry.nombre}": se fusionó con otra fila del monto EXACTO ($${d.total_credito_clp.toLocaleString('es-CL')}) por considerarse la MISMA deuda leída dos veces. Si son dos créditos distintos, cargá el segundo a mano.`,
+          code: 'posible_duplicado',
+          monto: d.total_credito_clp,
+        });
+      }
       for (const id of idsAEmitir) {
         const monto = id.total_credito_clp;
         if (!monto || monto <= 0) { log(`   ⏭️ Producto 261 "${id.institucion_cmf}" sin monto válido — omitiendo.`); continue; }

@@ -212,6 +212,23 @@ console.log('\n═══ Multiproducto 261 en fillStep3 (contarMontosDistintosPo
   check('montos en 0 no se deduplican entre sí (cada fila se evalúa después por su cuenta)',
     emitir.length === 2, `emitir=${JSON.stringify(emitir)}`);
 }
+{
+  // Hallazgo de session-sync: el dedup por monto exacto es una HEURÍSTICA (dos productos
+  // distintos pueden coincidir en el monto por casualidad), no una certeza. Lo que se colapsa
+  // tiene que quedar accionable para el abogado, no perderse en silencio (G2).
+  const ids = [
+    { total_credito_clp: 4_000_000, ref: 'a.pdf' },
+    { total_credito_clp: 4_000_000, ref: 'b.pdf' },
+    { total_credito_clp: 1_500_000, ref: 'c.pdf' },
+  ];
+  const dropped: typeof ids = [];
+  const emitir = id261FilasAEmitir(ids, dropped);
+  check('el parámetro `dropped` recibe exactamente la entrada colapsada',
+    dropped.length === 1 && dropped[0].ref === 'b.pdf',
+    `dropped=${JSON.stringify(dropped)}`);
+  check('sin `dropped`, no rompe (parámetro opcional)',
+    id261FilasAEmitir(ids).length === 2);
+}
 
 console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
 process.exit(fail === 0 ? 0 : 1);
