@@ -61,13 +61,17 @@ export function documentSetSignature(
 ): string {
   const norm = docs
     .map((d) =>
-      [
+      // JSON.stringify de un array, NO join('|'): un filename o institucion_cmf con un "|"
+      // literal produciría el mismo string concatenado para dos documentos distintos (colisión
+      // de delimitador), dejando la firma sin cambiar tras un re-etiquetado real — exactamente
+      // el silencio que este fix existe para evitar. Hallazgo de session-sync.
+      JSON.stringify([
         d.storage_path,
         d.uploaded_at ?? '',
         d.filename ?? '',
         d.institucion_cmf ?? '',
         d.document_type ?? '',
-      ].join('|')
+      ])
     )
     .sort();
   return crypto.createHash('sha256').update(norm.join('\n')).digest('hex');

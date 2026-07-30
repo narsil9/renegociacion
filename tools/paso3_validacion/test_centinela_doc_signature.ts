@@ -57,5 +57,13 @@ check('ausente y vacío son equivalentes',
   documentSetSignature([{ storage_path: 'y', uploaded_at: null }]) ===
   documentSetSignature([{ storage_path: 'y', uploaded_at: null, filename: null, institucion_cmf: null, document_type: null }]));
 
+// Hallazgo de session-sync: un join('|') sin escapar hace que un "|" literal en `filename` o
+// `institucion_cmf` produzca el MISMO string concatenado para dos documentos distintos — la
+// firma no cambiaría tras un re-etiquetado real, exactamente el silencio que este fix existe
+// para evitar. Caso concreto: mover el límite entre filename e institución alrededor del "|".
+check('un "|" literal en filename NO colisiona con el mismo "|" en institucion_cmf',
+  documentSetSignature([{ ...C, filename: 'cert|X', institucion_cmf: 'Y' }]) !==
+  documentSetSignature([{ ...C, filename: 'cert', institucion_cmf: 'X|Y' }]));
+
 console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
 process.exit(fail === 0 ? 0 : 1);
