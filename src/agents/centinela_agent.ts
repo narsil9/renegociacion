@@ -41,10 +41,12 @@ function runIdSalt(): string {
  * RE-ETIQUETAR un documento invalide el cache y fuerce la re-lectura (antes la
  * llave solo miraba el CMF, así que documentos nuevos nunca se leían).
  *
- * Incluye `filename`, `institucion_cmf` y `document_type` a propósito: el proyector del
- * dashboard reescribe esos tres campos SIN tocar el `storage_path`, así que una firma que
- * solo mirara la ruta dejaba vigente un análisis calculado con las etiquetas viejas — el fix
- * se deployaba y no pasaba nada, en silencio.
+ * Incluye `filename`, `institucion_cmf` y `document_type` a propósito: son datos que PUEDEN
+ * cambiar para el mismo `storage_path` — una corrección manual en `client_documents`, o un
+ * proyector futuro que sí reescriba (hoy `superir-proyector.ts` es insert-only por
+ * `storage_path`: una fila ya proyectada no se actualiza en una re-proyección — ver TAREAS.md).
+ * Sin esto, una firma que solo mirara la ruta dejaría vigente un análisis calculado con las
+ * etiquetas viejas — el fix se deployaría y no pasaría nada, en silencio.
  *
  * Los tres son opcionales y `undefined` se normaliza igual que `null`: un llamador que no los
  * pase produce la MISMA firma que antes para ese documento, así que el deploy no invalida el
