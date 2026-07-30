@@ -89,8 +89,20 @@ export function planStep3Rows(input: ClassifyInput): PlannedRow[] {
     const k = canonicalInstitutionKey(c.institucion);
     poolCountByBank.set(k, (poolCountByBank.get(k) ?? 0) + 1);
   }
+  // Un id261 que REPITE el monto de otro id261 del MISMO banco es la misma deuda vista en dos
+  // papeles (dos períodos del estado de cuenta, el cert y su reemisión). Contarlo dos veces infla
+  // el conteo, cruza el umbral de multiproducto y hace que se salteen las filas CMF del banco:
+  // la deuda real se declara DOS veces por el mismo monto y la fila del CMF desaparece. Para el
+  // CONTEO solo valen los montos distintos; el dedup fino por Nº de operación vive en el backstop
+  // (L38). El contrato de documentos amplía el universo de docs con institución, o sea más id261.
+  const montosDistintosPorBanco = new Map<string, number>();
+  for (const [k, arr] of id261ByBank.entries()) {
+    montosDistintosPorBanco.set(k, new Set(arr.map((r) => r.total_credito_clp)).size);
+  }
   const multiProduct261 = new Set(
-    [...id261ByBank.entries()].filter(([k, arr]) => arr.length > (poolCountByBank.get(k) ?? 0)).map(([k]) => k)
+    [...id261ByBank.entries()]
+      .filter(([k]) => (montosDistintosPorBanco.get(k) ?? 0) > (poolCountByBank.get(k) ?? 0))
+      .map(([k]) => k)
   );
 
   // --- Emisión 1: filas de PRODUCTO de bancos multiproducto (se saltan sus filas CMF abajo) ---
@@ -100,7 +112,14 @@ export function planStep3Rows(input: ClassifyInput): PlannedRow[] {
   }
   for (const [k, arr] of id261ByBank.entries()) {
     if (!multiProduct261.has(k)) continue;
-    for (const r of arr) rows.push({ institucion: r.institucion_cmf, monto: r.total_credito_clp, art: 261, cmf: true, source: 'id261' });
+    // Una fila por monto DISTINTO, por el mismo motivo que el conteo: dos id261 del mismo banco
+    // con el mismo monto son la misma deuda en dos papeles, y emitir las dos la declara doble.
+    const vistos = new Set<number>();
+    for (const r of arr) {
+      if (vistos.has(r.total_credito_clp)) continue;
+      vistos.add(r.total_credito_clp);
+      rows.push({ institucion: r.institucion_cmf, monto: r.total_credito_clp, art: 261, cmf: true, source: 'id261' });
+    }
   }
 
   const reclByKey = new Map(reclassified.map((r) => [canonicalInstitutionKey(r.institucion_cmf), r]));

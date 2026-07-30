@@ -139,5 +139,68 @@ console.log('═══ planStep3Rows ═══');
   check('Cristian real: Santander = 2 filas declaradas ($6.985.718 + $2.444)', san.length === 2 && san.some((r) => r.monto === 2444), JSON.stringify(san.map((r) => r.monto)));
 }
 
+// ── Un id261 DUPLICADO no puede disparar multiproducto-261 ───────────────────────────────
+// `multiProduct261` se activa con `id261.length > poolCount` y entonces SALTEA las filas CMF
+// crudas del banco. Si dos id261 son la MISMA deuda vista en dos papeles (el mismo monto),
+// contarlos dos veces cruza el umbral sin que el pool crezca: se saltea la fila real del CMF
+// y la deuda se declara dos veces por el mismo monto. El contrato de documentos aumenta el
+// universo de documentos con institución, o sea más id261 posibles → más chances de esto.
+{
+  const rows = planStep3Rows({
+    creditors: [
+      { institucion: 'Banco Falabella Consum', tipoCredito: 'Consumo', overdue90Days: 0, totalCredito: 4_000_000 },
+    ],
+    id261: [
+      { institucion_cmf: 'Banco Falabella', total_credito_clp: 4_000_000, document_filename: 'a.pdf' },
+      { institucion_cmf: 'Banco Falabella', total_credito_clp: 4_000_000, document_filename: 'b.pdf' },
+    ],
+  } as ClassifyInput);
+  const declarados = rows.filter((r) => !r.skip);
+  check(
+    'id261 duplicado (mismo monto) no dispara multiproducto ni duplica la deuda',
+    declarados.length === 1 && declarados[0].monto === 4_000_000,
+    `filas=${declarados.length}: ${JSON.stringify(declarados.map((r) => ({ i: r.institucion, m: r.monto, s: r.source })))}`
+  );
+}
+{
+  // El caso que distingue las DOS mitades del guard: la fila del CMF trae otro monto ($9M) y
+  // los id261 duplicados suman $8M. Con el bug se saltea la fila del CMF y se declaran dos
+  // filas de $4M (doble conteo, $8M); arreglado queda UNA fila. Medido el 2026-07-30.
+  const rows = planStep3Rows({
+    creditors: [
+      { institucion: 'Banco Falabella Consum', tipoCredito: 'Consumo', overdue90Days: 0, totalCredito: 9_000_000 },
+    ],
+    id261: [
+      { institucion_cmf: 'Banco Falabella', total_credito_clp: 4_000_000, document_filename: 'a.pdf' },
+      { institucion_cmf: 'Banco Falabella', total_credito_clp: 4_000_000, document_filename: 'b.pdf' },
+    ],
+  } as ClassifyInput);
+  const declarados = rows.filter((r) => !r.skip);
+  const total = declarados.reduce((s, r) => s + r.monto, 0);
+  check(
+    'id261 duplicado no saltea la fila del CMF ni duplica el total',
+    declarados.length === 1 && total === 4_000_000,
+    `filas=${declarados.length} total=$${total.toLocaleString('es-CL')}: ${JSON.stringify(declarados.map((r) => ({ i: r.institucion, m: r.monto })))}`
+  );
+}
+{
+  // Multiproducto LEGÍTIMO: montos distintos → se declaran las dos filas de producto.
+  const rows = planStep3Rows({
+    creditors: [
+      { institucion: 'Banco Falabella Consum', tipoCredito: 'Consumo', overdue90Days: 0, totalCredito: 4_000_000 },
+    ],
+    id261: [
+      { institucion_cmf: 'Banco Falabella (Consumo)', total_credito_clp: 4_000_000, document_filename: 'a.pdf' },
+      { institucion_cmf: 'Banco Falabella (Tarjeta)', total_credito_clp: 1_500_000, document_filename: 'b.pdf' },
+    ],
+  } as ClassifyInput);
+  const declarados = rows.filter((r) => !r.skip);
+  check(
+    'multiproducto legítimo (montos distintos) sigue funcionando',
+    declarados.length === 2 && declarados.every((r) => r.source === 'id261'),
+    `filas=${declarados.length}: ${JSON.stringify(declarados.map((r) => r.monto))}`
+  );
+}
+
 console.log(`\n${fail === 0 ? '✅' : '❌'} planStep3Rows: ${ok} OK, ${fail} fallos.`);
 process.exit(fail === 0 ? 0 : 1);
