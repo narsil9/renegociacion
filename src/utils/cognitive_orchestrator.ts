@@ -953,7 +953,7 @@ export async function runCognitiveOrchestrator(
     }));
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const modelName = 'claude-sonnet-4-6';
+  const modelName = 'claude-sonnet-5';
 
   const systemPrompt = `Eres el Auditor Cognitivo Experto y Mente Pensante para la automatización del portal de la Superintendencia de Insolvencia y Reemprendimiento (Superir) en Chile.
 Tu misión es actuar como la SEGUNDA LÍNEA DE CONTROL (mente pensante), corroborando y re-verificando el análisis local pre-calculado por TypeScript contra el texto crudo de los documentos.
@@ -1108,14 +1108,11 @@ Esquema JSON esperado:
   log(`Enviando análisis cognitivo a Claude (${textDocsPayload.length} PDF(s) texto + ${imageDocs.length} imagen(es) + ${nativePdfDocs.length} PDF(s) nativo(s))...`);
   try {
     // Usar streaming — requerido cuando la respuesta supera los 10 min (muchos docs + thinking).
-    // budget_tokens fijo para que Claude no consuma todo el espacio en thinking y no deje espacio al JSON.
+    // thinking adaptive: Sonnet 5 decide cuánto pensar; budget_tokens fijo ya no existe (400 en este modelo).
     const stream = anthropic.messages.stream({
       model: modelName,
       max_tokens: 16000,
-      thinking: {
-        type: 'enabled',
-        budget_tokens: 8000,
-      },
+      thinking: { type: 'adaptive' },
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessageParts as any }]
     });

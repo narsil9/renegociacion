@@ -120,7 +120,7 @@ Analiza esta Carpeta Tributaria del SII (Servicio de Impuestos Internos de Chile
 No incluyas texto ni explicaciones fuera de las etiquetas <json>.`;
 
   const response = await anthropic.messages.create({
-    model: 'claude-opus-4-8',
+    model: 'claude-sonnet-5',
     max_tokens: 4096,
     thinking: { type: 'adaptive' },
     messages: [

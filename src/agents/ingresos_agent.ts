@@ -274,7 +274,7 @@ async function callClaudeForDoc(
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const response = await anthropic.messages.create({
-        model: 'claude-opus-4-8',
+        model: 'claude-sonnet-5',
         max_tokens: 4096,
         thinking: { type: 'adaptive' },
         // System idéntico en todas las llamadas por-doc del caso (playbook + lecciones vivas del

@@ -1194,7 +1194,7 @@ ${loadReaderLessons('paso3')}
     let raw: any;
     const perDocMode = process.env.CENTINELA_PER_DOC !== 'false';
     if (perDocMode) {
-      const perDocModel = process.env.CENTINELA_PER_DOC_MODEL || 'claude-opus-4-8';
+      const perDocModel = process.env.CENTINELA_PER_DOC_MODEL || 'claude-sonnet-5';
       raw = await runPerDocExtraction(
         documents as any,
         cmfResult as any,
@@ -1265,12 +1265,9 @@ ${loadReaderLessons('paso3')}
 
     // Usar streaming — requerido cuando la respuesta supera los 10 min (muchos docs + thinking).
     const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5',
       max_tokens: 16000,
-      thinking: {
-        type: 'enabled',
-        budget_tokens: 8000,
-      },
+      thinking: { type: 'adaptive' },
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessageParts }]
     });

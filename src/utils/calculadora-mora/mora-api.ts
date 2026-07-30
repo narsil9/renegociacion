@@ -56,6 +56,9 @@ export async function runCalculadoraMora(
   const resp = await anthropic.messages.create({
     model,
     max_tokens: MORA_MAX_OUTPUT,
+    // Sin thinking: mismo motivo que sentinel_per_doc.ts — evita que Sonnet 5 piense por default
+    // y compita por MORA_MAX_OUTPUT con la respuesta.
+    thinking: { type: 'disabled' },
     system: [{ type: 'text', text: buildMoraSystemPrompt(todayToChileLabel(todayStr)), cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: parts }],
   });

@@ -354,6 +354,10 @@ export async function extractDocFacts(
       const resp = await anthropic.messages.create({
         model,
         max_tokens: PER_DOC_MAX_OUTPUT,
+        // Sin thinking: extracción de campos de un solo doc, no requiere razonamiento extendido.
+        // Explícito (no omitido) porque en Sonnet 5 omitir `thinking` corre en modo adaptive por
+        // default — competiría por los mismos PER_DOC_MAX_OUTPUT tokens con la respuesta JSON.
+        thinking: { type: 'disabled' },
         // System idéntico en todas las llamadas por-doc del caso → cache_control ephemeral: la 1ª llamada
         // paga los tokens, las demás lo leen del cache (~10% costo, TTL 5 min). Permite un system rico
         // (reglas + few-shot + lecciones vivas) sin costo por-documento. Ver lessons_loader.ts.
