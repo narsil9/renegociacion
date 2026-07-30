@@ -28,6 +28,7 @@ const ETIQUETA: Record<ClaudeReadIssue['tipo'], string> = {
   fecha_no_acreditada: 'el documento no acredita una fecha de vencimiento (la fecha leída era último pago / emisión / otorgamiento) — se declaró en Art. 261; verificar si corresponde Art. 260',
   nombre_de_archivo_repetido: 'dos documentos distintos del caso tienen el MISMO nombre de archivo — el robot asocia por nombre, así que puede haber mezclado sus datos; verificar a mano qué certificado respalda a cada acreedor y renombrar los archivos',
   identidad_no_confirmada: 'el documento NO imprime el RUT del acreedor que tiene asignado, así que el robot no pudo confirmar que ese papel sea de ese acreedor: el monto NO se declaró, para no atribuirle la deuda al equivocado. Identificá el emisor real del documento y declaralo a mano si corresponde',
+  institucion_no_resuelta: 'el acreedor de este documento no está en el catálogo, así que el robot NO pudo verificar que el RUT del emisor le corresponda: si el certificado fuera de otra institución, no se detectaría. El monto se declaró igual; agregá el acreedor al catálogo (con su RUT) o confirmá el alias, y revisá el documento a mano',
 };
 
 /**

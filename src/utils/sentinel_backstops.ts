@@ -26,7 +26,7 @@ import type {
   ExtractionEvidence,
   ClaudeReadIssue,
 } from './sentinel';
-import { detectarNombresRepetidos } from './sentinel';
+import { detectarNombresRepetidos, detectarInstitucionesNoResueltas } from './sentinel';
 import type { CmfCreditor } from './cmf_analyzer';
 import { UF_CLP } from './cmf_analyzer';
 import type { ClientDocument } from './cognitive_orchestrator';
@@ -841,6 +841,15 @@ export async function applyDeterministicBackstops(
   if (homonimos.length > 0) {
     result.claudeReadIssues = [...(result.claudeReadIssues ?? []), ...homonimos];
     homonimos.forEach((i) => log(`⚠️ [${i.tipo}] ${i.detalle}`));
+  }
+
+  // Instituciones que no resuelven contra el catálogo: apagan el chequeo de RUT del emisor sin
+  // decir nada. Fuera del bloque de evidencia por la misma razón que los homónimos — es una
+  // propiedad del conjunto de documentos y tiene que avisar siempre.
+  const noResueltas = detectarInstitucionesNoResueltas(documents, catalog);
+  if (noResueltas.length > 0) {
+    result.claudeReadIssues = [...(result.claudeReadIssues ?? []), ...noResueltas];
+    noResueltas.forEach((i) => log(`⚠️ [${i.tipo}] ${i.detalle}`));
   }
 
   return { result, claudeReadIssues: result.claudeReadIssues ?? [] };

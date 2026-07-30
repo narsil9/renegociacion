@@ -111,7 +111,7 @@ export interface ClaudeReadIssue {
   document_filename: string;
   institucion: string;
   monto_clp: number;
-  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada' | 'nombre_de_archivo_repetido' | 'identidad_no_confirmada';
+  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada' | 'nombre_de_archivo_repetido' | 'identidad_no_confirmada' | 'institucion_no_resuelta';
   detalle: string;
 }
 
@@ -347,6 +347,47 @@ export function detectarNombresRepetidos(
         `cada certificado a su acreedor por el nombre del archivo, así que sus datos pueden ` +
         `haberse mezclado y el certificado adjuntado puede no ser el que corresponde. ` +
         `Rutas: ${rutas.join(' | ')}. Verificar a mano y renombrar los archivos.`,
+    });
+  }
+  return issues;
+}
+
+/**
+ * Certificados de deuda cuya `institucion_cmf` NO resuelve contra el catálogo.
+ *
+ * Por qué importa: `computeRutCheckLocal` saca el RUT esperado del emisor con
+ * `matchAcreedor(institucion_cmf, catalog)`. Si no resuelve, `assignedEntry` queda null y el
+ * chequeo de RUT **no puede** marcar `rutMismatch` — la defensa contra adjuntar el certificado
+ * de otro banco queda apagada justo en los documentos donde la institución viene mal, que son
+ * los más sospechosos. Antes eso pasaba en silencio: el log decía lo mismo que si el
+ * certificado estuviera perfecto.
+ *
+ * Solo mira certificados de deuda (institución poblada): un documento de ingreso no tiene
+ * institución y no debe alertar.
+ *
+ * Sin catálogo cargado devuelve vacío a propósito: ahí el problema no es que la institución no
+ * exista, es que no hay con qué comparar — afirmar lo primero sería culpar al dato equivocado.
+ */
+export function detectarInstitucionesNoResueltas(
+  docs: Array<{ filename: string; institucion_cmf?: string | null; document_type?: number | null }>,
+  catalog: AcreedorCatalogEntry[]
+): ClaudeReadIssue[] {
+  if (catalog.length === 0) return [];
+  const issues: ClaudeReadIssue[] = [];
+  for (const d of docs) {
+    const inst = (d.institucion_cmf ?? '').trim();
+    if (!inst) continue;
+    if (matchAcreedor(inst, catalog).status === 'matched') continue;
+    issues.push({
+      document_filename: d.filename,
+      institucion: inst,
+      monto_clp: 0,
+      tipo: 'institucion_no_resuelta',
+      detalle:
+        `"${inst}" no existe en el catálogo de acreedores, así que el robot NO pudo verificar que ` +
+        `el RUT del emisor de "${d.filename}" corresponda a ese acreedor: si el certificado fuera ` +
+        `de otra institución, no se detectaría. Agregá el acreedor al catálogo (con su RUT) o ` +
+        `confirmá el alias en /admin/acreedores, y revisá este documento a mano.`,
     });
   }
   return issues;

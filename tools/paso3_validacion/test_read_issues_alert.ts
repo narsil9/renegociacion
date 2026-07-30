@@ -71,11 +71,17 @@ check('sin señales no hay alerta', buildReadIssuesAlert([]) === null && buildRe
     'monto_sin_respaldo_en_cita', 'rut_no_coincide', 'baja_confianza', 'sin_evidencia',
     'documento_no_acredita', 'moneda_inconsistente', 'posible_duplicado',
     'posible_subdivision_operacion', 'monto_trivial', 'fecha_no_acreditada',
-    'nombre_de_archivo_repetido', 'identidad_no_confirmada',
+    'nombre_de_archivo_repetido', 'identidad_no_confirmada', 'institucion_no_resuelta',
   ];
   const txt = buildReadIssuesAlert(tipos.map((t) => issue(t))) ?? '';
   check('ningún tipo produce "undefined" en el texto', !/undefined/.test(txt), txt.slice(0, 200));
-  check('los 12 tipos aparecen', txt.split('•').length - 1 === tipos.length, `bullets=${txt.split('•').length - 1}`);
+  check('todos los tipos listados aparecen', txt.split('•').length - 1 === tipos.length, `bullets=${txt.split('•').length - 1}`);
+  // `institucion_no_resuelta` NO bloquea la declaración (el monto se declara igual, solo queda
+  // apagado el cross-check de RUT), así que tiene que caer en el grupo de los declarados.
+  const soloNoResuelta = buildReadIssuesAlert([issue('institucion_no_resuelta')]) ?? '';
+  check('institucion_no_resuelta va en el grupo de los declarados',
+    /el monto se declaró igual/.test(soloNoResuelta) && !/NO se declaró/.test(soloNoResuelta),
+    soloNoResuelta);
 }
 
 console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
