@@ -26,7 +26,7 @@ import { fetchAcreedoresCatalog, topNCandidates } from './utils/acreedor_matcher
 import { buildReadIssuesAlert } from './utils/read_issues_alert';
 import { runMapeadorAgent } from './agents/mapeador_agent';
 import { CentinelaOutput } from './agents/types';
-import { esCertificadoDeAcreedor } from './utils/doc_scope';
+import { esCertificadoDeAcreedor, documentosDeIngresoDescartados } from './utils/doc_scope';
 
 /**
  * BUG-08 FIX: Dedicated error class for cases that must not be retried and
@@ -294,6 +294,27 @@ async function gatherStep5Input(
     // Paso 5 se omitía en silencio). Un cert mal-resuelto (institucion_cmf vacío) que se cuele lo
     // descarta aguas abajo el LLM (paso "0)" del prompt → category 'otro'); nunca declara un ingreso falso.
     const incomeRows = rows.filter((d: any) => isCotiz(d.filename) || isIncome(d.filename) || !esCertificadoDeAcreedor(d));
+
+    // G2: un documento que sale del Paso 5 por su metadata, con un nombre que no lo delata, se
+    // avisa. La alerta de omisión de abajo solo cubre el caso "no quedó NINGUNO", así que un
+    // documento puntual que se cae desaparecía en silencio.
+    const descartados = documentosDeIngresoDescartados(rows as any);
+    if (descartados.length > 0) {
+      logger.log(`ℹ️ [Paso 5] ${descartados.length} documento(s) quedaron fuera de ingresos por su metadata de acreedor: ${descartados.join(', ')}`);
+      if (jobId) {
+        const { error: descErr } = await supabase.from('automation_alerts').insert({
+          job_id: jobId,
+          client_id: client.id,
+          step: 5,
+          alert_type: 'needs_review',
+          description:
+            `${descartados.length} documento(s) se trataron como certificado de acreedor (Paso 3) y NO se usaron para ` +
+            `declarar ingresos: ${descartados.join(', ')}. Si alguno respalda un ingreso, declaralo a mano en el portal.`,
+        });
+        if (descErr) logger.error('⚠️ [Paso 5] No se pudo registrar la alerta de documentos descartados:', descErr.message);
+      }
+    }
+
     if (incomeRows.length === 0) {
       logger.log('ℹ️ [Paso 5] No se encontraron documentos de ingreso en client_documents — se omite el Paso 5.');
       return alertarOmision('el cliente no tiene ningún documento de ingreso cargado (liquidaciones, pensión, honorarios, etc.).');

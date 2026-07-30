@@ -8,6 +8,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { identidadConfirmadaPorElPapel } from '../../src/utils/sentinel_backstops';
 import { detectarInstitucionesNoResueltas } from '../../src/utils/sentinel';
+import { documentosDeIngresoDescartados } from '../../src/utils/doc_scope';
 
 let ok = 0, fail = 0;
 function check(name: string, cond: boolean, detail = '') {
@@ -97,6 +98,46 @@ console.log('\n═══ Instituciones no resueltas ═══');
   ] as never;
   check('no alerta si resuelve por alias',
     detectarInstitucionesNoResueltas([{ filename: 'd.pdf', institucion_cmf: 'Banco de Chile', document_type: 22 }], conAlias).length === 0);
+}
+
+// ── Task 13: documentos que salen del Paso 5 por su metadata, con nombre que no lo delata ──
+// La alerta de omisión del Paso 5 solo dispara si NO queda NINGÚN documento de ingreso. Un
+// documento suelto que pasa a cert de acreedor (porque el proyector le puso institución)
+// desaparece del Paso 5 en silencio — y con nombres genéricos como 'Certificado (4)_merged.pdf'
+// o 'ilovepdf_merged (23).pdf' (dos nombres REALES de Barraza) nadie lo nota.
+console.log('\n═══ Paso 5: documentos descartados ═══');
+{
+  const descartados = documentosDeIngresoDescartados([
+    { filename: 'liquidacion.pdf', institucion_cmf: null, acreditacion_tipo: 'general', document_type: 24 },
+    { filename: 'Certificado (4)_merged.pdf', institucion_cmf: 'Banco de Chile', acreditacion_tipo: 'monto', document_type: 22 },
+    { filename: 'estado_cta_bci.pdf', institucion_cmf: 'BCI', acreditacion_tipo: 'monto', document_type: 22 },
+  ]);
+  check('lista el cert de nombre genérico que salió del Paso 5',
+    descartados.includes('Certificado (4)_merged.pdf'), JSON.stringify(descartados));
+  check('no lista la liquidación (sigue siendo de ingreso)', !descartados.includes('liquidacion.pdf'));
+  check('no lista el doc cuyo nombre ya dice qué es', !descartados.includes('estado_cta_bci.pdf'));
+  // "Certificado" a secas NO delata: puede ser de renta o de cotizaciones. La keyword tiene que
+  // nombrar el TIPO de documento ('deuda', 'estado de cuenta', 'cartola'), no la palabra suelta.
+  check('un "Certificado ..." ambiguo sigue alertando',
+    documentosDeIngresoDescartados([
+      { filename: 'Certificado.pdf', institucion_cmf: 'Banco X', acreditacion_tipo: 'monto', document_type: 22 },
+    ]).length === 1);
+  check('un "certificado de deuda" explícito no alerta',
+    documentosDeIngresoDescartados([
+      { filename: 'certificado_de_deuda_bci.pdf', institucion_cmf: 'BCI', acreditacion_tipo: 'monto', document_type: 22 },
+    ]).length === 0);
+
+  // El nombre real de Barraza, que es el caso testigo.
+  const barraza = documentosDeIngresoDescartados([
+    { filename: 'ilovepdf_merged (23).pdf', institucion_cmf: 'Tanner', acreditacion_tipo: 'monto', document_type: 22 },
+  ]);
+  check('lista el ilovepdf_merged de Barraza', barraza.length === 1, JSON.stringify(barraza));
+
+  // Sin descartes no hay ruido.
+  check('un caso sano no produce lista',
+    documentosDeIngresoDescartados([
+      { filename: 'liquidacion.pdf', institucion_cmf: null, acreditacion_tipo: 'general', document_type: 24 },
+    ]).length === 0);
 }
 
 console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);

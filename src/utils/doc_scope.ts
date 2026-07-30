@@ -88,6 +88,39 @@ export function esCertificadoDeAcreedor(doc: {
   return inst.length > 0 || tipo === 'monto' || tipo === 'vencimiento' || dt === 22 || dt === 23;
 }
 
+// Palabras que hacen EVIDENTE que un documento es un certificado de acreedor: si el propio
+// nombre lo dice, sacarlo del Paso 5 no sorprende a nadie y alertar sería ruido.
+//
+// Nombran el TIPO de documento, no la palabra "certificado" a secas: un "Certificado (4).pdf"
+// puede ser de renta o de cotizaciones tanto como de deuda, así que su nombre NO delata nada y
+// tiene que alertar. Medido: con 'cert' en esta lista, el `Certificado (4)_merged.pdf` real de
+// Barraza quedaba fuera de la alerta, que es exactamente el caso que la motiva.
+const CERT_FILENAME_KEYWORDS = ['deuda', 'estado_cta', 'estado de cuenta', 'cartola', 'liquidacion de producto'];
+
+/**
+ * Documentos que quedaron FUERA del Paso 5 por su metadata pero cuyo nombre no lo delata.
+ *
+ * Por qué existe: la alerta de omisión del Paso 5 solo dispara si NO queda NINGÚN documento de
+ * ingreso. Un documento suelto que pasa a cert de acreedor —porque el proyector le puso
+ * institución— desaparece del Paso 5 en silencio, y con nombres genéricos como
+ * 'Certificado (4)_merged.pdf' o 'ilovepdf_merged (23).pdf' (los dos son nombres reales del
+ * caso Barraza) nadie lo nota. Regla G2: nada desaparece sin avisar.
+ *
+ * Es informativo, no bloqueante: el documento pudo salir del Paso 5 con toda razón. Lo que no
+ * puede es salir sin que el abogado tenga cómo enterarse.
+ */
+export function documentosDeIngresoDescartados(
+  rows: Array<{ filename: string; institucion_cmf?: string | null; acreditacion_tipo?: string | null; document_type?: number | null }>
+): string[] {
+  return rows
+    .filter((d) => {
+      if (!esCertificadoDeAcreedor(d)) return false;
+      const f = (d.filename ?? '').toLowerCase();
+      return !CERT_FILENAME_KEYWORDS.some((k) => f.includes(k));
+    })
+    .map((d) => d.filename);
+}
+
 /**
  * Palabras con contenido clasificatorio del nombre de archivo: sin extensión, sin números
  * sueltos ni numeración del proyector, sin conectores ni meses.
