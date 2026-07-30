@@ -44,6 +44,7 @@ const TESTS = [
   'test_doc_scope.ts',                   // el Paso 3 no lee documentos de ingreso
   'test_degradacion_261.ts',             // toda degradación 260→261 dice por qué (rule_id + evidencia)
   'test_cache_lectura.ts',               // el caché no congela lo degradado: mora fallada no se persiste, filename/emisión del hit
+  'test_adjuncion_documento.ts',         // el PDF adjunto es el que respalda el monto declarado (Barraza, error 6 del abogado)
 ];
 
 const results: { test: string; passed: boolean }[] = [];

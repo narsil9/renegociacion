@@ -100,6 +100,49 @@ export interface CmfDocumentOverride {
   institucion_cmf: string;
   monto_clp?: number;
   fecha_vencimiento?: string; // YYYY-MM-DD o dd/mm/yyyy
+  // Archivo del que salieron `monto_clp` y `fecha_vencimiento`: la copia que GANÓ el dedup del
+  // Centinela. Sin él, la adjunción tiene que adivinar cuál de los N documentos del banco
+  // acredita el monto que se declaró — y con la rama "Art.260 directos del CMF" los N vienen
+  // etiquetados con el mismo monto (el total del CMF), así que el desempate se queda sin señal
+  // y toma el primero del array. Caso María Barraza (feedback del abogado, error 6): monto del
+  // estado de JUNIO declarado con el estado de MAYO adjunto.
+  document_filename?: string;
+}
+
+/**
+ * Elige, entre los documentos candidatos de una fila, los que se van a adjuntar.
+ *
+ * Precedencia:
+ *   1. El archivo que CITÓ el Centinela (`docCitado`) — es la copia que ganó su dedup, o sea
+ *      la fuente del monto que se está declarando. Se devuelven todas sus copias (tipo 22 y 23
+ *      del mismo archivo son la misma acreditación subida dos veces).
+ *   2. Si no citó ninguno, o el citado no está entre los candidatos (output cacheado antes de
+ *      un rename), se conserva el desempate por monto que ya existía: el/los documentos cuyo
+ *      `monto_clp` está más cerca del monto declarado (argmin). Se usa argmin y no un filtro
+ *      por tolerancia para que un cert multiproducto COMPARTIDO —único candidato— siga
+ *      sirviendo a todas las filas.
+ *
+ * Los documentos sin `monto_clp` nunca se descartan: son los certs viejos y los compartidos.
+ *
+ * Pura y exportada a propósito: decide qué PDF entra en una presentación judicial, y la
+ * adjunción real vive dentro de `fillStep3`, que necesita Playwright y no se puede testear.
+ */
+export function seleccionarDocsDeLaFila(
+  candidatos: AcreditacionDoc[],
+  montoDeclarado: number,
+  docCitado?: string
+): AcreditacionDoc[] {
+  if (docCitado) {
+    const buscado = docCitado.toLowerCase();
+    const delCitado = candidatos.filter((d) => (d.filename ?? '').toLowerCase() === buscado);
+    if (delCitado.length > 0) return delCitado;
+  }
+  const conMonto = candidatos.filter((d) => typeof d.monto_clp === 'number');
+  if (conMonto.length <= 1) return candidatos;
+  const best = conMonto.reduce((b, d) =>
+    Math.abs((d.monto_clp as number) - montoDeclarado) < Math.abs((b.monto_clp as number) - montoDeclarado) ? d : b
+  );
+  return candidatos.filter((d) => typeof d.monto_clp !== 'number' || d.monto_clp === best.monto_clp);
 }
 
 /** Convierte una fecha YYYY-MM-DD (o dd/mm/yyyy) al formato dd/mm/yyyy del portal. */
@@ -790,7 +833,10 @@ export async function fillStep3(
     // `isOtros` es el valor FINAL usado al declarar (post-degradación 90+d→261, de-reclasificación,
     // etc.). Se guarda acá para que la fase de adjunción NO lo recompute desde overdue90Days (que
     // contradice la declaración y sube el cert a la tabla equivocada — invariante del CLAUDE.md).
-    const addedDocs: { entry: AcreedorCatalogEntry; creditor: CmfCreditor; nonCmfDocFilename?: string; isOtros: boolean }[] = [];
+    // `cmfDocFilename`: el archivo del que salió el monto/vencimiento de esta fila, según el
+    // override del Centinela. Viaja hasta la fase de adjuntar para que el PDF que se sube sea el
+    // que respalda la cifra declarada, en vez de un documento cualquiera del mismo banco.
+    const addedDocs: { entry: AcreedorCatalogEntry; creditor: CmfCreditor; nonCmfDocFilename?: string; cmfDocFilename?: string; isOtros: boolean }[] = [];
 
     // Extract client's RUT from the CMF to ignore it when scanning certificates
     let clientRutClean: string | null = null;
@@ -1050,7 +1096,7 @@ export async function fillStep3(
           monto: creditorEff.totalCredito,
         });
         log(`✓ Acreedor agregado: ${entry.nombre} ($${creditorEff.totalCredito.toLocaleString('es-CL')}).`);
-        addedDocs.push({ entry, creditor: creditorEff, isOtros });
+        addedDocs.push({ entry, creditor: creditorEff, cmfDocFilename: cmfOv?.document_filename, isOtros });
       } catch (err) {
         const reason = `Error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
         logError(`✗ Falló agregar "${creditor.institucion}" (${entry.nombre}).`, err);
@@ -1382,7 +1428,7 @@ export async function fillStep3(
       const reservedNonCmfFilenames = new Set(
         additionalToDeclare.map((a) => a.document_filename).filter(Boolean)
       );
-      for (const { entry, creditor, nonCmfDocFilename, isOtros } of addedDocs) {
+      for (const { entry, creditor, nonCmfDocFilename, cmfDocFilename, isOtros } of addedDocs) {
         // NO-CMF → matchear el documento exacto por filename.
         // CMF    → matchear por institución, excluyendo los reservados a NO-CMF.
         let creditorDocs: AcreditacionDoc[];
@@ -1404,19 +1450,21 @@ export async function fillStep3(
             (d) => !d.filename || !reservedNonCmfFilenames.has(d.filename)
           );
           creditorDocs = noReservados.length > 0 ? noReservados : allInstDocs;
-          // Desambiguar bancos multi-producto: si el banco tiene varios productos con certs
-          // DISTINTOS (ej. BdCh tarjeta 260 + consumo 261 + línea 261), findAcreditacionDocs
-          // devuelve TODOS y pickDoc tomaría el primero → cruce. Si ≥2 docs traen monto_clp,
-          // quedarse con el/los del monto MÁS CERCANO al de esta fila (argmin), conservando
-          // ambas copias tipo 22/23 de ese archivo. Se usa argmin (no filtro por tolerancia)
-          // para que un cert multiproducto COMPARTIDO (único candidato) siga sirviendo a todas
-          // las filas. Condicionado a monto_clp presente → 100% retrocompatible.
-          const conMonto = creditorDocs.filter((d) => typeof d.monto_clp === 'number');
-          if (conMonto.length > 1) {
-            const best = conMonto.reduce((b, d) =>
-              Math.abs((d.monto_clp as number) - creditor.totalCredito) < Math.abs((b.monto_clp as number) - creditor.totalCredito) ? d : b
-            );
-            creditorDocs = creditorDocs.filter((d) => typeof d.monto_clp !== 'number' || d.monto_clp === best.monto_clp);
+          // Elegir QUÉ documento acredita esta fila: primero el que citó el Centinela (la copia
+          // que ganó su dedup, o sea la fuente del monto declarado), y si no citó ninguno, el
+          // desempate por monto que ya existía. Ver `seleccionarDocsDeLaFila`.
+          const antes = creditorDocs.length;
+          creditorDocs = seleccionarDocsDeLaFila(creditorDocs, creditor.totalCredito, cmfDocFilename);
+          if (cmfDocFilename && creditorDocs.length < antes && creditorDocs[0]?.filename === cmfDocFilename) {
+            log(`   📎 "${entry.nombre}": se adjunta el documento que citó el Centinela ("${cmfDocFilename}"), de donde salió el monto declarado.`);
+          } else if (cmfDocFilename && !creditorDocs.some((d) => (d.filename ?? '').toLowerCase() === cmfDocFilename.toLowerCase())) {
+            // G2: el archivo del que salió el monto no está entre los mapeados (output del
+            // Centinela cacheado antes de un rename). Se adjunta el del monto más cercano, pero
+            // el abogado tiene que saber que el papel adjunto NO es el que respalda la cifra.
+            const elegido = creditorDocs[0]?.filename ?? 'ninguno';
+            const reason = `El monto declarado ($${creditor.totalCredito.toLocaleString('es-CL')}) salió de "${cmfDocFilename}", que no quedó entre los documentos del caso; se adjuntó "${elegido}". Verificá que ese PDF acredite el monto.`;
+            log(`   ⚠️ "${entry.nombre}": ${reason}`);
+            report.skipped.push({ institucion: entry.nombre, reason, code: 'falta_documento', monto: creditor.totalCredito });
           }
         }
         if (creditorDocs.length === 0) {

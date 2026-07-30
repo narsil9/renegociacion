@@ -168,10 +168,18 @@ export async function runCentinelaAgent(
       reclassifiedCreditors: sentinelResult.reclassifiedCreditors ?? [],
       identified261Creditors: sentinelResult.identified261Creditors ?? [],
       additionalCreditors: sentinelResult.additionalCreditors ?? [],
+      // `document_filename` viaja a propósito: es el archivo del que salieron `monto_clp` y
+      // `fecha_vencimiento` (la copia que ganó el dedup del Centinela). Antes se descartaba acá
+      // y del otro lado de la frontera la adjunción tenía que adivinar cuál de los N documentos
+      // del banco acredita el monto declarado — con la rama "Art.260 directos del CMF" los N
+      // vienen con el mismo monto (el total del CMF), así que el desempate se quedaba sin señal
+      // y tomaba el primero del array. Caso María Barraza (feedback del abogado, error 6): se
+      // declaró el monto del estado de JUNIO con el estado de MAYO adjunto.
       cmfDocumentOverrides: (sentinelResult.cmf260DirectOverrides ?? []).map(o => ({
         institucion_cmf: o.institucion_cmf,
         monto_clp: o.monto_clp,
         fecha_vencimiento: o.fecha_vencimiento,
+        document_filename: o.document_filename,
       })),
       deReclassified261Creditors: sentinelResult.deReclassified261Creditors ?? [],
       fechasClave: sentinelResult.fechasClave ?? [],
