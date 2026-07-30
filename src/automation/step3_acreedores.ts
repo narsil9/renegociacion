@@ -127,6 +127,56 @@ export interface CmfDocumentOverride {
  * Pura y exportada a propósito: decide qué PDF entra en una presentación judicial, y la
  * adjunción real vive dentro de `fillStep3`, que necesita Playwright y no se puede testear.
  */
+/**
+ * Cuenta, por banco, los MONTOS DISTINTOS entre sus `identified261Creditors` — no la cantidad
+ * cruda de entradas. Dos id261 del mismo banco con el MISMO monto son la misma deuda vista en
+ * dos papeles (dos períodos del estado de cuenta, el cert y su reemisión); contarlos dos veces
+ * cruza de más el umbral de "multiproducto 261" y hace que se salteen las filas CMF del banco Y
+ * se declare la deuda dos veces por el mismo monto.
+ *
+ * Espejo de `step3_classify.ts::planStep3Rows` — misma regla, acá en `fillStep3`, el camino que
+ * declara contra el portal real. `planStep3Rows` no tiene llamadores en producción (solo la usan
+ * los tests); `fillStep3` mantenía su propia copia de este cálculo sin el fix, así que el fix
+ * original (test_step3_classify.ts) quedó verde sin proteger la corrida real.
+ */
+export function contarMontosDistintosPorBanco(
+  id261ByBankKey: Map<string, Array<{ total_credito_clp: number }>>
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [k, arr] of id261ByBankKey.entries()) {
+    out.set(k, new Set(arr.map((r) => r.total_credito_clp)).size);
+  }
+  return out;
+}
+
+/**
+ * Filas de producto 261 a emitir para un banco multiproducto: una por MONTO distinto, no una
+ * por entrada. Mismo motivo que `contarMontosDistintosPorBanco`.
+ *
+ * Es una heurística, no una certeza: dos productos DISTINTOS del mismo banco pueden coincidir
+ * en el monto exacto por casualidad (montos redondos en CLP no son raros). Por eso, cuando
+ * `dropped` se provee, cada entrada colapsada se registra ahí — mismo patrón que
+ * `dedupeIdentified261Products` (arriba) usa para su propio dedup por monto casi-idéntico — para
+ * que el llamador pueda alertar con `posible_duplicado` (accionable) en vez de perderla en
+ * silencio (regla G2).
+ */
+export function id261FilasAEmitir<T extends { total_credito_clp: number }>(
+  ids: T[],
+  dropped?: T[]
+): T[] {
+  const vistos = new Set<number>();
+  const out: T[] = [];
+  for (const r of ids) {
+    if (r.total_credito_clp > 0 && vistos.has(r.total_credito_clp)) {
+      dropped?.push(r);
+      continue;
+    }
+    if (r.total_credito_clp > 0) vistos.add(r.total_credito_clp);
+    out.push(r);
+  }
+  return out;
+}
+
 export function seleccionarDocsDeLaFila(
   candidatos: AcreditacionDoc[],
   montoDeclarado: number,
@@ -799,8 +849,11 @@ export async function fillStep3(
       const k = canonicalInstitutionKey(c.institucion);
       if (k) poolCountByBankKey.set(k, (poolCountByBankKey.get(k) ?? 0) + 1);
     }
+    const montosDistintosPorBankKey = contarMontosDistintosPorBanco(id261ByBankKey);
     const multiProduct261Bases = new Set(
-      [...id261ByBankKey.entries()].filter(([k, arr]) => arr.length > (poolCountByBankKey.get(k) ?? 0)).map(([k]) => k)
+      [...id261ByBankKey.entries()]
+        .filter(([k]) => (montosDistintosPorBankKey.get(k) ?? 0) > (poolCountByBankKey.get(k) ?? 0))
+        .map(([k]) => k)
     );
     const isMultiProduct261Institution = (c: CmfCreditor): boolean =>
       multiProduct261Bases.has(canonicalInstitutionKey(c.institucion));
@@ -1255,8 +1308,20 @@ export async function fillStep3(
         for (const id of ids) report.skipped.push({ institucion: id.institucion_cmf, reason, code: 'comuna_sin_region' });
         continue;
       }
-      log(`→ Institución MULTIPRODUCTO 261 "${entry.nombre}": ${ids.length} producto(s) → ${ids.length} fila(s) en Otros Acreedores.`);
-      for (const id of ids) {
+      const idsDropped: Identified261Creditor[] = [];
+      const idsAEmitir = id261FilasAEmitir(ids, idsDropped);
+      log(`→ Institución MULTIPRODUCTO 261 "${entry.nombre}": ${ids.length} producto(s) → ${idsAEmitir.length} fila(s) en Otros Acreedores.`);
+      for (const d of idsDropped) {
+        // G2: es una heurística (mismo monto exacto = misma deuda), no una certeza. Si son dos
+        // productos DISTINTOS que coinciden en el monto por casualidad, el abogado lo revisa acá.
+        report.skipped.push({
+          institucion: d.institucion_cmf,
+          reason: `Multiproducto 261 "${entry.nombre}": se fusionó con otra fila del monto EXACTO ($${d.total_credito_clp.toLocaleString('es-CL')}) por considerarse la MISMA deuda leída dos veces. Si son dos créditos distintos, cargá el segundo a mano.`,
+          code: 'posible_duplicado',
+          monto: d.total_credito_clp,
+        });
+      }
+      for (const id of idsAEmitir) {
         const monto = id.total_credito_clp;
         if (!monto || monto <= 0) { log(`   ⏭️ Producto 261 "${id.institucion_cmf}" sin monto válido — omitiendo.`); continue; }
         const label = (id.institucion_cmf || '').toLowerCase();

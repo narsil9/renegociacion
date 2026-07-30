@@ -204,6 +204,38 @@ void (async () => {
     out2.alerts.every((a: any) => a.type !== 'missing_document'),
     JSON.stringify(out2.alerts.map((a: any) => a.type)));
 
+  // Hallazgo de session-sync: dos NO-CMF del MISMO banco, donde el primero necesita fallback y
+  // el segundo matchea EXACTO. Sin excluir `reservedNonCmfFilenames`, el fallback del primero le
+  // "robaba" al segundo el documento que sí citó correctamente (era el candidato [0] de
+  // `findDocsByInstitution` sin exclusión) — el push del segundo quedaba deduplicado bajo la
+  // misma clave y su AcreditacionDoc mapeado terminaba con el monto_clp del PRIMERO.
+  const out2b = await buildMappedDocsDeterministic(
+    centinela({
+      additionalCreditors: [
+        {
+          bank: 'Tanner', institucion_cmf: 'Tanner Servicios Financieros', product_type: 'otro',
+          categoria_articulo: 261, total_credito_clp: 1_000_000, reason: '',
+          document_filename: 'old-name-renombrado.pdf', // no matchea exacto → necesita fallback
+        },
+        {
+          bank: 'Tanner', institucion_cmf: 'Tanner Servicios Financieros', product_type: 'otro',
+          categoria_articulo: 261, total_credito_clp: 2_500_000, reason: '',
+          document_filename: 'drive-2_cert_b.pdf', // SÍ matchea exacto
+        },
+      ],
+    }),
+    [
+      doc({ institucion_cmf: 'Tanner Servicios Financieros', filename: 'drive-2_cert_b.pdf', storage_path: 'x/certs/drive-2_cert_b.pdf' }),
+      doc({ institucion_cmf: 'Tanner Servicios Financieros', filename: 'drive-3_otro.pdf', storage_path: 'x/certs/drive-3_otro.pdf' }),
+    ],
+    [],
+    logger
+  );
+  const bDoc = out2b.mappedDocs.find((d: any) => d.filename === 'drive-2_cert_b.pdf');
+  check('el documento citado EXACTO por el segundo NO-CMF queda con SU monto, no el del primero',
+    bDoc?.monto_clp === 2_500_000,
+    `mappedDocs=${JSON.stringify(out2b.mappedDocs.map((d: any) => ({ f: d.filename, m: d.monto_clp })))}`);
+
   // El fallback NO inventa: sin ningún doc de esa institución, sigue alertando missing_document
   // (ahí SÍ corresponde bloquear: no hay con qué acreditar).
   const out3 = await buildMappedDocsDeterministic(

@@ -200,7 +200,12 @@ export async function buildMappedDocsDeterministic(
       ? clientDocuments.find((d) => d.filename?.toLowerCase() === fn.toLowerCase())
       : undefined;
     // Misma red que en los reclasificados. Testigo: `ilovepdf_merged (23).pdf` (Tanner) en Barraza.
-    const doc = exacto ?? findDocsByInstitution(a.institucion_cmf ?? a.bank, clientDocuments, new Set<string>())[0];
+    // Excluye `reservedNonCmfFilenames` (no un Set vacío): con dos NO-CMF del mismo banco, el
+    // fallback del primero podía "robarle" al segundo el documento que SÍ citó correctamente —
+    // el segundo matcheaba exacto, pero su push quedaba deduplicado bajo la clave que ya había
+    // tomado el primero, y el doc mapeado quedaba con el monto_clp del primero. Hallazgo de
+    // session-sync.
+    const doc = exacto ?? findDocsByInstitution(a.institucion_cmf ?? a.bank, clientDocuments, reservedNonCmfFilenames)[0];
     if (doc && !exacto) {
       alerts.push({
         type: 'other',
