@@ -112,13 +112,37 @@ export async function buildMappedDocsDeterministic(
   log(`Procesando ${centinelaOutput.reclassifiedCreditors.length} acreedores reclasificados...`);
   for (const r of centinelaOutput.reclassifiedCreditors) {
     const fn = r.document_filename;
-    const primaryDoc = fn
+    // Fallback por institución (la misma red que ya tenía identified261Creditors): el
+    // `document_filename` puede venir de un output cacheado antes de un rename —la Task 7
+    // renombra TODOS los archivos— o el LLM puede citarlo con otra capitalización. Perder el
+    // doc acá no bloquea la fila (la declara planStep3Rows) pero la deja SIN certificado
+    // adjunto, que es lo que pasó con `ilovepdf_merged (22).pdf` en Barraza.
+    const exacto = fn
       ? clientDocuments.find((d) => d.filename?.toLowerCase() === fn.toLowerCase())
       : undefined;
+    const primaryDoc =
+      exacto ??
+      findDocsByInstitution(r.institucion_cmf, clientDocuments, reservedNonCmfFilenames)
+        .find((d) => d.document_type === 22 || d.document_type === 23 || d.document_type === 24);
+    if (primaryDoc && !exacto) {
+      // G2: el fallback adjunta un documento que el Centinela NO nombró; puede no tener relación
+      // con el monto declarado. Se avisa SIEMPRE — pero con tipo `other`, no `missing_document`:
+      // ese tipo es BLOQUEANTE (mapeadorHasBlockers / validator.ts) y abortaría el Paso 3 que
+      // este fallback venía justamente a salvar.
+      alerts.push({
+        type: 'other',
+        message:
+          `Reclasificado "${r.bank}": el documento citado ("${r.document_filename}") no existe en ` +
+          `client_documents; se adjuntó "${primaryDoc.filename}" por ser de la misma institución ` +
+          `("${r.institucion_cmf}"). VERIFICAR que ese PDF acredite los ` +
+          `$${(r.total_credito_clp ?? 0).toLocaleString('es-CL')} declarados.`,
+      });
+      log(`  ⚠️ FALLBACK por institución para "${r.bank}": ${primaryDoc.filename}`);
+    }
     if (!primaryDoc) {
       alerts.push({
         type: 'missing_document',
-        message: `Reclasificado "${r.bank}": "${r.document_filename}" no encontrado en client_documents.`,
+        message: `Reclasificado "${r.bank}": "${r.document_filename}" no encontrado en client_documents, y ningún documento del caso quedó asociado a "${r.institucion_cmf}".`,
       });
       log(`  ⚠️ FALTA "${r.document_filename}" para reclasificado "${r.bank}"`);
       continue;
@@ -172,9 +196,21 @@ export async function buildMappedDocsDeterministic(
   log(`Procesando ${centinelaOutput.additionalCreditors.length} acreedores NO-CMF...`);
   for (const a of centinelaOutput.additionalCreditors) {
     const fn = a.document_filename;
-    const doc = fn
+    const exacto = fn
       ? clientDocuments.find((d) => d.filename?.toLowerCase() === fn.toLowerCase())
       : undefined;
+    // Misma red que en los reclasificados. Testigo: `ilovepdf_merged (23).pdf` (Tanner) en Barraza.
+    const doc = exacto ?? findDocsByInstitution(a.institucion_cmf ?? a.bank, clientDocuments, new Set<string>())[0];
+    if (doc && !exacto) {
+      alerts.push({
+        type: 'other',
+        message:
+          `NO-CMF "${a.bank}": el documento citado ("${a.document_filename}") no existe en ` +
+          `client_documents; se adjuntó "${doc.filename}" por ser de la misma institución. ` +
+          `VERIFICAR que acredite los $${(a.total_credito_clp ?? 0).toLocaleString('es-CL')} declarados.`,
+      });
+      log(`  ⚠️ FALLBACK por institución para NO-CMF "${a.bank}": ${doc.filename}`);
+    }
     if (doc) {
       const tipo: 22 | 24 = a.categoria_articulo === 260 ? 24 : 22;
       // NO-CMF creditors have no institucion_cmf (null) — use bank name instead
@@ -182,7 +218,7 @@ export async function buildMappedDocsDeterministic(
     } else {
       alerts.push({
         type: 'missing_document',
-        message: `NO-CMF "${a.bank}": "${a.document_filename}" no encontrado en client_documents.`,
+        message: `NO-CMF "${a.bank}": "${a.document_filename}" no encontrado en client_documents, y ningún documento quedó asociado a "${a.institucion_cmf ?? a.bank}".`,
       });
       log(`  ⚠️ FALTA "${a.document_filename}" para NO-CMF "${a.bank}"`);
     }

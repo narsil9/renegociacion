@@ -9,6 +9,7 @@ import { join } from 'path';
 import { identidadConfirmadaPorElPapel } from '../../src/utils/sentinel_backstops';
 import { detectarInstitucionesNoResueltas } from '../../src/utils/sentinel';
 import { documentosDeIngresoDescartados } from '../../src/utils/doc_scope';
+import { buildMappedDocsDeterministic } from '../../src/utils/deterministic_mapeador';
 
 let ok = 0, fail = 0;
 function check(name: string, cond: boolean, detail = '') {
@@ -140,5 +141,103 @@ console.log('\n═══ Paso 5: documentos descartados ═══');
     ]).length === 0);
 }
 
-console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
-process.exit(fail === 0 ? 0 : 1);
+// ── Task 6: el Mapeador no pierde el documento cuando el nombre no matchea ───────────────
+// `reclassifiedCreditors` y `additionalCreditors` matcheaban por filename exacto SIN fallback
+// (identified261 sí lo tenía). Con Barraza eso es `ilovepdf_merged (22).pdf` y `(23).pdf`: si el
+// nombre cambia —y la Task 7 renombra TODO— las dos filas se declaran SIN certificado adjunto.
+//
+// Pero el fallback cambia un fallo visible por uno invisible, así que cada vez que adivina tiene
+// que alertar, y con un tipo NO BLOQUEANTE: `missing_document` frena el Paso 3 entero
+// (mapeador_agent.mapeadorHasBlockers / validator.ts), o sea la alerta abortaría la corrida que
+// el fallback venía a salvar.
+console.log('\n═══ Mapeador: fallback por institución ═══');
+// `buildMappedDocsDeterministic` es async → el bloque va en una IIFE y el resumen final adentro.
+void (async () => {
+  const doc = (over: Record<string, unknown> = {}) => ({
+    id: 'd1', client_id: 'c1', document_type: 22, acreditacion_tipo: 'monto',
+    institucion_cmf: 'Banco de Chile', storage_path: 'x/certs/drive-1_cert.pdf',
+    filename: 'drive-1_cert.pdf', uploaded_at: '2026-07-21T00:00:00.000Z', ...over,
+  } as never);
+  const centinela = (over: Record<string, unknown> = {}) => ({
+    reclassifiedCreditors: [], identified261Creditors: [], additionalCreditors: [],
+    cmfDocumentOverrides: [], deReclassified261Creditors: [], fechasClave: [], ...over,
+  } as never);
+  const logger = { log: () => {} };
+
+  // El Centinela nombró el archivo con el nombre VIEJO (output cacheado antes del rename).
+  const out = await buildMappedDocsDeterministic(
+    centinela({
+      reclassifiedCreditors: [{
+        bank: 'Banco de Chile', institucion_cmf: 'Banco de Chile', product_type: 'tarjeta_credito',
+        delinquency_days: 120, delinquency_start_date: '2026-02-01', total_credito_clp: 5_900_000,
+        reason: '', document_filename: 'ilovepdf_merged (22).pdf',
+      }],
+    }),
+    [doc({ filename: 'drive-1_ilovepdf_merged (22).pdf' })],
+    [],
+    logger
+  );
+  check('reclasificado: cae al fallback por institución en vez de perder el doc',
+    out.mappedDocs.length >= 1,
+    `mappedDocs=${out.mappedDocs.length} alerts=${out.alerts.map((a: any) => a.type).join(',')}`);
+  check('caer al fallback deja una alerta',
+    out.alerts.some((a: any) => /fallback|no nombr|misma instituci/i.test(a.message)),
+    JSON.stringify(out.alerts.map((a: any) => a.message)));
+  check('y esa alerta NO es bloqueante (no puede abortar el Paso 3)',
+    out.alerts.every((a: any) => a.type !== 'missing_document' && a.type !== 'rut_mismatch'),
+    JSON.stringify(out.alerts.map((a: any) => a.type)));
+
+  const out2 = await buildMappedDocsDeterministic(
+    centinela({
+      additionalCreditors: [{
+        bank: 'Tanner', institucion_cmf: 'Tanner Servicios Financieros', product_type: 'otro',
+        categoria_articulo: 261, total_credito_clp: 1_000_000, reason: '',
+        document_filename: 'ilovepdf_merged (23).pdf',
+      }],
+    }),
+    [doc({ institucion_cmf: 'Tanner Servicios Financieros', filename: 'drive-2_ilovepdf_merged (23).pdf' })],
+    [],
+    logger
+  );
+  check('NO-CMF: cae al fallback por institución', out2.mappedDocs.length >= 1, `mappedDocs=${out2.mappedDocs.length}`);
+  check('NO-CMF: el fallback tampoco bloquea',
+    out2.alerts.every((a: any) => a.type !== 'missing_document'),
+    JSON.stringify(out2.alerts.map((a: any) => a.type)));
+
+  // El fallback NO inventa: sin ningún doc de esa institución, sigue alertando missing_document
+  // (ahí SÍ corresponde bloquear: no hay con qué acreditar).
+  const out3 = await buildMappedDocsDeterministic(
+    centinela({
+      reclassifiedCreditors: [{
+        bank: 'Scotiabank', institucion_cmf: 'Scotiabank Chile', product_type: 'otro',
+        delinquency_days: 100, delinquency_start_date: '2026-03-01', total_credito_clp: 1,
+        reason: '', document_filename: 'no-existe.pdf',
+      }],
+    }),
+    [doc()],
+    [],
+    logger
+  );
+  check('sin doc de esa institución, sigue alertando missing_document',
+    out3.alerts.some((a: any) => a.type === 'missing_document'));
+
+  // Match EXACTO: no alerta, porque no adivinó nada.
+  const out4 = await buildMappedDocsDeterministic(
+    centinela({
+      reclassifiedCreditors: [{
+        bank: 'Banco de Chile', institucion_cmf: 'Banco de Chile', product_type: 'tarjeta_credito',
+        delinquency_days: 120, delinquency_start_date: '2026-02-01', total_credito_clp: 5_900_000,
+        reason: '', document_filename: 'drive-1_cert.pdf',
+      }],
+    }),
+    [doc()],
+    [],
+    logger
+  );
+  check('con match exacto no hay alerta de fallback',
+    !out4.alerts.some((a: any) => /fallback|misma instituci/i.test(a.message)),
+    JSON.stringify(out4.alerts.map((a: any) => a.message)));
+
+  console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
+  process.exit(fail === 0 ? 0 : 1);
+})();
