@@ -9,7 +9,7 @@
  *
  * Uso: npx ts-node --transpile-only tools/paso3_validacion/test_adjuncion_documento.ts
  */
-import { seleccionarDocsDeLaFila } from '../../src/automation/step3_acreedores';
+import { seleccionarDocsDeLaFila, contarMontosDistintosPorBanco, id261FilasAEmitir } from '../../src/automation/step3_acreedores';
 import type { AcreditacionDoc } from '../../src/automation/step3_acreedores';
 
 let ok = 0;
@@ -149,6 +149,68 @@ console.log('═══ Adjunción: el archivo acompaña al monto declarado ═�
     elegidos.some((d) => d.filename === 'con_monto.pdf') && elegidos.some((d) => d.filename === 'sin_monto.pdf'),
     `eligió: ${nombres(elegidos)}`
   );
+}
+
+// ── Multiproducto 261 en el camino REAL (fillStep3), no solo en planStep3Rows ────────────
+// Hallazgo de session-sync: el fix de la Task 12 (id261 duplicado no dispara multiproducto ni
+// duplica la deuda) se aplicó a `planStep3Rows` (step3_classify.ts), que NO tiene ningún
+// llamador de producción — solo tests. `fillStep3` (step3_acreedores.ts, el camino que declara
+// contra el portal real) mantenía su PROPIA copia de esta lógica sin el fix: un banco con dos
+// id261 del mismo monto disparaba multiproducto igual, saltaba la fila del CMF, y declaraba la
+// deuda DOS veces por el mismo monto en el portal real. Estas dos funciones son las que
+// `fillStep3` usa ahora para el gate y la emisión.
+console.log('\n═══ Multiproducto 261 en fillStep3 (contarMontosDistintosPorBanco / id261FilasAEmitir) ═══');
+{
+  const id261ByBankKey = new Map([
+    ['banco falabella', [
+      { total_credito_clp: 4_000_000 },
+      { total_credito_clp: 4_000_000 },
+    ]],
+  ]);
+  const montos = contarMontosDistintosPorBanco(id261ByBankKey);
+  check('dos id261 con el MISMO monto cuentan como 1 (no 2)',
+    montos.get('banco falabella') === 1, `montos=${montos.get('banco falabella')}`);
+}
+{
+  const id261ByBankKey = new Map([
+    ['banco falabella', [
+      { total_credito_clp: 4_000_000 },
+      { total_credito_clp: 1_500_000 },
+    ]],
+  ]);
+  const montos = contarMontosDistintosPorBanco(id261ByBankKey);
+  check('dos id261 con montos DISTINTOS cuentan como 2 (multiproducto real)',
+    montos.get('banco falabella') === 2, `montos=${montos.get('banco falabella')}`);
+}
+{
+  const ids = [
+    { total_credito_clp: 4_000_000, ref: 'a.pdf' },
+    { total_credito_clp: 4_000_000, ref: 'b.pdf' },
+  ];
+  const emitir = id261FilasAEmitir(ids);
+  check('la emisión real dedupea por monto: 1 fila, no 2 (la deuda no se declara dos veces)',
+    emitir.length === 1 && emitir[0].total_credito_clp === 4_000_000,
+    `emitir=${JSON.stringify(emitir)}`);
+}
+{
+  const ids = [
+    { total_credito_clp: 4_000_000, ref: 'a.pdf' },
+    { total_credito_clp: 1_500_000, ref: 'b.pdf' },
+  ];
+  const emitir = id261FilasAEmitir(ids);
+  check('montos distintos: las dos filas se emiten (multiproducto legítimo no se pierde)',
+    emitir.length === 2, `emitir=${JSON.stringify(emitir)}`);
+}
+{
+  // Montos en 0/negativos no deben "consumir" el slot de dedup: cada fila sin monto se sigue
+  // evaluando (la sube; fillStep3 la descarta después por "sin monto válido").
+  const ids = [
+    { total_credito_clp: 0, ref: 'a.pdf' },
+    { total_credito_clp: 0, ref: 'b.pdf' },
+  ];
+  const emitir = id261FilasAEmitir(ids);
+  check('montos en 0 no se deduplican entre sí (cada fila se evalúa después por su cuenta)',
+    emitir.length === 2, `emitir=${JSON.stringify(emitir)}`);
 }
 
 console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
