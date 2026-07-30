@@ -37,7 +37,8 @@ const TESTS = [
   'test_cert_line_items.ts',             // ítems de un cert: no emitir el TOTAL GLOBAL como producto
   'test_catalogo_acreedores.ts',         // el catálogo LANZA ante error de base (contrato del que depende el fix del catch{} de sentinel.ts)
   'test_document_reads.ts',              // llaves de document_reads (contenido y contexto)
-  'test_contrato_documentos.ts',        // Tanda A: el backstop no declara si el papel no confirma la identidad del acreedor
+  'test_contrato_documentos.ts',         // Tanda A: el backstop no declara si el papel no confirma la identidad del acreedor
+  'test_read_issues_alert.ts',           // el encabezado de la alerta no dice "se declaró igual" cuando el monto NO se declaró
   'test_dedup_contenido.ts',             // el mismo PDF por correo y por Drive es UN documento
   'test_extraccion_pura.ts',             // el prompt per-doc no depende de la fecha (requisito del caché)
   'test_doc_scope.ts',                   // el Paso 3 no lee documentos de ingreso
