@@ -37,15 +37,38 @@ function runIdSalt(): string {
 
 /**
  * Firma determinista del CONJUNTO de documentos de acreditación del cliente.
- * Se incluye en la llave de idempotencia del Centinela para que agregar o
- * re-subir un documento invalide el cache y fuerce la re-lectura (antes la
+ * Se incluye en la llave de idempotencia del Centinela para que agregar, re-subir o
+ * RE-ETIQUETAR un documento invalide el cache y fuerce la re-lectura (antes la
  * llave solo miraba el CMF, así que documentos nuevos nunca se leían).
+ *
+ * Incluye `filename`, `institucion_cmf` y `document_type` a propósito: el proyector del
+ * dashboard reescribe esos tres campos SIN tocar el `storage_path`, así que una firma que
+ * solo mirara la ruta dejaba vigente un análisis calculado con las etiquetas viejas — el fix
+ * se deployaba y no pasaba nada, en silencio.
+ *
+ * Los tres son opcionales y `undefined` se normaliza igual que `null`: un llamador que no los
+ * pase produce la MISMA firma que antes para ese documento, así que el deploy no invalida el
+ * caché de todos los clientes de golpe.
  */
 export function documentSetSignature(
-  docs: Array<{ storage_path: string; uploaded_at: string | null }>
+  docs: Array<{
+    storage_path: string;
+    uploaded_at: string | null;
+    filename?: string | null;
+    institucion_cmf?: string | null;
+    document_type?: number | null;
+  }>
 ): string {
   const norm = docs
-    .map((d) => `${d.storage_path}@${d.uploaded_at ?? ''}`)
+    .map((d) =>
+      [
+        d.storage_path,
+        d.uploaded_at ?? '',
+        d.filename ?? '',
+        d.institucion_cmf ?? '',
+        d.document_type ?? '',
+      ].join('|')
+    )
     .sort();
   return crypto.createHash('sha256').update(norm.join('\n')).digest('hex');
 }
@@ -96,10 +119,12 @@ export async function runCentinelaAgent(
   // acreditación del cliente y (3) versión de lógica. Antes solo miraba el CMF, así
   // que documentos nuevos nunca se re-leían (bug María, 2026-07). Subir la versión
   // al cambiar reglas del Centinela.
-  const CENTINELA_LOGIC_VERSION = 'v22-review-jul26';
+  const CENTINELA_LOGIC_VERSION = 'v23-contrato-documentos';
   const { data: docRows, error: docErr } = await supabase
     .from('client_documents')
-    .select('storage_path, uploaded_at')
+    // filename / institucion_cmf / document_type entran a la firma: el proyector los reescribe
+    // sin tocar el storage_path (ver documentSetSignature).
+    .select('storage_path, uploaded_at, filename, institucion_cmf, document_type')
     .eq('client_id', clientId);
   if (docErr) {
     // No arriesgar un run stale: si no podemos leer el set de documentos, forzamos re-lectura.

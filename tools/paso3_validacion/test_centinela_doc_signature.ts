@@ -31,5 +31,31 @@ check('vacío es estable', documentSetSignature([]) === documentSetSignature([])
 // 5) uploaded_at null no rompe
 check('null uploaded_at ok', typeof documentSetSignature([{ storage_path: 'x', uploaded_at: null }]) === 'string');
 
+// ── Los campos que REETIQUETA el proyector del dashboard tienen que invalidar el caché ──
+// El proyector reescribe `filename`, `institucion_cmf` y `document_type` SIN tocar el
+// `storage_path`. Con una firma que solo miraba la ruta, el análisis viejo seguía vigente:
+// el fix se deployaba y no pasaba nada, en silencio. Barraza tiene un run `completed` del
+// 23-jul, así que sin esto ninguno de los fixes del contrato se activa para ella.
+const C = {
+  storage_path: 'x/certs/c.pdf',
+  uploaded_at: '2026-07-21T04:00:00.000Z',
+  filename: 'cert.pdf',
+  institucion_cmf: 'Banco de Chile',
+  document_type: 22,
+};
+check('renombrar el archivo cambia la firma',
+  documentSetSignature([C]) !== documentSetSignature([{ ...C, filename: 'email-5261_cert.pdf' }]));
+check('cambiar la institucion cambia la firma',
+  documentSetSignature([C]) !== documentSetSignature([{ ...C, institucion_cmf: 'BANCO DE CHILE' }]));
+check('cambiar el document_type cambia la firma',
+  documentSetSignature([C]) !== documentSetSignature([{ ...C, document_type: 24 }]));
+check('los campos nuevos son opcionales (retrocompatible)',
+  typeof documentSetSignature([{ storage_path: 'y', uploaded_at: null }]) === 'string');
+// Un campo nuevo ausente y el mismo campo en null/vacío tienen que dar LO MISMO: si no, la
+// primera corrida tras el deploy invalidaría el caché de todos los clientes sin motivo.
+check('ausente y vacío son equivalentes',
+  documentSetSignature([{ storage_path: 'y', uploaded_at: null }]) ===
+  documentSetSignature([{ storage_path: 'y', uploaded_at: null, filename: null, institucion_cmf: null, document_type: null }]));
+
 console.log(`\n${fail === 0 ? '✅ TODOS OK' : '❌ ' + fail + ' FALLARON'} (${ok} ok, ${fail} fail)`);
 process.exit(fail === 0 ? 0 : 1);
