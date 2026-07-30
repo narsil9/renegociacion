@@ -68,6 +68,11 @@ async function run(raw: any, ctx: Partial<{ cmfCreditors: any[]; documents: any[
     const { result } = await run(raw, {
       cmfCreditors: [{ institucion: 'Banco del Estado de Chile', tipoCredito: 'Consumo', totalCredito: 400_000, overdue90Days: 0 }],
       documents: [{ filename: 'be.pdf', institucion_cmf: 'Banco del Estado de Chile', isImageDoc: false, textContent: 'Certificado de deuda. Saldo Insoluto: $389.848 al día de hoy.' }],
+      // El backstop de completitud exige que el PAPEL confirme su acreedor antes de crear uno
+      // (identidadConfirmadaPorElPapel). En producción ese flag lo pone computeRutCheckLocal
+      // cuando el RUT del acreedor asignado aparece impreso en el cert, que es el caso normal
+      // de un certificado de deuda legítimo; este fixture es sintético y no traía el análisis.
+      certificateAnalyses: [{ filename: 'be.pdf', identidadAsignadaConfirmada: true }],
     });
     const hit = result.identified261Creditors.find((r: any) => r.total_credito_clp === 389_848);
     check('cert con ítem omitido (slot CMF libre) → +id261 $389.848', !!hit, `id261=${JSON.stringify(result.identified261Creditors.map((r:any)=>r.total_credito_clp))}`);
@@ -79,6 +84,11 @@ async function run(raw: any, ctx: Partial<{ cmfCreditors: any[]; documents: any[
     const { result } = await run(raw, {
       cmfCreditors: [{ institucion: 'Banco Z', tipoCredito: 'Consumo', totalCredito: 10_000_000, overdue90Days: 0 }],
       documents: [{ filename: 'z.pdf', institucion_cmf: 'Banco Z', isImageDoc: false, textContent: 'Saldo Insoluto: $10.000.000\nSaldo Deuda cuenta corriente: $1.234.567' }],
+      // Ídem G2a. Ojo: "Banco Z" no existe en el catálogo, así que en PRODUCCIÓN este papel
+      // nunca tendría el flag en true (matchAcreedor no resuelve → no hay RUT que comparar) y
+      // su producto solo-en-cert no se declararía. El caso golden se conserva porque lo que
+      // valida es la RAMA (sin slot CMF libre → additional), no la identidad del acreedor.
+      certificateAnalyses: [{ filename: 'z.pdf', identidadAsignadaConfirmada: true }],
     });
     const extra = result.additionalCreditors.find((a: any) => a.total_credito_clp === 1_234_567);
     check('cert con producto solo-en-cert (sin slot) → +additional NO-CMF $1.234.567', !!extra, `additional=${JSON.stringify(result.additionalCreditors.map((a:any)=>a.total_credito_clp))}`);

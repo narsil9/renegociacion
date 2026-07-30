@@ -111,7 +111,7 @@ export interface ClaudeReadIssue {
   document_filename: string;
   institucion: string;
   monto_clp: number;
-  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada' | 'nombre_de_archivo_repetido';
+  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada' | 'nombre_de_archivo_repetido' | 'identidad_no_confirmada';
   detalle: string;
 }
 
@@ -682,7 +682,20 @@ export async function runSentinelCheck(
 
     // Helper de RUT check
     const computeRutCheckLocal = (assignedInst: string | null, certText: string) => {
-      const result = { rutEmisorDetectado: null as string | null, bancoSegunRut: null as string | null, rutMismatch: false, rutCheckTypeScript: '' };
+      const result = {
+        rutEmisorDetectado: null as string | null,
+        bancoSegunRut: null as string | null,
+        rutMismatch: false,
+        rutCheckTypeScript: '',
+        // ¿El RUT del acreedor ASIGNADO aparece impreso en el certificado? Es la única
+        // confirmación de identidad que tenemos sin volver a leer el papel, y el backstop de
+        // completitud la EXIGE antes de crear un acreedor (ver identidadConfirmadaPorElPapel
+        // en sentinel_backstops.ts): sin ella, "el banco que tiene cupo libre en el CMF" es el
+        // criterio de atribución, y así un estado de cuenta de una tarjeta FORUS se declaró
+        // como deuda de Banco de Chile (ANALISIS_BARRAZA.md:52,56).
+        // Se marca SOLO en la rama de coincidencia; cualquier otra salida la deja en false.
+        identidadAsignadaConfirmada: false,
+      };
       if (catalog.length === 0) return result;
 
       const certRuts = extractRutsFromText(certText);
@@ -694,6 +707,7 @@ export async function runSentinelCheck(
       if (assignedRutNorm && certRuts.includes(assignedRutNorm)) {
         result.rutEmisorDetectado = assignedRutNorm;
         result.bancoSegunRut = assignedEntry!.nombre;
+        result.identidadAsignadaConfirmada = true;
         result.rutCheckTypeScript = `RUT coincide con banco asignado: ${assignedRutNorm}`;
         return result;
       }
@@ -753,6 +767,7 @@ export async function runSentinelCheck(
           rutMismatch: rutCheck.rutMismatch,
           rutEmisorDetectado: rutCheck.rutEmisorDetectado,
           bancoSegunRut: rutCheck.bancoSegunRut,
+          identidadAsignadaConfirmada: rutCheck.identidadAsignadaConfirmada,
           checkTypeScript: isStatement ? 'Exento de límite por ser Estado de Cuenta' : (isValidAge ? 'Vigente' : 'Expirado (>30 días)')
         });
       }

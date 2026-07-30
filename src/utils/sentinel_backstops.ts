@@ -241,6 +241,8 @@ export interface BackstopContext {
     isImageDoc?: boolean;
     rutEmisorDetectado?: string | null;
     bancoSegunRut?: string | null;
+    /** El RUT del acreedor asignado aparece impreso en el papel (Caso 1 de computeRutCheckLocal). */
+    identidadAsignadaConfirmada?: boolean;
     [key: string]: unknown;
   }>;
   catalog: AcreedorCatalogEntry[];
@@ -253,6 +255,25 @@ export interface BackstopContext {
  * in place) y devuelve `{ result, claudeReadIssues }`. Equivalente exacto al bloque que corría
  * inline en runSentinelCheck — sin API, testeable con `raw` sintético.
  */
+/**
+ * ¿El PAPEL confirma que pertenece al acreedor que tiene asignado?
+ *
+ * Lee el flag que `computeRutCheckLocal` deja en la ÚNICA rama donde el RUT del acreedor
+ * asignado aparece impreso en el certificado (sentinel.ts, Caso 1). NO recalcula nada y NO
+ * compara nombres: comparar `institucion_cmf` con `bancoSegunRut` falla en casos reales
+ * medidos — `canonicalInstitutionKey('Banco del Estado de Chile')` = "banco estado" y
+ * `canonicalInstitutionKey('BancoEstado')` = "bancoestado", y el guard no puede depender de
+ * que un alias esté cargado para decidir si se declara una deuda.
+ *
+ * Ausencia de análisis = NO confirmado. Un escaneo sin capa de texto o un análisis viejo sin
+ * el campo no pueden acreditar identidad por omisión.
+ */
+export function identidadConfirmadaPorElPapel(
+  ca: { identidadAsignadaConfirmada?: boolean } | undefined
+): boolean {
+  return ca?.identidadAsignadaConfirmada === true;
+}
+
 export async function applyDeterministicBackstops(
   result: SentinelResult,
   ctx: BackstopContext,
@@ -377,6 +398,51 @@ export async function applyDeterministicBackstops(
       }
       const items = extractCertLineItems(certText);
       if (items.length === 0) continue;
+
+      // Sin identidad confirmada por el papel, el backstop NO declara. Puede rescatar un monto
+      // que el LLM no vio, pero no puede decidir de QUIÉN es la deuda: anclar un ítem "al banco
+      // que tiene cupo libre en el CMF" es exactamente cómo un estado de cuenta de una tarjeta
+      // FORUS se declaró como deuda de Banco de Chile (ANALISIS_BARRAZA.md:52,56). El emisor
+      // detectado sale del cross-check de RUT que ya corrió sobre este mismo PDF.
+      // Es por DOCUMENTO, no por ítem: si el papel no confirma su acreedor, ninguno de sus
+      // ítems puede crear uno. `availableCmfSlots` es local por documento, así que saltarlo no
+      // descuadra el conteo de los siguientes.
+      const caDoc = certificateAnalyses.find((ca) => ca.filename === doc.filename);
+      if (!identidadConfirmadaPorElPapel(caDoc)) {
+        const montos = items.map((i) => `$${i.amount.toLocaleString('es-CL')}`).join(', ');
+        // El motivo tiene que ser el REAL, no "no imprime el RUT" por defecto (G2: un
+        // diagnóstico que nombra la causa equivocada es un bug en sí mismo). El catálogo vacío
+        // va PRIMERO porque computeRutCheckLocal corta ahí sin dejar ninguna señal.
+        const motivo =
+          catalog.length === 0
+            ? 'no se pudo verificar: el catálogo de acreedores no está disponible'
+            : caDoc == null
+              ? 'no hay análisis de RUT de este documento (escaneo/imagen sin capa de texto)'
+              : caDoc.bancoSegunRut
+                ? `el emisor detectado leyendo el documento es "${caDoc.bancoSegunRut}", no "${doc.institucion_cmf}"`
+                : `el documento no imprime el RUT de "${doc.institucion_cmf}"`;
+        result.claudeReadIssues = [
+          ...(result.claudeReadIssues ?? []),
+          {
+            document_filename: doc.filename,
+            institucion: doc.institucion_cmf ?? '',
+            monto_clp: items[0].amount,
+            // Tipo PROPIO, distinto del 'institucion_no_resuelta' de la validación por
+            // evidencia: acá se CAYÓ un monto de la declaración y la acción del abogado es
+            // identificar el emisor real del papel.
+            tipo: 'identidad_no_confirmada',
+            detalle:
+              `"${doc.filename}" trae monto(s) de ${montos} que quedaron SIN declarar: ${motivo}, ` +
+              `así que el robot no puede confirmar que ese papel sea de ese acreedor y NO se lo ` +
+              `atribuyó (es exactamente como una tarjeta de otra empresa terminó declarada como ` +
+              `deuda de un banco). Identificá el emisor real del documento y declaralo a mano si ` +
+              `corresponde.`,
+          },
+        ];
+        log(`   ⛔ ${doc.filename}: identidad no confirmada por el papel (${motivo}) → no se declara ${montos}`);
+        continue;
+      }
+
       const cmfRows = cmfCreditors.filter((c) => canonicalInstitutionKey(c.institucion) === key);
       const claimed = cmfMappedAmounts(key);
       const dedupClaimed = claimed.filter((a, i) => claimed.findIndex((b) => near(a, b)) === i);

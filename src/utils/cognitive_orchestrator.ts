@@ -639,7 +639,16 @@ export async function runCognitiveOrchestrator(
   // assigned (doc.institucion_cmf). Returns a structured finding for Claude to
   // corroborate; never blocks on its own.
   const computeRutCheck = (assignedInst: string | null, certText: string) => {
-    const result = { rutEmisorDetectado: null as string | null, bancoSegunRut: null as string | null, rutMismatch: false, rutCheckTypeScript: '' };
+    const result = {
+      rutEmisorDetectado: null as string | null,
+      bancoSegunRut: null as string | null,
+      rutMismatch: false,
+      rutCheckTypeScript: '',
+      // Ver el gemelo en sentinel.ts (computeRutCheckLocal): el backstop de completitud exige
+      // esta confirmación antes de crear un acreedor. Los dos caminos tienen que marcarla
+      // igual, o el guard se comporta distinto según quién armó los análisis.
+      identidadAsignadaConfirmada: false,
+    };
     if (catalog.length === 0) {
       result.rutCheckTypeScript = 'Catálogo no disponible: RUT no verificado por TypeScript (Claude debe verificar el RUT del emisor).';
       return result;
@@ -659,6 +668,7 @@ export async function runCognitiveOrchestrator(
     if (assignedRutNorm && certRuts.includes(assignedRutNorm)) {
       result.rutEmisorDetectado = assignedRutNorm;
       result.bancoSegunRut = assignedEntry!.nombre;
+      result.identidadAsignadaConfirmada = true;
       result.rutCheckTypeScript = `RUT coincide: el certificado contiene el RUT ${assignedRutNorm} de "${assignedEntry!.nombre}", el banco asignado.`;
       return result;
     }
