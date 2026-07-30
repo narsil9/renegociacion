@@ -994,12 +994,18 @@ export async function fillStep3(
       // (deReclassified261Creditors.total_credito_clp), no el del CMF (desactualizado:
       // el CMF aún lo marca 90+d mientras el cert lo certifica vigente).
       const deRecl = isOtros ? getDeReclassified261Match(creditor) : undefined;
-      const montoEfectivo =
-        rec?.total_credito_clp && rec.total_credito_clp > 0 ? rec.total_credito_clp :
-        cmfOv?.monto_clp && cmfOv.monto_clp > 0 ? cmfOv.monto_clp :
-        id261?.total_credito_clp && id261.total_credito_clp > 0 ? id261.total_credito_clp :
-        deRecl?.total_credito_clp && deRecl.total_credito_clp > 0 ? deRecl.total_credito_clp :
-        creditor.totalCredito;
+      // El monto y el ARCHIVO que lo acredita salen de la MISMA rama, en una sola expresión: si
+      // se eligieran por separado, una fila podría declarar el monto de `rec` y adjuntar el
+      // archivo de `cmfOv` (pasa en un banco multi-producto, donde `getCmfOverride` matchea por
+      // institución). Es la invariante que arregla el error 6 del feedback de Barraza, y así es
+      // estructural en vez de depender de que dos cadenas de precedencia se mantengan iguales.
+      const fuenteMonto =
+        rec?.total_credito_clp && rec.total_credito_clp > 0 ? { monto: rec.total_credito_clp, doc: rec.document_filename } :
+        cmfOv?.monto_clp && cmfOv.monto_clp > 0 ? { monto: cmfOv.monto_clp, doc: cmfOv.document_filename } :
+        id261?.total_credito_clp && id261.total_credito_clp > 0 ? { monto: id261.total_credito_clp, doc: id261.document_filename } :
+        deRecl?.total_credito_clp && deRecl.total_credito_clp > 0 ? { monto: deRecl.total_credito_clp, doc: deRecl.document_filename } :
+        { monto: creditor.totalCredito, doc: undefined as string | undefined };
+      const montoEfectivo = fuenteMonto.monto;
       const fechaVenc = toPortalDate(rec?.delinquency_start_date) ?? toPortalDate(cmfOv?.fecha_vencimiento);
       const creditorEff: CmfCreditor =
         montoEfectivo !== creditor.totalCredito ? { ...creditor, totalCredito: montoEfectivo } : creditor;
@@ -1096,7 +1102,7 @@ export async function fillStep3(
           monto: creditorEff.totalCredito,
         });
         log(`✓ Acreedor agregado: ${entry.nombre} ($${creditorEff.totalCredito.toLocaleString('es-CL')}).`);
-        addedDocs.push({ entry, creditor: creditorEff, cmfDocFilename: cmfOv?.document_filename, isOtros });
+        addedDocs.push({ entry, creditor: creditorEff, cmfDocFilename: fuenteMonto.doc || undefined, isOtros });
       } catch (err) {
         const reason = `Error al agregar en el portal (tras 3 intentos): ${(err as Error).message}`;
         logError(`✗ Falló agregar "${creditor.institucion}" (${entry.nombre}).`, err);
