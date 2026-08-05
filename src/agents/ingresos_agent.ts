@@ -33,6 +33,7 @@ import {
 import { getCurrentChileDate, parseDateString, getDaysDifference } from '../utils/date_helper';
 import { loadReaderLessons } from '../utils/lessons_loader';
 import { normalizeRut } from '../utils/acreedor_matcher';
+import { registrarConsumo, LlmCallRecord } from '../utils/document_reads';
 
 const MAX_DOC_MB = 30; // límite de la API de Anthropic para documentos base64
 const VALID_CATEGORIES: IncomeCategory[] = [
@@ -266,7 +267,8 @@ async function callClaudeForDoc(
   anthropic: Anthropic,
   doc: IncomeDocInput,
   today: string,
-  log: (m: string) => void
+  log: (m: string) => void,
+  llmCalls: LlmCallRecord[]
 ): Promise<unknown> {
   const content: ContentBlock[] = buildSingleDocBlocks(doc, log);
   const MAX_ATTEMPTS = 3;
@@ -282,6 +284,11 @@ async function callClaudeForDoc(
         // el Centinela per-doc del Paso 3. Ver lessons_loader.ts.
         system: [{ type: 'text', text: buildSingleDocPrompt(today), cache_control: { type: 'ephemeral' } }],
         messages: [{ role: 'user', content }],
+      });
+      llmCalls.push({
+        skill: 'worker:ingresos',
+        model: 'claude-sonnet-5',
+        usage: (response as { usage?: LlmCallRecord['usage'] }).usage ?? {},
       });
       const textBlock = response.content.find((b) => b.type === 'text');
       const text = textBlock && textBlock.type === 'text' ? textBlock.text.trim() : '';
@@ -305,7 +312,7 @@ async function callClaudeForDoc(
 export async function extractIncomeFactsNative(
   docs: IncomeDocInput[],
   logger?: SimpleLogger
-): Promise<{ extracted: ExtractedIncomeDoc[]; cotizaciones: CotizacionesCertFacts | null }> {
+): Promise<{ extracted: ExtractedIncomeDoc[]; cotizaciones: CotizacionesCertFacts | null; llmCalls: LlmCallRecord[] }> {
   const log = (msg: string) => (logger ? logger.log(msg) : console.log(msg));
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY no está configurada en .env');
@@ -315,15 +322,17 @@ export async function extractIncomeFactsNative(
 
   const extracted: ExtractedIncomeDoc[] = [];
   let cotizaciones: CotizacionesCertFacts | null = null;
+  // Acumulado del loop: UN insert en herramientas_uso al salir, no uno por documento.
+  const llmCalls: LlmCallRecord[] = [];
 
   log(`🤖 Leyendo ${docs.length} documento(s) de ingreso con Claude (una llamada por documento)...`);
   for (const doc of docs) {
-    const parsed = await callClaudeForDoc(anthropic, doc, today, log);
+    const parsed = await callClaudeForDoc(anthropic, doc, today, log, llmCalls);
     const r = coerceSingleDoc(parsed, doc);
     if (r.extracted) extracted.push(r.extracted);
     if (r.cotizaciones && !cotizaciones) cotizaciones = r.cotizaciones;
   }
-  return { extracted, cotizaciones };
+  return { extracted, cotizaciones, llmCalls };
 }
 
 /**
@@ -338,7 +347,8 @@ export async function runIngresosAgent(
   supabase: SupabaseClient,
   clientId: string,
   docs: IncomeDocInput[],
-  logger?: SimpleLogger
+  logger?: SimpleLogger,
+  rut: string | null = null
 ): Promise<IngresosOutput> {
   const log = (msg: string) => (logger ? logger.log(msg) : console.log(msg));
   const logErr = (msg: string, err?: unknown) => (logger ? logger.error(msg, err) : console.error(msg, err));
@@ -363,7 +373,15 @@ export async function runIngresosAgent(
   log(`🚀 Run de ingresos iniciado (runId: ${runId}, ${docs.length} documento(s))`);
 
   try {
-    const { extracted, cotizaciones } = await extractIncomeFactsNative(docs, logger);
+    const { extracted, cotizaciones, llmCalls } = await extractIncomeFactsNative(docs, logger);
+
+    // Telemetría de consumo (herramientas_uso, source='worker') — una vez por run, no por doc.
+    await registrarConsumo(
+      supabase,
+      llmCalls,
+      { rut, automationJobId: process.env.CURRENT_JOB_ID ?? null },
+      logger
+    );
 
     // --- Cálculo DETERMINISTA de la estructura a declarar ---
     const computation = computeIncomes(extracted, cotizaciones);

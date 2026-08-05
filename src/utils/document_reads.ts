@@ -185,24 +185,29 @@ export async function registrarLectura(
 export async function registrarConsumo(
   supabase: SupabaseClient,
   calls: LlmCallRecord[],
-  ctx: { rut: string | null; automationJobId: string | null; filename?: string },
+  ctx: { rut: string | null; automationJobId: string | null; filename?: string; servicioId?: string | null },
   logger?: { log: (m: string) => void; error: (m: string, e?: unknown) => void }
 ): Promise<void> {
   if (calls.length === 0) return;
-  const filas = calls.map((c) => ({
-    skill: c.skill,
-    model: c.model,
-    input_tokens: c.usage.input_tokens ?? 0,
-    output_tokens: c.usage.output_tokens ?? 0,
-    cache_creation_tokens: c.usage.cache_creation_input_tokens ?? 0,
-    cache_read_tokens: c.usage.cache_read_input_tokens ?? 0,
-    job_id: null,
-    rut: ctx.rut,
-    source: 'worker',
-    meta: { automation_job_id: ctx.automationJobId, filename: ctx.filename ?? null },
-  }));
-  const { error } = await supabase.from('herramientas_uso').insert(filas);
-  if (error) {
-    logger?.error(`📖 [Lecturas] No se pudo registrar el consumo: ${error.message}`);
+  try {
+    const filas = calls.map((c) => ({
+      skill: c.skill,
+      model: c.model,
+      input_tokens: c.usage.input_tokens ?? 0,
+      output_tokens: c.usage.output_tokens ?? 0,
+      cache_creation_tokens: c.usage.cache_creation_input_tokens ?? 0,
+      cache_read_tokens: c.usage.cache_read_input_tokens ?? 0,
+      job_id: null,
+      rut: ctx.rut,
+      source: 'worker',
+      servicio_id: ctx.servicioId ?? null,
+      meta: { automation_job_id: ctx.automationJobId, filename: ctx.filename ?? null },
+    }));
+    const { error } = await supabase.from('herramientas_uso').insert(filas);
+    if (error) {
+      logger?.error(`📖 [Lecturas] No se pudo registrar el consumo: ${error.message}`);
+    }
+  } catch (e) {
+    logger?.error('📖 [Lecturas] No se pudo registrar el consumo (excepción)', e);
   }
 }

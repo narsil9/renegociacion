@@ -352,7 +352,7 @@ async function gatherStep5Input(
       return alertarOmision(`no se pudo descargar ninguno de los ${incomeRows.length} documento(s) de ingreso del cliente (falla de Storage).`);
     }
 
-    const ingresosOutput = await runIngresosAgent(supabase, client.id, incomeDocs, logger);
+    const ingresosOutput = await runIngresosAgent(supabase, client.id, incomeDocs, logger, client.rut ?? null);
 
     // La identificación por CONTENIDO del agente MANDA sobre el keyword del filename (L35: la
     // metadata/contenido manda, no el nombre del archivo). Antes solo se usaba como fallback,
@@ -557,7 +557,7 @@ async function processJob(job: any): Promise<void> {
             .download(client.carpeta_tributaria_path);
           if (!ctErr && ctBlob) {
             fs.writeFileSync(ctEarlyPath, Buffer.from(await ctBlob.arrayBuffer()));
-            const tribEarly = await runTributarioAgent(supabase, client.id, ctEarlyPath, logger);
+            const tribEarly = await runTributarioAgent(supabase, client.id, ctEarlyPath, logger, client.rut ?? null);
             tributarioOutput = tribEarly;
             fs.existsSync(ctEarlyPath) && fs.unlinkSync(ctEarlyPath);
             const f29EarlyBlocking = f29BlockingMonths(tribEarly);
@@ -909,7 +909,7 @@ async function processJob(job: any): Promise<void> {
 
         logger.log('🕵️‍♂️ Agente Tributario — analizando Carpeta Tributaria...');
         await reportProgress(job.id, 'Revisando la situación tributaria del cliente (SII)…');
-        const tributariaOutput2 = await runTributarioAgent(supabase, client.id, tributariaLocalPath, logger);
+        const tributariaOutput2 = await runTributarioAgent(supabase, client.id, tributariaLocalPath, logger, client.rut ?? null);
         const categoria = tributariaOutput2.categoria;
 
         // --- BLOQUEO: Primera categoría con actividad F29 en últimos 24 meses ---
@@ -979,7 +979,7 @@ async function processJob(job: any): Promise<void> {
         
         logger.log('🕵️‍♂️ Agente Tributario — analizando Carpeta Tributaria...');
         await reportProgress(job.id, 'Revisando la situación tributaria del cliente (SII)…');
-        const tributariaOutput0 = await runTributarioAgent(supabase, client.id, tributariaLocalPath, logger);
+        const tributariaOutput0 = await runTributarioAgent(supabase, client.id, tributariaLocalPath, logger, client.rut ?? null);
         const categoria = tributariaOutput0.categoria;
 
         const f29Blocking0 = f29BlockingMonths(tributariaOutput0);
