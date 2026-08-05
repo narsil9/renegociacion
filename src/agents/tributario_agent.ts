@@ -21,6 +21,7 @@ import * as crypto from 'crypto';
 import { TributarioOutput } from './types';
 import { insertAgentRun, markRunning, completeRun, failRun, getLatestRun } from './agent_runs';
 import { validateTributarioOutput, isTributarioOutput, logValidationResult } from './validator';
+import { registrarConsumo } from '../utils/document_reads';
 import {
   analyzeTaxCategory,
   detectF29ActivityLast24Months,
@@ -62,7 +63,10 @@ function extractJsonFromText(text: string): unknown {
  */
 async function extractViaVision(
   pdfPath: string,
-  log: (m: string) => void
+  log: (m: string) => void,
+  supabase: SupabaseClient,
+  rut: string | null,
+  logger?: SimpleLogger
 ): Promise<TributarioOutput> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY no está configurada en .env');
@@ -141,6 +145,18 @@ No incluyas texto ni explicaciones fuera de las etiquetas <json>.`;
     ],
   });
 
+  // Telemetría de consumo (herramientas_uso, source='worker').
+  await registrarConsumo(
+    supabase,
+    [{
+      skill: 'worker:tributario',
+      model: 'claude-sonnet-5',
+      usage: (response as { usage?: { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number } }).usage ?? {},
+    }],
+    { rut, automationJobId: process.env.CURRENT_JOB_ID ?? null },
+    logger
+  );
+
   const textBlock = response.content.find(b => b.type === 'text');
   if (!textBlock || textBlock.type !== 'text') {
     throw new Error(`Claude no devolvió un bloque de texto (stop_reason: ${response.stop_reason})`);
@@ -170,7 +186,8 @@ export async function runTributarioAgent(
   supabase: SupabaseClient,
   clientId: string,
   tributariaPdfPath: string,
-  logger?: SimpleLogger
+  logger?: SimpleLogger,
+  rut: string | null = null
 ): Promise<TributarioOutput> {
   const log = (msg: string) => {
     if (logger) logger.log(msg);
@@ -205,7 +222,7 @@ export async function runTributarioAgent(
       // Tesseract ELIMINADO: la lectura NATIVA de Claude leyó mejor que el OCR (escaneos/tablas).
       // Un PDF escaneado (sin capa de texto) va directo a visión Opus 4.8.
       log(`⚠️  Texto insuficiente (${textLen} chars) — PDF escaneado. Lectura NATIVA por Claude Opus 4.8 (visión).`);
-      output = await extractViaVision(tributariaPdfPath, log);
+      output = await extractViaVision(tributariaPdfPath, log, supabase, rut, logger);
     } else {
       log(`📝 PDF de texto (${textLen} chars) — usando análisis determinista.`);
       const categoria = await analyzeTaxCategory(tributariaPdfPath, logger);

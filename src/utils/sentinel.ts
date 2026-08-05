@@ -14,7 +14,7 @@ import {
   AcreedorCatalogEntry,
 } from './acreedor_matcher';
 import { extractDatesFromText, extractEmissionDateFromText, ClientDocument } from './cognitive_orchestrator';
-import { contentHash } from './document_reads';
+import { contentHash, registrarConsumo } from './document_reads';
 import { runPerDocExtraction } from './sentinel_per_doc';
 import { loadReaderLessons } from './lessons_loader';
 import { applyDeterministicBackstops, isChatDocument, classifyNonAccreditingDoc } from './sentinel_backstops';
@@ -1272,6 +1272,19 @@ ${loadReaderLessons('paso3')}
       messages: [{ role: 'user', content: userMessageParts }]
     });
     const response = await stream.finalMessage();
+
+    // Telemetría de consumo (herramientas_uso, source='worker'). Camino de respaldo
+    // (perDocMode === false): en producción el default ya registra por-documento arriba.
+    await registrarConsumo(
+      supabase,
+      [{
+        skill: 'worker:centinela-mega',
+        model: 'claude-sonnet-5',
+        usage: (response as { usage?: { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number } }).usage ?? {},
+      }],
+      { rut: client.rut ?? null, automationJobId: process.env.CURRENT_JOB_ID ?? null },
+      logger
+    );
 
     const respText = response.content.find(b => b.type === 'text');
     const contentText = respText?.type === 'text' ? respText.text : '';

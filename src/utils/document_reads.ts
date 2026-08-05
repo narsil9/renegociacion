@@ -14,6 +14,7 @@
  */
 import crypto from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { normalizeRut } from './acreedor_matcher';
 
 /** Nombre estable del lector del Paso 3. Va en la llave, así que NO se renombra a la ligera. */
 export const PER_DOC_READER = 'centinela_per_doc';
@@ -169,6 +170,81 @@ export async function registrarLectura(
   }, logger);
 }
 
+// Índice rut normalizado → servicio_id de servicios RN activos. Se carga UNA vez
+// (todo el universo de servicios RN no borrados es chico) y de ahí en más resolver
+// un rut es una consulta en memoria, no una query por llamada — mismo espíritu que
+// el caché por-clave del panel (`buscarServicioId`), pero como índice completo porque
+// acá no viaja `airtable_id` para acotar antes.
+let indiceServicioPorRut: Map<string, string[]> | null = null;
+
+/** Solo para tests. */
+export function limpiarCacheServicioIdWorker(): void {
+  indiceServicioPorRut = null;
+}
+
+async function cargarIndiceServicioPorRut(supabase: SupabaseClient): Promise<Map<string, string[]>> {
+  if (indiceServicioPorRut) return indiceServicioPorRut;
+  const { data, error } = await supabase
+    .schema('core')
+    .from('servicio')
+    .select('id, cliente:cliente_id!inner(rut, is_deleted)')
+    .eq('tipo', 'RN')
+    .eq('is_deleted', false)
+    .eq('cliente.is_deleted', false);
+  if (error) throw error;
+
+  const idx = new Map<string, string[]>();
+  for (const row of (data ?? []) as unknown as Array<{
+    id: string;
+    cliente: { rut: string | null } | { rut: string | null }[] | null;
+  }>) {
+    const cliente = Array.isArray(row.cliente) ? row.cliente[0] : row.cliente;
+    const key = normalizeRut(cliente?.rut ?? null);
+    if (!key) continue;
+    const arr = idx.get(key) ?? [];
+    arr.push(row.id);
+    idx.set(key, arr);
+  }
+  indiceServicioPorRut = idx; // solo se cachea si la carga completó sin error
+  return idx;
+}
+
+/**
+ * Resuelve rut → servicio_id de un servicio de renegociación (tipo='RN'), igual regla
+ * que el panel (`auth-admin/lib/servicio-id-logic.ts`): si el rut resuelve a más de un
+ * servicio RN, el resultado es NULL — adivinar es peor que dejar la fila huérfana.
+ *
+ * Compara RUTS NORMALIZADOS (mismo criterio que `normalizeRut`): en producción
+ * `herramientas_uso.rut` a veces llega sin guion y `core.cliente.rut` con guion, y una
+ * igualdad exacta pierde esos casos.
+ *
+ * Nunca lanza: si la búsqueda falla (red, permisos), loguea y devuelve null — la fila
+ * se inserta igual, huérfana pero no silenciosa.
+ */
+export async function resolverServicioIdPorRut(
+  supabase: SupabaseClient,
+  rut: string | null,
+  logger?: { log: (m: string) => void; error: (m: string, e?: unknown) => void }
+): Promise<string | null> {
+  const key = normalizeRut(rut);
+  if (!key) return null;
+
+  try {
+    const idx = await cargarIndiceServicioPorRut(supabase);
+    const candidatos = idx.get(key) ?? [];
+    if (candidatos.length > 1) {
+      logger?.error(
+        `📖 [Lecturas] rut ${rut} resuelve a ${candidatos.length} servicios RN — servicio_id queda NULL (adivinar está prohibido)`
+      );
+      return null;
+    }
+    return candidatos[0] ?? null;
+  } catch (e) {
+    logger?.error(`📖 [Lecturas] No se pudo resolver servicio_id para rut ${rut} (queda huérfano)`, e);
+    return null;
+  }
+}
+
 /**
  * Consumo de tokens → `herramientas_uso` (la tabla del panel), con `source='worker'`.
  *
@@ -185,24 +261,40 @@ export async function registrarLectura(
 export async function registrarConsumo(
   supabase: SupabaseClient,
   calls: LlmCallRecord[],
-  ctx: { rut: string | null; automationJobId: string | null; filename?: string },
+  ctx: { rut: string | null; automationJobId: string | null; filename?: string; servicioId?: string | null },
   logger?: { log: (m: string) => void; error: (m: string, e?: unknown) => void }
 ): Promise<void> {
   if (calls.length === 0) return;
-  const filas = calls.map((c) => ({
-    skill: c.skill,
-    model: c.model,
-    input_tokens: c.usage.input_tokens ?? 0,
-    output_tokens: c.usage.output_tokens ?? 0,
-    cache_creation_tokens: c.usage.cache_creation_input_tokens ?? 0,
-    cache_read_tokens: c.usage.cache_read_input_tokens ?? 0,
-    job_id: null,
-    rut: ctx.rut,
-    source: 'worker',
-    meta: { automation_job_id: ctx.automationJobId, filename: ctx.filename ?? null },
-  }));
-  const { error } = await supabase.from('herramientas_uso').insert(filas);
-  if (error) {
-    logger?.error(`📖 [Lecturas] No se pudo registrar el consumo: ${error.message}`);
+  try {
+    // Ningún call site pasa servicioId hoy: se resuelve acá, un solo lugar, para que
+    // todas las filas del worker dejen de salir huérfanas del inner join de las vistas.
+    const servicioId = ctx.servicioId ?? (await resolverServicioIdPorRut(supabase, ctx.rut, logger));
+
+    const filas = calls.map((c) => {
+      if (c.usage.input_tokens === undefined) {
+        logger?.error(
+          `📖 [Lecturas] usage sin input_tokens en la respuesta de Claude (skill=${c.skill}, filename=${ctx.filename ?? '—'}) — se inserta con tokens en 0, no confundir con una llamada barata`
+        );
+      }
+      return {
+        skill: c.skill,
+        model: c.model,
+        input_tokens: c.usage.input_tokens ?? 0,
+        output_tokens: c.usage.output_tokens ?? 0,
+        cache_creation_tokens: c.usage.cache_creation_input_tokens ?? 0,
+        cache_read_tokens: c.usage.cache_read_input_tokens ?? 0,
+        job_id: null,
+        rut: ctx.rut,
+        source: 'worker',
+        servicio_id: servicioId,
+        meta: { automation_job_id: ctx.automationJobId, filename: ctx.filename ?? null },
+      };
+    });
+    const { error } = await supabase.from('herramientas_uso').insert(filas);
+    if (error) {
+      logger?.error(`📖 [Lecturas] No se pudo registrar el consumo: ${error.message}`);
+    }
+  } catch (e) {
+    logger?.error('📖 [Lecturas] No se pudo registrar el consumo (excepción)', e);
   }
 }

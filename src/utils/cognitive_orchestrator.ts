@@ -3,6 +3,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { extractTextFromPdf } from './pdf_analyzer';
 import { getCurrentChileDate, getDaysDifference } from './date_helper';
 import { analyzeCmfPdf, UF_80_CLP } from './cmf_analyzer';
+import { registrarConsumo } from './document_reads';
 import {
   fetchAcreedoresCatalog,
   matchAcreedor,
@@ -1117,6 +1118,18 @@ Esquema JSON esperado:
       messages: [{ role: 'user', content: userMessageParts as any }]
     });
     const response = await stream.finalMessage();
+
+    // Telemetría de consumo (herramientas_uso, source='worker').
+    await registrarConsumo(
+      supabase,
+      [{
+        skill: 'worker:mapeador',
+        model: modelName,
+        usage: (response as { usage?: { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number } }).usage ?? {},
+      }],
+      { rut: client.rut ?? null, automationJobId: process.env.CURRENT_JOB_ID ?? null },
+      logger
+    );
 
     const respText = response.content.find(b => b.type === 'text');
     const contentText = respText?.type === 'text' ? respText.text : '';
