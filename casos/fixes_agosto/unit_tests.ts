@@ -8,6 +8,7 @@
 import { esCandidatoAResolver } from '../../src/utils/cert_institution_resolver';
 import { dedupOplessProducts } from '../../src/utils/sentinel_per_doc';
 import { mergeReadIssues } from '../../src/utils/sentinel_backstops';
+import { esPdf } from '../../src/utils/doc_format';
 
 // --------------------------------------------------------------------------- mini-harness
 let pass = 0;
@@ -64,6 +65,18 @@ eq('el de identidad sobrevive', merged.some((i) => i.tipo === 'identidad_no_conf
 eq('el previo va primero', merged[0].tipo, 'identidad_no_confirmada');
 eq('sin previos funciona', mergeReadIssues(undefined, nuevos).length, 2);
 eq('sin nuevos conserva los previos', mergeReadIssues(previo, []).length, 1);
+
+// =========================================================================== T3 esPdf
+section('T3 — la regla del estudio es PDF');
+
+eq('pdf sirve', esPdf('/tmp/a.pdf'), true);
+eq('PDF mayúscula sirve', esPdf('/tmp/caja_compensacion_261.PDF'), true);
+eq('jpg no cumple la regla', esPdf('/tmp/Linea_de_Credito_Bice.jpg'), false);
+eq('png no cumple la regla', esPdf('/tmp/Captura de pantalla 2026-06-02 102417.png'), false);
+eq('sin extensión no cumple', esPdf('/tmp/archivo'), false);
+eq('null no cumple', esPdf(null), false);
+eq('undefined no cumple', esPdf(undefined), false);
+eq('.pdf en el medio del nombre no cuenta', esPdf('/tmp/a.pdf.png'), false);
 
 // --------------------------------------------------------------------------- salida
 console.log(`\n${pass} aserción(es) OK, ${fails.length} fallo(s).`);

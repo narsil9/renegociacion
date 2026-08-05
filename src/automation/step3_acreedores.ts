@@ -31,6 +31,7 @@ import {
 } from '../utils/acreedor_matcher';
 import { extractTextFromPdf } from '../utils/pdf_analyzer';
 import { extractCertLineItems, normalizeOperationId } from '../utils/cert_line_items';
+import { esPdf } from '../utils/doc_format';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -1558,15 +1559,50 @@ export async function fillStep3(
         const neededTipos: (22 | 23)[] = isOtros ? [22] : [22, 23];
         // Documento que respalda cada tipo: el que ya es de ese tipo; si no, el general
         // (24 = monto+venc) reusado; si no, el primero disponible.
-        const pickDoc = (tipo: 22 | 23): AcreditacionDoc | undefined =>
-          creditorDocs.find((d) => d.local_path && d.tipo_documento === tipo) ??
-          creditorDocs.find((d) => d.local_path && d.tipo_documento === 24) ??
-          creditorDocs.find((d) => d.local_path);
+        // Dos criterios, en este orden:
+        //  1. El tipo pedido gana sobre el 24 general, y ambos sobre "cualquiera con archivo".
+        //  2. Dentro de cada escalón, el PDF gana: es la regla del estudio (el portal acepta otros
+        //     formatos — medido en el job bbf83b2d — pero el abogado adjunta PDF).
+        // Nunca se EXCLUYE un no-PDF: si es lo único que hay, se adjunta y se avisa. Una deuda con
+        // evidencia subóptima es recuperable; una deuda sin acreditar es inadmisibilidad.
+        const preferirPdf = (a: AcreditacionDoc[]): AcreditacionDoc | undefined =>
+          a.find((d) => esPdf(d.local_path)) ?? a[0];
+        const conArchivo = creditorDocs.filter((d) => d.local_path);
+        const pickDoc = (tipo: 22 | 23): { doc?: AcreditacionDoc; motivoDuda: string | null } => {
+          const delTipo = conArchivo.filter((d) => d.tipo_documento === tipo);
+          const generales = conArchivo.filter((d) => d.tipo_documento === 24);
+          const elegido = preferirPdf(delTipo) ?? preferirPdf(generales) ?? preferirPdf(conArchivo);
+          if (!elegido) return { doc: undefined, motivoDuda: null };
+
+          const dudas: string[] = [];
+          // El tercer escalón es "el primero que tenga archivo": no hay ninguna garantía de que
+          // respalde el monto de ESTA fila. `seleccionarDocsDeLaFila` no puede angostar cuando 0 o 1
+          // documento del acreedor trae `monto_clp` (salida temprana en :180-196).
+          if (delTipo.length === 0 && generales.length === 0 && conArchivo.length > 1) {
+            dudas.push(
+              `se eligió "${elegido.filename}" entre ${conArchivo.length} documentos del acreedor sin poder confirmar cuál respalda esta fila`
+            );
+          }
+          if (!esPdf(elegido.local_path)) {
+            dudas.push(`"${elegido.filename}" no es PDF y la regla del estudio es adjuntar PDF`);
+          }
+          return { doc: elegido, motivoDuda: dudas.length > 0 ? dudas.join('; ') : null };
+        };
         for (const tipo of neededTipos) {
-          const baseDoc = pickDoc(tipo);
+          const { doc: baseDoc, motivoDuda } = pickDoc(tipo);
           if (!baseDoc?.local_path) {
-            log(`   ⚠️ "${entry.nombre}": sin documento para acreditar ${tipo === 22 ? 'monto' : 'vencimiento'} (tipo ${tipo}).`);
+            // G2 — una fila sin acreditación no puede quedar solo en el log.
+            const reason = `Declarado sin acreditación: sin documento para acreditar ${tipo === 22 ? 'el monto' : 'el vencimiento'} de "${creditor.institucion}". Adjuntalo a mano en el portal.`;
+            log(`   ⚠️ "${entry.nombre}": ${reason}`);
+            report.skipped.push({ institucion: entry.nombre, reason, code: 'falta_documento', monto: creditor.totalCredito });
             continue;
+          }
+          if (motivoDuda) {
+            // Se adjunta igual (mejor evidencia subóptima que ninguna), pero el abogado tiene que
+            // poder revisarlo antes de presentar.
+            const reason = `Acreditación a revisar: ${motivoDuda}. Verificar antes de presentar.`;
+            log(`   ⚠️ "${entry.nombre}": ${reason}`);
+            report.skipped.push({ institucion: entry.nombre, reason, code: 'falta_documento', monto: creditor.totalCredito });
           }
           const docToAttach: AcreditacionDoc = { ...baseDoc, tipo_documento: tipo };
           await withRetry(
