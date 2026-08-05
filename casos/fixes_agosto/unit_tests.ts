@@ -303,6 +303,44 @@ const cmfVacio = { creditors: [] };
   eq('(b) no se emite fechaNoAcreditada', raw._fechaNoAcreditada.length, 0);
 }
 
+// =========================================================================== T15 total_global_no_usado
+section('T15 — el total de un certificado global que no se usa para acreditar, se alerta');
+
+// (a) el doc trae `totales_por_moneda` (certificado "resumen global", sin productos propios) → hoy
+// ese total se parsea y se descarta callado (nadie lo lee en sentinel_backstops.ts / step3_acreedores.ts).
+// Debe emitirse una señal que mencione el monto y el archivo, para que el abogado la contraste a mano
+// contra el CMF.
+{
+  const factsGlobal: DocFacts = {
+    filename: 'banco_x_resumen_global.pdf',
+    doc_type: 'resumen_global',
+    institucion_asignada: 'Banco X',
+    productos: [],
+    totales_por_moneda: [{ moneda: 'CLP', monto: 12_500_000, cita: 'Total deudas en PESO CHILENO $12.500.000' }],
+  };
+  const raw = assembleRawFromDocFacts([factsGlobal], { creditors: [] }, [], null, '2026-08-05');
+  const issues = (raw.claudeReadIssues ?? []).filter((i: any) => i.tipo === 'total_global_no_usado');
+  eq('(a) se emite 1 señal de total global no usado', issues.length, 1);
+  ok('(a) la señal menciona el archivo', issues[0]?.document_filename === 'banco_x_resumen_global.pdf');
+  ok('(a) la señal menciona el monto', issues[0]?.detalle.includes('12.500.000') || issues[0]?.monto_clp === 12_500_000);
+}
+
+// (b) sin `totales_por_moneda` → sin ruido, no se emite señal (regresión: no alertar de más).
+{
+  const factsSinTotal: DocFacts = {
+    filename: 'banco_y_estado_cuenta.pdf',
+    doc_type: 'estado_cuenta',
+    institucion_asignada: 'Banco Y',
+    productos: [{
+      monto: 300_000, etiqueta_monto: 'Saldo Deuda', moneda: 'CLP',
+      cita_monto: 'Saldo deuda $300.000', confidence: 0.9,
+    }],
+  };
+  const raw = assembleRawFromDocFacts([factsSinTotal], { creditors: [] }, [], null, '2026-08-05');
+  const issues = (raw.claudeReadIssues ?? []).filter((i: any) => i.tipo === 'total_global_no_usado');
+  eq('(b) sin totales_por_moneda → sin señal', issues.length, 0);
+}
+
 // =========================================================================== T9 mora-runner precedencia
 section('T9 — la fecha literal del extractor no la pisa la derivada de la calculadora');
 

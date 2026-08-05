@@ -33,6 +33,9 @@ const ETIQUETA: Record<ClaudeReadIssue['tipo'], string> = {
   // citas, el archivo) — `ETIQUETA[i.tipo] || i.detalle` cae a `i.detalle` (mora-runner.ts) porque
   // '' es falsy. Un texto fijo acá lo pisaría y perdería justo el dato que hace accionable la alerta.
   fecha_mora_discrepante: '',
+  // '' a propósito, mismo motivo que fecha_mora_discrepante: el mensaje trae el monto por moneda,
+  // la cita textual y el archivo — es inherentemente por-caso (sentinel_per_doc.ts).
+  total_global_no_usado: '',
 };
 
 /**

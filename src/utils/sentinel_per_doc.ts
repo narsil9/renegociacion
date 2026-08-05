@@ -1064,6 +1064,29 @@ export function assembleRawFromDocFacts(
 
   log(`ensamblado: ${cmf260DirectOverrides.length} override260, ${identified261Creditors.length} id261, ${reclassifiedCreditors.length} reclass, ${additionalCreditors.length} NO-CMF.`);
 
+  // El prompt (líneas 242, 268) le promete al LLM que el total de un certificado "resumen global"
+  // se usa para acreditar el monto de los productos del CMF de ese banco sin certificado propio.
+  // TypeScript nunca lo lee (no aparece en sentinel_backstops.ts ni step3_acreedores.ts): el monto
+  // declarado sale siempre de `c.totalCredito` (CMF). Implementar la promesa es una decisión del
+  // abogado (qué manda si el total global y el CMF difieren, UF vs CLP); lo que sí toca a TS es no
+  // callarse: si el dato se extrajo y no se usó, se alerta para que se contraste a mano.
+  const totalesNoUsadosIssues: ClaudeReadIssue[] = factsList
+    .filter((f) => (f.totales_por_moneda?.length ?? 0) > 0)
+    .map((f) => {
+      const bank = f.institucion_asignada || f.emisor_nombre || f.filename;
+      const montoClp = f.totales_por_moneda!.find((t) => t.moneda === 'CLP')?.monto ?? 0;
+      const montos = f.totales_por_moneda!
+        .map((t) => `${t.moneda} ${t.monto.toLocaleString('es-CL')} (cita: "${t.cita}")`)
+        .join('; ');
+      return {
+        document_filename: f.filename,
+        institucion: bank,
+        monto_clp: montoClp,
+        tipo: 'total_global_no_usado',
+        detalle: `El certificado ${f.filename} declara un total (${montos}) que NO se usó para acreditar el monto de ningún producto de ${bank} (se declaró con el total del CMF). Contrastar a mano contra el CMF.`,
+      };
+    });
+
   return {
     success: true,
     errors: [],
@@ -1079,9 +1102,10 @@ export function assembleRawFromDocFacts(
     // Fechas de mora no corroboradas por la cita (Capa 2 anti-fabricación) → alerta `fecha_no_acreditada`.
     _fechaNoAcreditada: fechaNoAcreditada,
     // Señales que cada DocFacts ya trae armadas (hoy: discrepancia fecha_mora extractor↔calculadora,
-    // mora-runner.ts). NO llevan prefijo `_`: a diferencia de los dos campos de arriba, éste SÍ se
-    // copia explícitamente a `result.claudeReadIssues` en sentinel.ts, así que sí llega al abogado.
-    claudeReadIssues: factsList.flatMap((f) => f.claudeReadIssues ?? []),
+    // mora-runner.ts) + `total_global_no_usado` (arriba). NO llevan prefijo `_`: a diferencia de los
+    // dos campos de arriba, éste SÍ se copia explícitamente a `result.claudeReadIssues` en
+    // sentinel.ts, así que sí llega al abogado.
+    claudeReadIssues: [...factsList.flatMap((f) => f.claudeReadIssues ?? []), ...totalesNoUsadosIssues],
   };
 }
 

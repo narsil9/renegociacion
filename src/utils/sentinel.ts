@@ -111,7 +111,7 @@ export interface ClaudeReadIssue {
   document_filename: string;
   institucion: string;
   monto_clp: number;
-  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada' | 'nombre_de_archivo_repetido' | 'identidad_no_confirmada' | 'institucion_no_resuelta' | 'fecha_mora_discrepante';
+  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada' | 'nombre_de_archivo_repetido' | 'identidad_no_confirmada' | 'institucion_no_resuelta' | 'fecha_mora_discrepante' | 'total_global_no_usado';
   detalle: string;
 }
 
