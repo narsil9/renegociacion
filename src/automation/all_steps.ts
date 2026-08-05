@@ -6,6 +6,7 @@ import { fillStep3, AcreditacionDoc, CmfDocumentOverride, Step3Report } from './
 import { fillStep4 } from './step4_apoderado';
 import { fillStep5, Step5Input } from './step5_ingresos';
 import { ReclassifiedCreditor, AdditionalCreditor, Identified261Creditor, DeReclassified261Creditor } from '../utils/sentinel';
+import { buildStep5Alert } from '../utils/step5_alert';
 
 interface SimpleLogger {
   log(msg: string): void;
@@ -129,7 +130,9 @@ export async function fillAllSteps(
     } else {
       log('→ Ya redirigido a la página de Paso 5.');
     }
-    await fillStep5(page, step5Input, logger);
+    const step5Report = await fillStep5(page, step5Input, logger);
+    const step5Desc = buildStep5Alert(step5Report.warnings);
+    if (step5Desc) log(`⚠️ ${step5Desc}`);
     log('✓ Paso 5 completado.');
   } else {
     log('\n⏭️  === PASO 5 OMITIDO (Ingresos) — sin datos de ingreso para este cliente ===');

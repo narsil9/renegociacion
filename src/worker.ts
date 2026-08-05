@@ -28,6 +28,7 @@ import { runMapeadorAgent } from './agents/mapeador_agent';
 import { CentinelaOutput, TributarioOutput } from './agents/types';
 import { esCertificadoDeAcreedor, documentosDeIngresoDescartados } from './utils/doc_scope';
 import { senalesParaElAbogado } from './utils/alert_routing';
+import { buildStep5Alert } from './utils/step5_alert';
 
 /**
  * BUG-08 FIX: Dedicated error class for cases that must not be retried and
@@ -1064,7 +1065,22 @@ async function processJob(job: any): Promise<void> {
         logger.log(`→ Redireccionando a la URL del Paso 5: ${step5Url}`);
         await page.goto(step5Url, { waitUntil: 'domcontentloaded' });
 
-        await fillStep5(page, step5Input, logger);
+        const step5Report = await fillStep5(page, step5Input, logger);
+        // El reporte del Paso 5 se descartaba: sus advertencias (falta el Certificado de
+        // Cotizaciones, falló un justificativo, no hubo redirección) morían acá. Mismo patrón
+        // que el Paso 3 unas líneas más abajo. Informativo: no marca el job como fallido.
+        const step5Desc = buildStep5Alert(step5Report.warnings);
+        if (step5Desc) {
+          logger.log(`⚠️ ${step5Desc}`);
+          try {
+            const { error: w5Err } = await supabase.from('automation_alerts').insert({
+              job_id: job.id, client_id: client.id, step: 5, alert_type: 'needs_review', description: step5Desc,
+            });
+            if (w5Err) logger.error('⚠️ No se pudo registrar la alerta del Paso 5:', w5Err.message);
+          } catch (w5Ex: any) {
+            logger.error('⚠️ Excepción al registrar la alerta del Paso 5:', w5Ex);
+          }
+        }
       }
 
       // --- Alerta al panel: acreedores que el Paso 3 NO pudo cargar (y requieren acción) ---

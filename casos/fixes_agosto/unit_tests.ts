@@ -13,6 +13,7 @@ import { tiposDeAcreditacion } from '../../src/automation/step3_acreedores';
 import { senalesParaElAbogado } from '../../src/utils/alert_routing';
 import { enrichUnDocConMora } from '../../src/utils/calculadora-mora/mora-runner';
 import type { DocFacts } from '../../src/utils/sentinel_per_doc';
+import { buildStep5Alert } from '../../src/utils/step5_alert';
 
 // --------------------------------------------------------------------------- mini-harness
 let pass = 0;
@@ -132,6 +133,33 @@ ok('pide el certificado TGR', contrib[0].toUpperCase().includes('TGR'));
 
 // Nada que decir.
 eq('sin señales: array vacío', senalesParaElAbogado({ alerts: [], contribucionesDeuda: [], yaEnrutados: YA }).length, 0);
+
+// =========================================================================== T11 buildStep5Alert
+section('T11 — las advertencias del Paso 5 se convierten en alerta accionable');
+
+// (a) sin advertencias → no se alerta (no generar ruido)
+eq('(a) sin advertencias no se emite alerta', buildStep5Alert([]), null);
+
+// (b) una advertencia → texto en singular, con el detalle
+{
+  const desc = buildStep5Alert(['Falta el Certificado de Cotizaciones (obligatorio). El portal no permitirá continuar.']);
+  ok('(b) con 1 advertencia se emite alerta', desc !== null);
+  ok('(b) la alerta conserva el detalle de la advertencia', desc!.includes('Certificado de Cotizaciones'));
+  ok('(b) el encabezado va en singular', desc!.includes('1 advertencia'));
+}
+
+// (c) varias advertencias → plural y TODAS presentes (ninguna se pierde por el camino)
+{
+  const desc = buildStep5Alert([
+    'Falta el Certificado de Cotizaciones (obligatorio). El portal no permitirá continuar.',
+    'No se pudo subir el justificativo liquidacion_marzo.pdf: timeout',
+    'No se detectó redirección tras "Guardar y Continuar" en el Paso 5.',
+  ]);
+  ok('(c) el encabezado va en plural con el conteo', desc!.includes('3 advertencias'));
+  ok('(c) conserva la advertencia 1', desc!.includes('Certificado de Cotizaciones'));
+  ok('(c) conserva la advertencia 2', desc!.includes('liquidacion_marzo.pdf'));
+  ok('(c) conserva la advertencia 3', desc!.includes('Guardar y Continuar'));
+}
 
 // =========================================================================== T9 mora-runner precedencia
 section('T9 — la fecha literal del extractor no la pisa la derivada de la calculadora');
