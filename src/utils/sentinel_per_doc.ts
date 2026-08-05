@@ -904,7 +904,15 @@ export function assembleRawFromDocFacts(
       if (!productsByBank.has(bankKey)) productsByBank.set(bankKey, []);
       productsByBank.get(bankKey)!.push(pp);
     } else {
-      const moraDays = p.fecha_mora ? daysBetween(p.fecha_mora, todayStr) : null;
+      // Capa 2, igual que las ramas CMF-matched (:948) y CMF-overflow (:1023): la fecha solo cuenta
+      // como vencimiento si la CITA del documento la corrobora. Esta rama era la única de las tres
+      // sin el guard, así que una fecha fabricada (el modelo copiando "Fecha último Pago" o "Fecha
+      // de emisión") clasificaba Art. 260 sin filtro y sin alerta.
+      const vencOk = citaCorroboratesVenc(p.fecha_mora, p.cita_fecha);
+      if (p.fecha_mora && !vencOk) {
+        fechaNoAcreditada.push({ bank: pp.bankName, monto: pp.clp, fecha: p.fecha_mora, cita: p.cita_fecha ?? '', filename: pp.filename });
+      }
+      const moraDays = vencOk ? daysBetween(p.fecha_mora!, todayStr) : null;
       const is260 = moraDays !== null && moraDays >= 91;
       additionalCreditors.push({
         bank: pp.bankName, institucion_cmf: pp.bankName,

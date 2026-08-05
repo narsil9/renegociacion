@@ -16,6 +16,7 @@ import type { DocFacts } from '../../src/utils/sentinel_per_doc';
 import { buildStep5Alert } from '../../src/utils/step5_alert';
 import { buildSentinelResult } from '../../src/utils/sentinel';
 import { applyDeterministicBackstops } from '../../src/utils/sentinel_backstops';
+import { assembleRawFromDocFacts } from '../../src/utils/sentinel_per_doc';
 
 // --------------------------------------------------------------------------- mini-harness
 let pass = 0;
@@ -252,6 +253,54 @@ async function runT13b() {
   eq('(b) identified261→additional: la promoción se disparó', (result.additionalCreditors ?? []).length, 1);
   eq('(b) identified261 quedó vacío tras promover', (result.identified261Creditors ?? []).length, 0);
   ok('(b) identified261→additional conserva evidence', result.additionalCreditors?.[0]?.evidence === evidence);
+}
+
+// =========================================================================== T14 Capa 2 en la rama NO-CMF
+section('T14 — la rama NO-CMF también exige que la cita corrobore el vencimiento');
+
+// Emisor que NO figura en el CMF (cmfResult.creditors vacío, catalog vacío) → issuerInCmf() da
+// false → el producto va por la rama additionalCreditors (sentinel_per_doc.ts:901-922), que hoy
+// (antes del fix) tomaba fecha_mora sin pasar por citaCorroboratesVenc.
+const mkFactsNoCmf = (filename: string, cita_fecha: string): DocFacts => ({
+  filename,
+  doc_type: 'estado_cuenta',
+  institucion_asignada: 'Fintech Z',
+  productos: [{
+    monto: 500_000,
+    etiqueta_monto: 'Saldo Deuda',
+    moneda: 'CLP',
+    cita_monto: 'Saldo deuda $500.000',
+    fecha_mora: '2026-01-17', // ~200 días antes de todayStr (2026-08-05) → mora ≥91d
+    cita_fecha,
+    confidence: 0.9,
+  }],
+});
+const cmfVacio = { creditors: [] };
+
+// (a) la cita NO corrobora el vencimiento (etiqueta negativa "último pago") → debe caer a 261,
+// sin fecha de mora declarada — el mismo guard que ya aplican las ramas CMF-matched y CMF-overflow.
+{
+  const raw = assembleRawFromDocFacts(
+    [mkFactsNoCmf('fintech_a.pdf', 'Fecha último Pago: 17/01/2026')],
+    cmfVacio, [], null, '2026-08-05',
+  );
+  const c = raw.additionalCreditors[0];
+  eq('(a) NO-CMF sin cita que corrobore → Art. 261', c.categoria_articulo, 261);
+  eq('(a) sin vencimiento acreditado, delinquency_start_date queda undefined', c.delinquency_start_date, undefined);
+  eq('(a) se emite fechaNoAcreditada', raw._fechaNoAcreditada.length, 1);
+}
+
+// (b) NO REGRESIÓN: la cita SÍ corrobora el vencimiento (la fecha literal aparece, sin etiqueta
+// negativa) → sigue siendo 260, con delinquency_start_date poblado. Si esto falla, el fix está mal.
+{
+  const raw = assembleRawFromDocFacts(
+    [mkFactsNoCmf('fintech_b.pdf', 'Fecha de vencimiento: 17/01/2026')],
+    cmfVacio, [], null, '2026-08-05',
+  );
+  const c = raw.additionalCreditors[0];
+  eq('(b) NO-CMF con cita que corrobora → sigue Art. 260', c.categoria_articulo, 260);
+  eq('(b) delinquency_start_date poblado', c.delinquency_start_date, '2026-01-17');
+  eq('(b) no se emite fechaNoAcreditada', raw._fechaNoAcreditada.length, 0);
 }
 
 // =========================================================================== T9 mora-runner precedencia
