@@ -9,6 +9,7 @@ import { esCandidatoAResolver } from '../../src/utils/cert_institution_resolver'
 import { dedupOplessProducts } from '../../src/utils/sentinel_per_doc';
 import { mergeReadIssues } from '../../src/utils/sentinel_backstops';
 import { esPdf } from '../../src/utils/doc_format';
+import { tiposDeAcreditacion } from '../../src/automation/step3_acreedores';
 
 // --------------------------------------------------------------------------- mini-harness
 let pass = 0;
@@ -77,6 +78,14 @@ eq('sin extensión no cumple', esPdf('/tmp/archivo'), false);
 eq('null no cumple', esPdf(null), false);
 eq('undefined no cumple', esPdf(undefined), false);
 eq('.pdf en el medio del nombre no cuenta', esPdf('/tmp/a.pdf.png'), false);
+
+// =========================================================================== T5 tiposDeAcreditacion
+section('T5 — una sola fila de acreditación por acreedor');
+
+eq('Art. 260 pide un solo tipo', tiposDeAcreditacion(false).length, 1);
+eq('y es el 22 (monto y vencimiento)', tiposDeAcreditacion(false)[0], 22);
+eq('"Otros" también pide uno', tiposDeAcreditacion(true).length, 1);
+eq('y también el 22', tiposDeAcreditacion(true)[0], 22);
 
 // --------------------------------------------------------------------------- salida
 console.log(`\n${pass} aserción(es) OK, ${fails.length} fallo(s).`);

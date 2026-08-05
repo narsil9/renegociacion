@@ -178,6 +178,21 @@ export function id261FilasAEmitir<T extends { total_credito_clp: number }>(
   return out;
 }
 
+/**
+ * Qué filas de acreditación pide el portal por acreedor.
+ *
+ * El portal ofrece UNA sola fila, "Acredita Monto y Vencimiento", con un solo botón "Subir
+ * Documento" — verificado en el screenshot del abogado, y su declaración correcta tiene 6
+ * archivos para 6 acreedores (1:1). Antes acá había `isOtros ? [22] : [22, 23]` con un comentario
+ * que decía "así lo hace el abogado": era falso, y el worker subía el mismo PDF dos veces.
+ *
+ * Se deja como función (en vez de una constante) porque la firma admite la distinción `isOtros`
+ * si el portal vuelve a diferenciar; hoy las dos ramas coinciden.
+ */
+export function tiposDeAcreditacion(_isOtros: boolean): Array<22 | 23> {
+  return [22];
+}
+
 export function seleccionarDocsDeLaFila(
   candidatos: AcreditacionDoc[],
   montoDeclarado: number,
@@ -1553,10 +1568,7 @@ export async function fillStep3(
         // `isOtros` viene del addedDocs (el valor FINAL con que se DECLARÓ la fila, post-degradación
         // 90+d→261). NO se recomputa desde overdue90Days: hacerlo mandaba un producto degradado a
         // 261 a buscar su fila en la tabla 260 (equivocada) → el cert no quedaba en la fila 261.
-        // Art. 260 → acredita MONTO (22) Y VENCIMIENTO (23): se sube el MISMO documento
-        // DOS veces, una por cada tipo (así lo hace el abogado), NO como tipo 24 ni doble monto.
-        // Art. 261 → solo MONTO (22).
-        const neededTipos: (22 | 23)[] = isOtros ? [22] : [22, 23];
+        const neededTipos = tiposDeAcreditacion(isOtros);
         // Documento que respalda cada tipo: el que ya es de ese tipo; si no, el general
         // (24 = monto+venc) reusado; si no, el primero disponible.
         // Dos criterios, en este orden:
