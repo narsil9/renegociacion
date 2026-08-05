@@ -176,8 +176,54 @@ async function runT9() {
   eq('(c) cita no acredita → gana la calculadora', factsC.productos[0].fecha_mora, '2026-06-05');
 }
 
+// =========================================================================== T10 alerta de discrepancia
+section('T10 — dos fuentes de fecha_mora que difieren emiten señal accionable (needs_review)');
+
+// La calculadora deriva 05/06/2026 en todos los casos salvo donde se indique lo contrario.
+const calcDerivaJunio = async () => [{ numero_contrato: '1234', fecha_inicio_mora: '05/06/2026', explicacion: 'recorrido de saldos' }];
+const calcDerivaFebrero = async () => [{ numero_contrato: '1234', fecha_inicio_mora: '05/02/2026', explicacion: 'recorrido de saldos' }];
+
+async function runT10() {
+  // (d) extractor acreditado por su cita (2026-02-05) vs calculadora que deriva otra fecha
+  // (2026-06-05) → las dos fuentes DIFIEREN → señal con ambas fechas, ambas citas y el archivo.
+  const factsD = mkFacts(
+    'cmr_d.pdf',
+    '2026-02-05',
+    'AVISO DE COBRANZA Cancelar cuotas atrasadas del 05-febrero de $ 235.084',
+  );
+  await enrichUnDocConMora(factsD, calcDerivaJunio);
+  const issuesD = factsD.claudeReadIssues ?? [];
+  eq('(d) emite 1 señal de discrepancia', issuesD.length, 1);
+  ok('(d) la señal es del archivo correcto', issuesD[0]?.document_filename === 'cmr_d.pdf');
+  ok('(d) el detalle trae la fecha del extractor', issuesD[0]?.detalle.includes('2026-02-05'));
+  ok('(d) el detalle trae la fecha de la calculadora', issuesD[0]?.detalle.includes('2026-06-05'));
+  ok('(d) el detalle trae la cita del extractor', issuesD[0]?.detalle.includes('05-febrero'));
+
+  // (e) extractor con cita que NO acredita (gana la calculadora, T9-c) pero la fecha impresa por el
+  // acreedor SIGUE siendo una segunda fuente que difiere de la derivada → también alerta: el hecho de
+  // que no esté acreditada como vencimiento no la vuelve automáticamente ruido, y es justo el caso real
+  // medido en el consolidado de CMR (fecha_mora=2026-04-05 vs cita "05-febrero").
+  const factsE = mkFacts('cmr_e.pdf', '2026-02-05', 'Fecha último Pago: 05/02/2026');
+  await enrichUnDocConMora(factsE, calcDerivaJunio);
+  eq('(e) también alerta cuando gana la calculadora', (factsE.claudeReadIssues ?? []).length, 1);
+
+  // (f) las dos fuentes COINCIDEN (mismo día) → nada que decir, no se alerta de más.
+  const factsF = mkFacts(
+    'cmr_f.pdf',
+    '2026-02-05',
+    'AVISO DE COBRANZA Cancelar cuotas atrasadas del 05-febrero de $ 235.084',
+  );
+  await enrichUnDocConMora(factsF, calcDerivaFebrero);
+  eq('(f) sin discrepancia: sin señales', (factsF.claudeReadIssues ?? []).length, 0);
+
+  // (g) el extractor no trajo fecha (T9-b): no hay segunda fuente que comparar → sin señal.
+  const factsG = mkFacts('cmr_g.pdf', undefined, undefined);
+  await enrichUnDocConMora(factsG, calcDerivaJunio);
+  eq('(g) sin fecha previa: sin señales', (factsG.claudeReadIssues ?? []).length, 0);
+}
+
 // --------------------------------------------------------------------------- salida
-runT9().then(() => {
+runT9().then(runT10).then(() => {
   console.log(`\n${pass} aserción(es) OK, ${fails.length} fallo(s).`);
   if (fails.length > 0) { fails.forEach((f) => console.error(`  ✗ ${f}`)); process.exit(1); }
 }).catch((e) => { console.error(e); process.exit(1); });

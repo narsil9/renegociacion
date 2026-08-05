@@ -22,6 +22,7 @@ import {
   normalizeRut,
 } from './acreedor_matcher';
 import { normalizeOperationId } from './cert_line_items';
+import type { ClaudeReadIssue } from './sentinel'; // solo tipo — erased en runtime, sin ciclo
 import { UF_CLP } from './cmf_analyzer';
 import { loadReaderLessons, lessonsVersion } from './lessons_loader';
 import { extractEmissionDateFromText } from './cognitive_orchestrator';
@@ -94,6 +95,14 @@ export interface DocFacts {
    * DESAPARECER al acreedor de la declaración sin alerta y sin marcar error técnico.
    */
   read_failed?: boolean;
+  /**
+   * Señales sobre ESTE documento que tienen que llegarle al abogado (Tarea 3 del plan de mora,
+   * 2026-08-05): hoy solo la puebla `enrichUnDocConMora` (mora-runner.ts) cuando el extractor y la
+   * calculadora dan fechas de mora distintas para el mismo producto. Se persiste con el resto de
+   * `facts` (mismo motivo que `fecha_mora`/`cita_fecha`: es una observación del PAPEL, no relativa
+   * a hoy) y `assembleRawFromDocFacts` la junta en `raw.claudeReadIssues`.
+   */
+  claudeReadIssues?: ClaudeReadIssue[];
 }
 
 /** Metadatos de una llamada al modelo, para la telemetría de `herramientas_uso`. */
@@ -1061,6 +1070,10 @@ export function assembleRawFromDocFacts(
     _dedupDrops: dedupDrops,
     // Fechas de mora no corroboradas por la cita (Capa 2 anti-fabricación) → alerta `fecha_no_acreditada`.
     _fechaNoAcreditada: fechaNoAcreditada,
+    // Señales que cada DocFacts ya trae armadas (hoy: discrepancia fecha_mora extractor↔calculadora,
+    // mora-runner.ts). NO llevan prefijo `_`: a diferencia de los dos campos de arriba, éste SÍ se
+    // copia explícitamente a `result.claudeReadIssues` en sentinel.ts, así que sí llega al abogado.
+    claudeReadIssues: factsList.flatMap((f) => f.claudeReadIssues ?? []),
   };
 }
 

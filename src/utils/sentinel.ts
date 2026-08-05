@@ -111,7 +111,7 @@ export interface ClaudeReadIssue {
   document_filename: string;
   institucion: string;
   monto_clp: number;
-  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada' | 'nombre_de_archivo_repetido' | 'identidad_no_confirmada' | 'institucion_no_resuelta';
+  tipo: 'monto_sin_respaldo_en_cita' | 'rut_no_coincide' | 'baja_confianza' | 'sin_evidencia' | 'documento_no_acredita' | 'moneda_inconsistente' | 'posible_duplicado' | 'posible_subdivision_operacion' | 'monto_trivial' | 'fecha_no_acreditada' | 'nombre_de_archivo_repetido' | 'identidad_no_confirmada' | 'institucion_no_resuelta' | 'fecha_mora_discrepante';
   detalle: string;
 }
 
@@ -1361,6 +1361,13 @@ ${loadReaderLessons('paso3')}
       cmf260DirectOverrides: raw.cmf260DirectOverrides || [],
       deReclassified261Creditors,
       fechasClave,
+      // Señales que el ensamblador por-documento (assembleRawFromDocFacts) ya trae armadas como
+      // ClaudeReadIssue (p.ej. discrepancia de fecha_mora entre el extractor y la calculadora,
+      // mora-runner.ts). ⚠️ A diferencia de `_dedupDrops`/`_fechaNoAcreditada` (transitorios sin
+      // esta línea, medido: 0 filas en `automation_alerts` los mencionan — nunca llegaron a
+      // `result`), este SÍ se copia acá, así que SÍ llega a `applyDeterministicBackstops`
+      // (que hace `mergeReadIssues` encima) y de ahí a `centinelaOutput.claudeReadIssues`.
+      claudeReadIssues: raw.claudeReadIssues,
       details: raw.details,
     };
 

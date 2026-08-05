@@ -10,8 +10,45 @@
  * La llamada al modelo se inyecta (`runCalc`): en prod es la API de Anthropic; en pruebas,
  * la salida cacheada de un subagente. Puro respecto a Centinela: solo muta `fecha_mora`/`cita_fecha`.
  */
-import { citaCorroboratesVenc, type DocFacts } from '../sentinel_per_doc';
+import { citaCorroboratesVenc, type DocFacts, type DocProduct } from '../sentinel_per_doc';
 import { recomputarEstados, type MoraEstado } from './mora';
+import type { ClaudeReadIssue } from '../sentinel';
+
+/**
+ * Tarea 3 (plan-calculadora-mora-2026-08-05): la Tarea 1 resuelve QUIÉN gana cuando el extractor y
+ * la calculadora dan fechas de mora distintas — pero eso esconde el desacuerdo. Regla del proyecto:
+ * nada desaparece en silencio, y es justo lo que hace seguro el cambio en los bancos que el corpus
+ * no cubre (si el sistema se equivoca donde no medimos, tiene que avisar, no decidir calladito).
+ *
+ * Umbral: se alerta ante CUALQUIER diferencia, sin margen de "ruido". No hay evidencia en este
+ * código de una fuente de ruido de pocos días: las fechas son strings DD/MM/YYYY extraídas por el
+ * LLM y parseadas deterministamente (`toIsoDate`), no un cálculo relativo a un reloj que pueda
+ * desviarse — no hay redondeo ni huso horario de por medio. La única variación real observable es
+ * un desacuerdo real entre fuentes (medido: 2 meses de diferencia en el consolidado de CMR).
+ */
+function registrarDiscrepanciaMora(
+  facts: DocFacts,
+  p: DocProduct,
+  idProd: string,
+  fechaExtractor: string,
+  citaExtractor: string | undefined,
+  fechaCalculadora: string,
+  explicacionCalculadora: string | undefined,
+  log: (m: string) => void
+): void {
+  const issue: ClaudeReadIssue = {
+    document_filename: facts.filename,
+    institucion: facts.institucion_asignada || facts.emisor_nombre || '(institución no resuelta)',
+    monto_clp: p.moneda === 'CLP' ? p.monto : (p.monto_clp ?? 0),
+    tipo: 'fecha_mora_discrepante',
+    detalle: `Para "${idProd}" en ${facts.filename}, el extractor leyó fecha_mora=${fechaExtractor} ` +
+      `(cita: "${(citaExtractor ?? '(sin cita)').slice(0, 160)}") y la calculadora derivó ${fechaCalculadora} ` +
+      `recorriendo saldos (${(explicacionCalculadora ?? '(sin explicación)').slice(0, 160)}). Las dos fuentes ` +
+      `discrepan — verificar cuál es la fecha real de inicio de mora antes de presentar.`,
+  };
+  facts.claudeReadIssues = [...(facts.claudeReadIssues ?? []), issue];
+  log(`🚨 ${facts.filename}: fecha_mora del extractor (${fechaExtractor}) y de la calculadora (${fechaCalculadora}) DIFIEREN para "${idProd}" — señal emitida para el abogado.`);
+}
 
 /** La calculadora devuelve `estados[]` crudos del modelo (el JSON parseado). */
 export type RunCalculadora = (doc: DocFacts) => Promise<unknown[]>;
@@ -132,7 +169,17 @@ export async function enrichUnDocConMora(
     // que había no está acreditada por su cita (no es mejor que inventarla).
     if (p.fecha_mora && citaCorroboratesVenc(p.fecha_mora, p.cita_fecha)) {
       log(`📌 ${facts.filename}: gana la fecha del extractor (${p.fecha_mora}, acreditada por su cita) sobre la derivada de la calculadora (${iso}) → ${p.operacion ?? p.etiqueta_monto}.`);
+      if (p.fecha_mora !== iso) {
+        registrarDiscrepanciaMora(facts, p, idProd, p.fecha_mora, p.cita_fecha, iso, card.explicacion, log);
+      }
       continue;
+    }
+    // El extractor pudo traer una fecha (no acreditada por su cita, por eso no ganó arriba) que
+    // igual es una SEGUNDA fuente que difiere de la derivada — el caso real medido (consolidado
+    // CMR: fecha_mora=2026-04-05, cita "05-febrero") es EXACTAMENTE este: no estar acreditada no
+    // la vuelve ruido, solo decide que no se declara con ella. Se alerta igual.
+    if (p.fecha_mora && p.fecha_mora !== iso) {
+      registrarDiscrepanciaMora(facts, p, idProd, p.fecha_mora, p.cita_fecha, iso, card.explicacion, log);
     }
     const previa = p.fecha_mora;
     p.fecha_mora = iso;
