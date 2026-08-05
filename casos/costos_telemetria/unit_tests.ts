@@ -7,7 +7,7 @@
  * Uso: TS_NODE_COMPILER_OPTIONS='{"module":"NodeNext","moduleResolution":"NodeNext"}' \
  *        node_modules/.bin/ts-node --transpile-only casos/costos_telemetria/unit_tests.ts
  */
-import { registrarConsumo, LlmCallRecord } from '../../src/utils/document_reads';
+import { registrarConsumo, resolverServicioIdPorRut, limpiarCacheServicioIdWorker, LlmCallRecord } from '../../src/utils/document_reads';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // --------------------------------------------------------------------------- mini-harness
@@ -56,6 +56,53 @@ const call = (over: Partial<LlmCallRecord['usage']> = {}): LlmCallRecord => ({
 });
 
 const loggerMudo = { log: () => {}, error: () => {} };
+
+// --------------------------------------------------------------------------- doble de Supabase (I1)
+// Simula `core.servicio` join `core.cliente` para probar la resolución rut → servicio_id
+// sin tocar producción. `capturedRows` (herramientas_uso) se comparte con `fakeSupabase`
+// de arriba para que un mismo doble sirva las dos tablas que `registrarConsumo` toca.
+type ServicioFixture = { id: string; rut: string; tipo?: string; servicioDeleted?: boolean; clienteDeleted?: boolean };
+
+function fakeSupabaseConServicios(
+  servicios: ServicioFixture[],
+  capturedRows: { rows?: any[] },
+  opts: { indiceFalla?: boolean } = {}
+): SupabaseClient {
+  return {
+    schema(schemaName: string) {
+      if (schemaName !== 'core') throw new Error(`schema inesperado: ${schemaName}`);
+      return {
+        from(table: string) {
+          if (table !== 'servicio') throw new Error(`tabla inesperada: ${table}`);
+          const filtros: Record<string, unknown> = {};
+          const builder: any = {
+            select() { return builder; },
+            eq(col: string, val: unknown) { filtros[col] = val; return builder; },
+            then(resolve: (v: any) => void) {
+              if (opts.indiceFalla) return resolve({ data: null, error: { message: 'conexión caída' } });
+              const rows = servicios
+                .filter((s) => filtros.tipo === undefined || (s.tipo ?? 'RN') === filtros.tipo)
+                .filter((s) => filtros.is_deleted === undefined || (s.servicioDeleted ?? false) === filtros.is_deleted)
+                .filter((s) => filtros['cliente.is_deleted'] === undefined || (s.clienteDeleted ?? false) === filtros['cliente.is_deleted'])
+                .map((s) => ({ id: s.id, cliente: { rut: s.rut } }));
+              return resolve({ data: rows, error: null });
+            },
+          };
+          return builder;
+        },
+      };
+    },
+    from(table: string) {
+      if (table !== 'herramientas_uso') throw new Error(`tabla inesperada: ${table}`);
+      return {
+        async insert(rows: any[]) {
+          capturedRows.rows = rows;
+          return { error: null };
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+}
 
 async function run() {
   // ========================================================================= T1 tokens reales
@@ -122,6 +169,128 @@ async function run() {
       lanzo = true;
     }
     ok('excepción del cliente no propaga', !lanzo);
+  }
+
+  // ========================================================================= T5 rut resuelve a un solo servicio RN
+  section('T5 — rut que resuelve a un único servicio RN: servicio_id se completa solo');
+  {
+    limpiarCacheServicioIdWorker();
+    const captured: { rows?: any[] } = {};
+    const supabase = fakeSupabaseConServicios(
+      [{ id: 'svc-jorge', rut: '12345678-9' }],
+      captured
+    );
+    await registrarConsumo(supabase, [call()], { rut: '12345678-9', automationJobId: 'job-t5' }, loggerMudo);
+    eq('servicio_id resuelto', captured.rows?.[0]?.servicio_id, 'svc-jorge');
+  }
+
+  // ========================================================================= T6 rut ambiguo
+  section('T6 — rut con dos servicios RN: servicio_id NULL + warning (adivinar prohibido)');
+  {
+    limpiarCacheServicioIdWorker();
+    const captured: { rows?: any[] } = {};
+    const supabase = fakeSupabaseConServicios(
+      [
+        { id: 'svc-a', rut: '11111111-1' },
+        { id: 'svc-b', rut: '11111111-1' },
+      ],
+      captured
+    );
+    let warned = false;
+    const loggerEspia = { log: () => {}, error: (m: string) => { if (/ambigu|resuelve a 2/.test(m)) warned = true; } };
+    await registrarConsumo(supabase, [call()], { rut: '11111111-1', automationJobId: 'job-t6' }, loggerEspia);
+    eq('servicio_id queda NULL', captured.rows?.[0]?.servicio_id, null);
+    ok('se logueó warning de ambigüedad', warned);
+  }
+
+  // ========================================================================= T7 formato de rut distinto
+  section('T7 — rut con y sin guion resuelve igual (comparación normalizada)');
+  {
+    limpiarCacheServicioIdWorker();
+    const captured: { rows?: any[] } = {};
+    // cliente.rut CON guion en la base; herramientas_uso.rut llega SIN guion (caso medido en prod).
+    const supabase = fakeSupabaseConServicios([{ id: 'svc-sin-guion', rut: '19122124-9' }], captured);
+    await registrarConsumo(supabase, [call()], { rut: '191221249', automationJobId: 'job-t7' }, loggerMudo);
+    eq('resuelve pese al formato distinto', captured.rows?.[0]?.servicio_id, 'svc-sin-guion');
+  }
+  {
+    limpiarCacheServicioIdWorker();
+    const captured: { rows?: any[] } = {};
+    // Caso inverso: cliente.rut sin guion, herramientas_uso.rut con guion.
+    const supabase = fakeSupabaseConServicios([{ id: 'svc-con-guion', rut: '191221249' }], captured);
+    await registrarConsumo(supabase, [call()], { rut: '19.122.124-9', automationJobId: 'job-t7b' }, loggerMudo);
+    eq('resuelve en el sentido inverso', captured.rows?.[0]?.servicio_id, 'svc-con-guion');
+  }
+
+  // ========================================================================= T8 búsqueda que falla
+  section('T8 — la resolución de servicio_id falla (red/permisos): fila huérfana, sin excepción');
+  {
+    limpiarCacheServicioIdWorker();
+    const captured: { rows?: any[] } = {};
+    const supabase = fakeSupabaseConServicios([], captured, { indiceFalla: true });
+    let lanzo = false;
+    try {
+      await registrarConsumo(supabase, [call()], { rut: '12345678-9', automationJobId: 'job-t8' }, loggerMudo);
+    } catch {
+      lanzo = true;
+    }
+    ok('no propaga la excepción', !lanzo);
+    ok('la fila se insertó igual', captured.rows?.length === 1);
+    eq('servicio_id queda NULL (huérfana, no desaparece)', captured.rows?.[0]?.servicio_id, null);
+  }
+
+  // ========================================================================= T9 usage sin input_tokens (I3)
+  section('T9 — usage sin input_tokens: se loguea, la fila igual se inserta (en 0, no invisible)');
+  {
+    limpiarCacheServicioIdWorker();
+    const captured: { rows?: any[] } = {};
+    const supabase = fakeSupabaseConServicios([{ id: 'svc-x', rut: '12345678-9' }], captured);
+    let avisoUsageAusente = false;
+    const loggerEspia = {
+      log: () => {},
+      error: (m: string) => { if (/usage sin input_tokens/.test(m)) avisoUsageAusente = true; },
+    };
+    await registrarConsumo(
+      supabase,
+      [{ skill: 's', model: 'm', usage: {} }],
+      { rut: '12345678-9', automationJobId: 'job-t9' },
+      loggerEspia
+    );
+    ok('se logueó el usage ausente', avisoUsageAusente);
+    eq('la fila se insertó igual con tokens en 0', captured.rows?.[0]?.input_tokens, 0);
+  }
+
+  // ========================================================================= T10 el finally de I2
+  section('T10 — el patrón "registrar en finally" no pierde el consumo de documentos anteriores');
+  {
+    // No se puede mockear Anthropic acá (prohibido llamar la API real en tests), así que
+    // se prueba el MISMO patrón que runIngresosAgent aplica alrededor de
+    // extractIncomeFactsNative: array declarado afuera, llenado por un loop que lanza a
+    // mitad de camino, registrado en un `finally` que corre pase lo que pase.
+    limpiarCacheServicioIdWorker();
+    const captured: { rows?: any[] } = {};
+    const supabase = fakeSupabaseConServicios([{ id: 'svc-y', rut: '12345678-9' }], captured);
+
+    const llmCalls: LlmCallRecord[] = [];
+    async function loopQueFalla(docs: string[]) {
+      for (const d of docs) {
+        if (d === 'doc-malo') throw new Error(`falló ${d}`);
+        llmCalls.push(call());
+      }
+    }
+
+    let lanzo = false;
+    try {
+      try {
+        await loopQueFalla(['doc-1', 'doc-2', 'doc-malo', 'doc-3']);
+      } finally {
+        await registrarConsumo(supabase, llmCalls, { rut: '12345678-9', automationJobId: 'job-t10' }, loggerMudo);
+      }
+    } catch {
+      lanzo = true;
+    }
+    ok('el error del loop sigue propagando (no se traga)', lanzo);
+    eq('se registraron los 2 documentos previos al que falló', captured.rows?.length, 2);
   }
 
   // --------------------------------------------------------------------------- salida

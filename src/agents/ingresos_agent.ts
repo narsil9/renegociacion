@@ -311,7 +311,8 @@ async function callClaudeForDoc(
  */
 export async function extractIncomeFactsNative(
   docs: IncomeDocInput[],
-  logger?: SimpleLogger
+  logger?: SimpleLogger,
+  llmCallsSink?: LlmCallRecord[]
 ): Promise<{ extracted: ExtractedIncomeDoc[]; cotizaciones: CotizacionesCertFacts | null; llmCalls: LlmCallRecord[] }> {
   const log = (msg: string) => (logger ? logger.log(msg) : console.log(msg));
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -322,8 +323,10 @@ export async function extractIncomeFactsNative(
 
   const extracted: ExtractedIncomeDoc[] = [];
   let cotizaciones: CotizacionesCertFacts | null = null;
-  // Acumulado del loop: UN insert en herramientas_uso al salir, no uno por documento.
-  const llmCalls: LlmCallRecord[] = [];
+  // Acumulado del loop. Si el llamador pasa su propio array (`llmCallsSink`), lo llena
+  // ahí para poder registrarlo en un `finally` aunque el loop lance a mitad de camino
+  // (ver runIngresosAgent) — si no, se crea uno nuevo, igual que antes.
+  const llmCalls: LlmCallRecord[] = llmCallsSink ?? [];
 
   log(`🤖 Leyendo ${docs.length} documento(s) de ingreso con Claude (una llamada por documento)...`);
   for (const doc of docs) {
@@ -372,16 +375,26 @@ export async function runIngresosAgent(
   await markRunning(supabase, runId);
   log(`🚀 Run de ingresos iniciado (runId: ${runId}, ${docs.length} documento(s))`);
 
+  // Declarado ACÁ (no dentro de extractIncomeFactsNative) para poder registrar el
+  // consumo en un `finally`: si el documento N falla y el loop relanza, los tokens de
+  // los N-1 documentos anteriores YA se pagaron y no pueden desaparecer con el error.
+  const llmCalls: LlmCallRecord[] = [];
   try {
-    const { extracted, cotizaciones, llmCalls } = await extractIncomeFactsNative(docs, logger);
-
-    // Telemetría de consumo (herramientas_uso, source='worker') — una vez por run, no por doc.
-    await registrarConsumo(
-      supabase,
-      llmCalls,
-      { rut, automationJobId: process.env.CURRENT_JOB_ID ?? null },
-      logger
-    );
+    let extracted: ExtractedIncomeDoc[];
+    let cotizaciones: CotizacionesCertFacts | null;
+    try {
+      const result = await extractIncomeFactsNative(docs, logger, llmCalls);
+      extracted = result.extracted;
+      cotizaciones = result.cotizaciones;
+    } finally {
+      // Pase lo que pase (éxito o excepción arriba), el gasto ya ocurrido se registra.
+      await registrarConsumo(
+        supabase,
+        llmCalls,
+        { rut, automationJobId: process.env.CURRENT_JOB_ID ?? null },
+        logger
+      );
+    }
 
     // --- Cálculo DETERMINISTA de la estructura a declarar ---
     const computation = computeIncomes(extracted, cotizaciones);
