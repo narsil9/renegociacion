@@ -15,6 +15,7 @@ import { enrichUnDocConMora } from '../../src/utils/calculadora-mora/mora-runner
 import type { DocFacts } from '../../src/utils/sentinel_per_doc';
 import { buildStep5Alert } from '../../src/utils/step5_alert';
 import { buildSentinelResult } from '../../src/utils/sentinel';
+import { applyDeterministicBackstops } from '../../src/utils/sentinel_backstops';
 
 // --------------------------------------------------------------------------- mini-harness
 let pass = 0;
@@ -185,6 +186,74 @@ const noComputed = { reclassifiedCreditors: [], identified261Creditors: [], addi
   eq('(b) sin señales en raw: result._fechaNoAcreditada queda undefined', result._fechaNoAcreditada, undefined);
 }
 
+// =========================================================================== T13 evidence/product_type sobreviven a la reclasificación
+section('T13 — reclasificar acreedores no pierde evidence ni degrada product_type');
+
+const noDate = new Date('2026-08-05');
+
+// (a)+(c) — reconciliación additional→identified261 (sentinel_backstops.ts:349-361): un
+// additionalCreditor 'credito_consumo' cuyo monto cae dentro de tolerancia de una fila CMF del
+// mismo banco AÚN SIN RECLAMAR se mueve a identified261. Debe conservar evidence Y product_type.
+async function runT13a() {
+  const cmfCreditors: any[] = [
+    { institucion: 'Banco X', tipoCredito: 'Consumo', totalCredito: 1_000_000, vigente: 0, overdue30to59: 0, overdue60to89: 0, overdue90Days: 0, esIndirecta: false },
+  ];
+  const evidence = { cita_monto: 'Total adeudado $950.000', confidence: 0.87 };
+  const additionalCreditors: any[] = [
+    {
+      bank: 'Banco X',
+      institucion_cmf: 'Banco X',
+      product_type: 'credito_consumo',
+      categoria_articulo: 261,
+      total_credito_clp: 950_000, // dentro del 30% / $500k de tolerancia vs la fila CMF ($1.000.000)
+      reason: 'test reconciliación',
+      document_filename: 'doc.pdf',
+      needs_lawyer_confirmation: true,
+      evidence,
+    },
+  ];
+  const result: any = {
+    success: true, errors: [], additionalCreditors,
+    details: { meets90DaysRequirement: true, meetsAmountRequirement: true, totalAmountCLP: 0, creditorsWith90DaysCount: 0, documentsAgeValid: true, requiredCertificatesPresent: true },
+  };
+  await applyDeterministicBackstops(result, {
+    cmfCreditors, documents: [], certificateAnalyses: [], catalog: [], clientRut: null, todayDate: noDate,
+  } as any, () => {});
+
+  eq('(a) additional→identified261: la reconciliación se disparó', (result.identified261Creditors ?? []).length, 1);
+  ok('(a) additional→identified261 conserva evidence', result.identified261Creditors?.[0]?.evidence === evidence);
+  eq('(c) additional→identified261 conserva product_type credito_consumo', result.identified261Creditors?.[0]?.product_type, 'credito_consumo');
+}
+
+// (b) — promoción identified261→additional (promoteOverflowIdentified261ToAdditional,
+// sentinel_backstops.ts:206-220): sin ninguna fila CMF para esa institución (sin slots), el
+// identified261Creditor se promueve a additionalCreditor. Debe conservar evidence.
+async function runT13b() {
+  const evidence = { cita_monto: 'Total $300.000', confidence: 0.85 };
+  const identified261Creditors: any[] = [
+    {
+      bank: 'Fintech Y',
+      product_type: 'otro',
+      institucion_cmf: 'Fintech Y',
+      total_credito_clp: 300_000,
+      reason: 'test promoción',
+      document_filename: 'fintech.pdf',
+      evidence,
+    },
+  ];
+  const result: any = {
+    success: true, errors: [], identified261Creditors,
+    details: { meets90DaysRequirement: true, meetsAmountRequirement: true, totalAmountCLP: 0, creditorsWith90DaysCount: 0, documentsAgeValid: true, requiredCertificatesPresent: true },
+  };
+  await applyDeterministicBackstops(result, {
+    cmfCreditors: [], documents: [], certificateAnalyses: [], catalog: [], clientRut: null, todayDate: noDate,
+  } as any, () => {});
+
+  eq('(b) identified261→additional: la promoción se disparó', (result.additionalCreditors ?? []).length, 1);
+  eq('(b) identified261 quedó vacío tras promover', (result.identified261Creditors ?? []).length, 0);
+  ok('(b) identified261→additional conserva evidence', result.additionalCreditors?.[0]?.evidence === evidence);
+}
+
 // =========================================================================== T9 mora-runner precedencia
 section('T9 — la fecha literal del extractor no la pisa la derivada de la calculadora');
 
@@ -275,7 +344,7 @@ async function runT10() {
 }
 
 // --------------------------------------------------------------------------- salida
-runT9().then(runT10).then(() => {
+runT9().then(runT10).then(runT13a).then(runT13b).then(() => {
   console.log(`\n${pass} aserción(es) OK, ${fails.length} fallo(s).`);
   if (fails.length > 0) { fails.forEach((f) => console.error(`  ✗ ${f}`)); process.exit(1); }
 }).catch((e) => { console.error(e); process.exit(1); });

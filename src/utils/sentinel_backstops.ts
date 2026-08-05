@@ -217,6 +217,8 @@ export function promoteOverflowIdentified261ToAdditional(
           'pero no está representado por una línea propia del CMF; se promueve a NO-CMF para crear una fila extra en el portal.',
         document_filename: creditor.document_filename,
         needs_lawyer_confirmation: true,
+        // Sin esto, el acreedor promovido sale de la validación anti-error de :702 (`if (!e.ev) continue;`).
+        evidence: creditor.evidence,
       };
       const dedupeKey =
         `${canonicalInstitutionKey(promotedCreditor.institucion_cmf || promotedCreditor.bank)}|` +
@@ -353,11 +355,15 @@ export async function applyDeterministicBackstops(
         if (k && cmfN > claimedN && closeToCmf(k, a.total_credito_clp)) {
           (result.identified261Creditors = result.identified261Creditors ?? []).push({
             bank: a.bank,
-            product_type: a.product_type === 'tarjeta_credito' ? 'tarjeta_credito' : 'otro',
+            product_type: a.product_type === 'credito_consumo' || a.product_type === 'tarjeta_credito'
+              ? a.product_type
+              : 'otro',
             institucion_cmf: a.institucion_cmf,
             total_credito_clp: a.total_credito_clp,
             reason: `Reconciliación determinista: el LLM lo emitió como NO-CMF, pero corresponde a una línea del CMF de ${a.bank} aún sin reclamar y de monto cercano → es ese producto del CMF (override de monto), NO un acreedor extra (evita doble conteo). ${a.reason}`,
             document_filename: a.document_filename,
+            // Sin esto, el acreedor reconciliado sale de la validación anti-error de :702 (`if (!e.ev) continue;`).
+            evidence: a.evidence,
           });
           claimedCount.set(k, claimedN + 1);
           log(`🔁 Reconciliación: additional→identified261 ${a.bank} $${a.total_credito_clp.toLocaleString('es-CL')} (fila CMF del mismo banco sin reclamar) — evita doble conteo.`);
