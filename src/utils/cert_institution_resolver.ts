@@ -107,6 +107,20 @@ export interface ResolveResult {
 }
 
 /**
+ * ¿Esta fila de `client_documents` es un certificado de acreedor, o sea el único tipo de
+ * documento cuya institución tiene sentido resolver por RUT?
+ *
+ * 22 = acredita monto · 23 = acredita vencimiento (los dos son certificados del acreedor).
+ * 24 = general / no es deuda — y ACÁ estaba el bug: una liquidación de sueldo llega como 24, el
+ * RUT del empleador coincide con un acreedor del catálogo (507 filas: cualquier empresa puede ser
+ * a la vez empleador y acreedor), el resolver le escribía `institucion_cmf` y eso la convertía en
+ * certificado de acreedor → excluida del Paso 5. Kerum declaró CERO ingresos por esto.
+ */
+export function esCandidatoAResolver(doc: { document_type: number | null }): boolean {
+  return doc.document_type === 22 || doc.document_type === 23;
+}
+
+/**
  * Resuelve y persiste `institucion_cmf` para cada certificado del cliente.
  * Best-effort: nunca lanza por un cert individual.
  */
@@ -131,11 +145,12 @@ export async function resolveCertInstitutions(
     return result;
   }
 
-  // 2. Documentos del cliente
+  // 2. Documentos del cliente — SOLO certificados de acreedor (22/23). Ver esCandidatoAResolver.
   const { data: docs, error: docsErr } = await supabase
     .from('client_documents')
-    .select('id, filename, storage_path, institucion_cmf')
-    .eq('client_id', client.id);
+    .select('id, filename, storage_path, institucion_cmf, document_type')
+    .eq('client_id', client.id)
+    .in('document_type', [22, 23]);
   if (docsErr) {
     logger.error('🔗 [Resolver] Error consultando client_documents; se omite.', docsErr.message);
     return result;
