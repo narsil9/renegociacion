@@ -1091,7 +1091,7 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
  * NO acredita vencimiento → el producto va a Art. 261 (lado seguro) + alerta. Escudo determinista:
  * aunque el lector fabrique, TS no lo mete en 260.
  */
-function citaCorroboratesVenc(fecha: string | undefined, cita: string | undefined): boolean {
+export function citaCorroboratesVenc(fecha: string | undefined, cita: string | undefined): boolean {
   if (!fecha || !cita) return false;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha.trim());
   if (!m) return false;

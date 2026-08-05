@@ -10,7 +10,7 @@
  * La llamada al modelo se inyecta (`runCalc`): en prod es la API de Anthropic; en pruebas,
  * la salida cacheada de un subagente. Puro respecto a Centinela: solo muta `fecha_mora`/`cita_fecha`.
  */
-import type { DocFacts } from '../sentinel_per_doc';
+import { citaCorroboratesVenc, type DocFacts } from '../sentinel_per_doc';
 import { recomputarEstados, type MoraEstado } from './mora';
 
 /** La calculadora devuelve `estados[]` crudos del modelo (el JSON parseado). */
@@ -125,6 +125,16 @@ export async function enrichUnDocConMora(
       log(`⚠️ ${facts.filename}: fecha_inicio_mora=${JSON.stringify(cruda)} de "${idProd}" no se pudo interpretar (toIsoDate) — hubo respuesta pero se perdió al parsear; la lectura NO se cachea`);
       continue;
     }
+    // Precedencia de evidencia: una fecha que el acreedor imprime literalmente (el extractor,
+    // acreditada por su propia cita vía `citaCorroboratesVenc`) vale más que una fecha que
+    // NOSOTROS derivamos recorriendo saldos. Si ya hay una literal acreditada, la calculadora
+    // NO la pisa (ni a ella ni a su cita) — solo gana cuando no hay fecha previa, o cuando la
+    // que había no está acreditada por su cita (no es mejor que inventarla).
+    if (p.fecha_mora && citaCorroboratesVenc(p.fecha_mora, p.cita_fecha)) {
+      log(`📌 ${facts.filename}: gana la fecha del extractor (${p.fecha_mora}, acreditada por su cita) sobre la derivada de la calculadora (${iso}) → ${p.operacion ?? p.etiqueta_monto}.`);
+      continue;
+    }
+    const previa = p.fecha_mora;
     p.fecha_mora = iso;
     const [cy, cm, cd] = iso.split('-');
     const canon = `${cd}/${cm}/${cy}`; // DD/MM/YYYY canónico → siempre corrobora la Capa 2
@@ -139,7 +149,7 @@ export async function enrichUnDocConMora(
     // `citaCorroboratesVenc` solo busca la fecha canónica, e `isCollectionNotice` corre
     // sobre `doc.textContent`, no sobre la cita.
     p.cita_fecha = `${canon} — inicio de mora (calculadora Ley 20.720)`;
-    log(`📅 ${facts.filename}: fecha_mora=${iso} por calculadora (${card.dias_mora}d) → ${p.operacion ?? p.etiqueta_monto}. Motivo: ${(card.explicacion ?? '').slice(0, 200)}`);
+    log(`📅 ${facts.filename}: fecha_mora=${iso} por calculadora (${card.dias_mora}d)${previa ? ` — pisó "${previa}" (su cita no la acreditaba)` : ''} → ${p.operacion ?? p.etiqueta_monto}. Motivo: ${(card.explicacion ?? '').slice(0, 200)}`);
   }
   return ausente ? 'fallo' : 'ok';
 }

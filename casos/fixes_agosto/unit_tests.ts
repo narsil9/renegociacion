@@ -11,6 +11,8 @@ import { mergeReadIssues } from '../../src/utils/sentinel_backstops';
 import { esPdf } from '../../src/utils/doc_format';
 import { tiposDeAcreditacion } from '../../src/automation/step3_acreedores';
 import { senalesParaElAbogado } from '../../src/utils/alert_routing';
+import { enrichUnDocConMora } from '../../src/utils/calculadora-mora/mora-runner';
+import type { DocFacts } from '../../src/utils/sentinel_per_doc';
 
 // --------------------------------------------------------------------------- mini-harness
 let pass = 0;
@@ -131,6 +133,51 @@ ok('pide el certificado TGR', contrib[0].toUpperCase().includes('TGR'));
 // Nada que decir.
 eq('sin señales: array vacío', senalesParaElAbogado({ alerts: [], contribucionesDeuda: [], yaEnrutados: YA }).length, 0);
 
+// =========================================================================== T9 mora-runner precedencia
+section('T9 — la fecha literal del extractor no la pisa la derivada de la calculadora');
+
+const mkFacts = (filename: string, fecha_mora?: string, cita_fecha?: string): DocFacts => ({
+  filename,
+  doc_type: 'estado_cuenta',
+  productos: [{
+    monto: 235_084,
+    etiqueta_monto: 'Cuotas atrasadas',
+    moneda: 'CLP',
+    cita_monto: 'Cancelar cuotas atrasadas de $ 235.084',
+    fecha_mora,
+    cita_fecha,
+    confidence: 0.9,
+  }],
+});
+
+// La calculadora, en los 3 casos, deriva 05/06/2026 (distinto del 2026-02-05 real).
+const calcDerivaOtraFecha = async () => [{ numero_contrato: '1234', fecha_inicio_mora: '05/06/2026', explicacion: 'recorrido de saldos' }];
+
+async function runT9() {
+  // (a) el extractor trae fecha acreditada por su propia cita → gana el extractor, cita intacta.
+  const factsA = mkFacts(
+    'cmr_a.pdf',
+    '2026-02-05',
+    'AVISO DE COBRANZA Cancelar cuotas atrasadas del 05-febrero de $ 235.084',
+  );
+  await enrichUnDocConMora(factsA, calcDerivaOtraFecha);
+  eq('(a) gana la fecha literal del extractor', factsA.productos[0].fecha_mora, '2026-02-05');
+  eq('(a) se conserva la cita original', factsA.productos[0].cita_fecha, 'AVISO DE COBRANZA Cancelar cuotas atrasadas del 05-febrero de $ 235.084');
+
+  // (b) el extractor no trajo fecha → gana la calculadora (comportamiento actual, no romper).
+  const factsB = mkFacts('cmr_b.pdf', undefined, undefined);
+  await enrichUnDocConMora(factsB, calcDerivaOtraFecha);
+  eq('(b) sin fecha del extractor, gana la calculadora', factsB.productos[0].fecha_mora, '2026-06-05');
+
+  // (c) el extractor trae fecha, pero su cita NO la corrobora (es "Fecha último Pago", etiqueta
+  // negativa) → esa fecha no está acreditada → gana la calculadora.
+  const factsC = mkFacts('cmr_c.pdf', '2026-02-05', 'Fecha último Pago: 05/02/2026');
+  await enrichUnDocConMora(factsC, calcDerivaOtraFecha);
+  eq('(c) cita no acredita → gana la calculadora', factsC.productos[0].fecha_mora, '2026-06-05');
+}
+
 // --------------------------------------------------------------------------- salida
-console.log(`\n${pass} aserción(es) OK, ${fails.length} fallo(s).`);
-if (fails.length > 0) { fails.forEach((f) => console.error(`  ✗ ${f}`)); process.exit(1); }
+runT9().then(() => {
+  console.log(`\n${pass} aserción(es) OK, ${fails.length} fallo(s).`);
+  if (fails.length > 0) { fails.forEach((f) => console.error(`  ✗ ${f}`)); process.exit(1); }
+}).catch((e) => { console.error(e); process.exit(1); });
