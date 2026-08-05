@@ -6,6 +6,8 @@
  *        node_modules/.bin/ts-node --transpile-only casos/fixes_agosto/unit_tests.ts
  */
 import { esCandidatoAResolver } from '../../src/utils/cert_institution_resolver';
+import { dedupOplessProducts } from '../../src/utils/sentinel_per_doc';
+import { mergeReadIssues } from '../../src/utils/sentinel_backstops';
 
 // --------------------------------------------------------------------------- mini-harness
 let pass = 0;
@@ -28,6 +30,40 @@ eq('23 (acredita vencimiento) es candidato', esCandidatoAResolver({ document_typ
 eq('24 (general) NO es candidato', esCandidatoAResolver({ document_type: 24 }), false);
 eq('null NO es candidato', esCandidatoAResolver({ document_type: null }), false);
 eq('0 NO es candidato', esCandidatoAResolver({ document_type: 0 }), false);
+
+// =========================================================================== T8 dedupOplessProducts
+section('T8 — qué dedupea de verdad dedupOplessProducts');
+
+const it = (bankKey: string, etiqueta: string, emision: string, clp: number, extra: any = {}) =>
+  ({ bankKey, etiqueta, emision, clp, docTypeScore: 1, confidence: 0.9, ...extra } as any);
+
+// Mismo estado en dos formatos (.png y .pdf): colapsa.
+eq('mismo banco/producto/mes y monto equivalente → 1',
+  dedupOplessProducts([it('bch', 'tarjeta', '2026-06-10', 1_000_000), it('bch', 'tarjeta', '2026-06-20', 1_000_000)]).length, 1);
+
+// Meses distintos: es una serie, se conserva.
+eq('meses distintos → se conservan',
+  dedupOplessProducts([it('bch', 'tarjeta', '2026-05-10', 1_000_000), it('bch', 'tarjeta', '2026-06-10', 1_000_000)]).length, 2);
+
+// Montos materialmente distintos: productos reales distintos.
+eq('montos muy distintos → se conservan',
+  dedupOplessProducts([it('bch', 'tarjeta', '2026-06-10', 1_000_000), it('bch', 'tarjeta', '2026-06-11', 9_000_000)]).length, 2);
+
+// Sin mes legible: conservador, no dedupea.
+eq('sin emisión → se conservan',
+  dedupOplessProducts([it('bch', 'tarjeta', '', 1_000_000), it('bch', 'tarjeta', '', 1_000_000)]).length, 2);
+
+// =========================================================================== T6 mergeReadIssues
+section('T6 — los issues del backstop se acumulan');
+
+const previo = [{ tipo: 'identidad_no_confirmada' }];
+const nuevos = [{ tipo: 'moneda_inconsistente' }, { tipo: 'baja_confianza' }];
+const merged = mergeReadIssues(previo, nuevos);
+eq('conserva los previos y agrega los nuevos', merged.length, 3);
+eq('el de identidad sobrevive', merged.some((i) => i.tipo === 'identidad_no_confirmada'), true);
+eq('el previo va primero', merged[0].tipo, 'identidad_no_confirmada');
+eq('sin previos funciona', mergeReadIssues(undefined, nuevos).length, 2);
+eq('sin nuevos conserva los previos', mergeReadIssues(previo, []).length, 1);
 
 // --------------------------------------------------------------------------- salida
 console.log(`\n${pass} aserción(es) OK, ${fails.length} fallo(s).`);

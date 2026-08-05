@@ -789,8 +789,12 @@ export function assembleRawFromDocFacts(
   //    operación: prioridad liquidacion_payoff > desglose_por_producto > estado_cuenta, luego (entre
   //    el mismo doc_type) el que cubre MÁS períodos/estados (consolidado > suelto), luego mayor
   //    confianza, luego mayor monto; y se hereda la fecha_mora de cualquiera del grupo
-  //    (un doc puede traer el monto y otro la fecha). Productos SIN operación no se deduplican
-  //    (no hay clave fiable; un banco con 2 créditos de monto similar son 2 productos reales).
+  //    (un doc puede traer el monto y otro la fecha). Productos SIN operación NO caen acá: los
+  //    dedupea `dedupOplessProducts` más abajo, por (banco + producto + mes de emisión),
+  //    colapsando solo si el monto es equivalente. Conserva series de meses distintos, montos
+  //    materialmente distintos, y todo lo que no tenga mes legible. (Este comentario decía que
+  //    no se deduplicaban: falso desde 6c897c9, y esa afirmación mandó a una conclusión
+  //    equivocada en la auditoría del 2026-08-04.)
   const better = (a: PP, b: PP): PP =>
     atLeastAsAuthoritative(
       { docType: a.docType, periodos: a.periodos, confidence: a.p.confidence ?? 0, clp: a.clp },
