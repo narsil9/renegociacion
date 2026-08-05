@@ -801,7 +801,7 @@ export async function applyDeterministicBackstops(
     // con monto MATERIALMENTE distinto → posible sub-línea perdida (ej. una tarjeta leída como varias
     // líneas con la misma operación → el dedup conserva 1 y tira el resto). No se toca el monto; se
     // alerta para que el abogado verifique que no falte deuda (nunca en silencio — G2).
-    const dedupDrops = (result as unknown as { _dedupDrops?: Array<{ bank: string; op: string; kept: number; dropped: number; droppedFile: string }> })._dedupDrops ?? [];
+    const dedupDrops = result._dedupDrops ?? [];
     for (const d of dedupDrops) {
       issues.push({
         document_filename: d.droppedFile,
@@ -815,7 +815,7 @@ export async function applyDeterministicBackstops(
     // Fecha de mora que el lector puso pero la cita NO corrobora como vencimiento (Capa 2): TS no la
     // aceptó → el producto fue a Art. 261 (lado seguro). Se alerta para que el abogado verifique si
     // había un vencimiento acreditable (que habilitaría Art. 260) — nunca se pierde ni se fuerza a 260.
-    const fechaNoAcred = (result as unknown as { _fechaNoAcreditada?: Array<{ bank: string; monto: number; fecha: string; cita: string; filename: string }> })._fechaNoAcreditada ?? [];
+    const fechaNoAcred = result._fechaNoAcreditada ?? [];
     for (const f of fechaNoAcred) {
       issues.push({
         document_filename: f.filename,

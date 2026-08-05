@@ -14,6 +14,7 @@ import { senalesParaElAbogado } from '../../src/utils/alert_routing';
 import { enrichUnDocConMora } from '../../src/utils/calculadora-mora/mora-runner';
 import type { DocFacts } from '../../src/utils/sentinel_per_doc';
 import { buildStep5Alert } from '../../src/utils/step5_alert';
+import { buildSentinelResult } from '../../src/utils/sentinel';
 
 // --------------------------------------------------------------------------- mini-harness
 let pass = 0;
@@ -159,6 +160,29 @@ eq('(a) sin advertencias no se emite alerta', buildStep5Alert([]), null);
   ok('(c) conserva la advertencia 1', desc!.includes('Certificado de Cotizaciones'));
   ok('(c) conserva la advertencia 2', desc!.includes('liquidacion_marzo.pdf'));
   ok('(c) conserva la advertencia 3', desc!.includes('Guardar y Continuar'));
+}
+
+// =========================================================================== T12 buildSentinelResult
+section('T12 — _dedupDrops y _fechaNoAcreditada llegan al result');
+
+const noComputed = { reclassifiedCreditors: [], identified261Creditors: [], additionalCreditors: [], deReclassified261Creditors: [], fechasClave: [] };
+
+// (a) raw con las dos señales pobladas → sobreviven en result, mismos elementos.
+{
+  const rawDedup = [{ bank: 'BancoEstado', op: 'CRE-123', kept: 100_000, dropped: 50_000, keptFile: 'a.pdf', droppedFile: 'b.pdf' }];
+  const rawFechaNoAcred = [{ bank: 'CMR', monto: 235_084, fecha: '2026-02-05', cita: 'Fecha último Pago: 05/02/2026', filename: 'cmr.pdf' }];
+  const raw: any = { success: true, errors: [], details: {}, _dedupDrops: rawDedup, _fechaNoAcreditada: rawFechaNoAcred };
+  const result = buildSentinelResult(raw, noComputed);
+  eq('(a) result._dedupDrops === raw._dedupDrops', result._dedupDrops, rawDedup as any);
+  eq('(a) result._fechaNoAcreditada === raw._fechaNoAcreditada', result._fechaNoAcreditada, rawFechaNoAcred as any);
+}
+
+// (b) raw sin esas señales → no rompe; sentinel_backstops.ts las lee con `?? []`, tolera undefined.
+{
+  const raw: any = { success: true, errors: [], details: {} };
+  const result = buildSentinelResult(raw, noComputed);
+  eq('(b) sin señales en raw: result._dedupDrops queda undefined', result._dedupDrops, undefined);
+  eq('(b) sin señales en raw: result._fechaNoAcreditada queda undefined', result._fechaNoAcreditada, undefined);
 }
 
 // =========================================================================== T9 mora-runner precedencia

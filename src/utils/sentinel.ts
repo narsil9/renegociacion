@@ -231,6 +231,55 @@ export interface SentinelResult {
     documentsAgeValid: boolean;
     requiredCertificatesPresent: boolean;
   };
+  /** Descartes del dedup con monto materialmente distinto (posible sub-línea perdida). Transitorio:
+   * lo arma `assembleRawFromDocFacts` en `raw`, lo lee `applyDeterministicBackstops`. Declarado acá
+   * (en vez de leído con cast `as unknown as {...}`) para que `buildSentinelResult` no lo pierda. */
+  _dedupDrops?: Array<{ bank: string; op: string; kept: number; dropped: number; keptFile: string; droppedFile: string }>;
+  /** Fechas de mora no corroboradas por la cita (Capa 2 anti-fabricación). Mismo transitorio que arriba. */
+  _fechaNoAcreditada?: Array<{ bank: string; monto: number; fecha: string; cita: string; filename: string }>;
+}
+
+/**
+ * Arma el `SentinelResult` final a partir de `raw` (lo que devolvió Claude/el ensamblador) y de los
+ * arrays ya derivados de `raw` por `runSentinelCheck`. Extraída para poder testearla sin LLM (T12):
+ * este literal NO hace spread de `raw`, así que todo campo que tenga que sobrevivir hay que copiarlo
+ * explícito — `_dedupDrops` y `_fechaNoAcreditada` se armaban en `assembleRawFromDocFacts` y se leían
+ * en `applyDeterministicBackstops`, pero nunca llegaban: medido, 0 de 19 alertas needs_review los
+ * mencionaban.
+ */
+export function buildSentinelResult(raw: any, computed: {
+  reclassifiedCreditors: ReclassifiedCreditor[];
+  identified261Creditors: Identified261Creditor[];
+  additionalCreditors: AdditionalCreditor[];
+  deReclassified261Creditors: DeReclassified261Creditor[];
+  fechasClave: FechaClave[];
+}): SentinelResult {
+  return {
+    // M2: no confiar ciego en raw.success. Si Claude omite el campo, inferir del
+    // shape (hay errores → false; sin errores → true) en vez de bloquear un caso válido.
+    success: typeof raw.success === 'boolean'
+      ? raw.success
+      : !(Array.isArray(raw.errors) && raw.errors.length > 0),
+    errors: raw.errors || [],
+    reclassifiedCreditors: computed.reclassifiedCreditors,
+    identified261Creditors: computed.identified261Creditors,
+    additionalCreditors: computed.additionalCreditors,
+    cmf260DirectOverrides: raw.cmf260DirectOverrides || [],
+    deReclassified261Creditors: computed.deReclassified261Creditors,
+    fechasClave: computed.fechasClave,
+    // Señales que el ensamblador por-documento (assembleRawFromDocFacts) ya trae armadas como
+    // ClaudeReadIssue (p.ej. discrepancia de fecha_mora entre el extractor y la calculadora,
+    // mora-runner.ts). Estos dos SÍ se copian acá, así que SÍ llegan a `applyDeterministicBackstops`
+    // (que hace `mergeReadIssues` encima) y de ahí a `centinelaOutput.claudeReadIssues`.
+    claudeReadIssues: raw.claudeReadIssues,
+    // ⚠️ Este literal NO hace spread de `raw`: todo campo que tenga que sobrevivir hay que
+    // copiarlo explícitamente. `_dedupDrops` y `_fechaNoAcreditada` se construían en
+    // assembleRawFromDocFacts y se leían en applyDeterministicBackstops, pero nunca llegaban:
+    // medido, 0 de 19 alertas needs_review los mencionaban.
+    _dedupDrops: raw._dedupDrops,
+    _fechaNoAcreditada: raw._fechaNoAcreditada,
+    details: raw.details,
+  };
 }
 
 export interface ClientProfile {
@@ -1361,28 +1410,13 @@ ${loadReaderLessons('paso3')}
       total_credito_clp: r.total_credito_clp ?? r.monto_clp ?? 0,
     }));
 
-    const result: SentinelResult = {
-      // M2: no confiar ciego en raw.success. Si Claude omite el campo, inferir del
-      // shape (hay errores → false; sin errores → true) en vez de bloquear un caso válido.
-      success: typeof raw.success === 'boolean'
-        ? raw.success
-        : !(Array.isArray(raw.errors) && raw.errors.length > 0),
-      errors: raw.errors || [],
+    const result: SentinelResult = buildSentinelResult(raw, {
       reclassifiedCreditors,
       identified261Creditors,
       additionalCreditors,
-      cmf260DirectOverrides: raw.cmf260DirectOverrides || [],
       deReclassified261Creditors,
       fechasClave,
-      // Señales que el ensamblador por-documento (assembleRawFromDocFacts) ya trae armadas como
-      // ClaudeReadIssue (p.ej. discrepancia de fecha_mora entre el extractor y la calculadora,
-      // mora-runner.ts). ⚠️ A diferencia de `_dedupDrops`/`_fechaNoAcreditada` (transitorios sin
-      // esta línea, medido: 0 filas en `automation_alerts` los mencionan — nunca llegaron a
-      // `result`), este SÍ se copia acá, así que SÍ llega a `applyDeterministicBackstops`
-      // (que hace `mergeReadIssues` encima) y de ahí a `centinelaOutput.claudeReadIssues`.
-      claudeReadIssues: raw.claudeReadIssues,
-      details: raw.details,
-    };
+    });
 
     // --- Cadena determinista de backstops + validación anti-error ---
     // Toda la lógica de blindaje (completitud, reconciliación, gate 260→261 + rescate-chat,
