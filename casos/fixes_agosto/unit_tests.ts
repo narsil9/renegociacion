@@ -10,6 +10,7 @@ import { dedupOplessProducts } from '../../src/utils/sentinel_per_doc';
 import { mergeReadIssues } from '../../src/utils/sentinel_backstops';
 import { esPdf } from '../../src/utils/doc_format';
 import { tiposDeAcreditacion } from '../../src/automation/step3_acreedores';
+import { senalesParaElAbogado } from '../../src/utils/alert_routing';
 
 // --------------------------------------------------------------------------- mini-harness
 let pass = 0;
@@ -86,6 +87,46 @@ eq('Art. 260 pide un solo tipo', tiposDeAcreditacion(false).length, 1);
 eq('y es el 22 (monto y vencimiento)', tiposDeAcreditacion(false)[0], 22);
 eq('"Otros" también pide uno', tiposDeAcreditacion(true).length, 1);
 eq('y también el 22', tiposDeAcreditacion(true)[0], 22);
+
+// =========================================================================== T7 alert_routing
+section('T7 — ninguna señal del Mapeador ni de contribuciones se queda sin destinatario');
+
+const YA = ['rut_mismatch', 'missing_document', 'amount_mismatch'] as const;
+
+// Los 3 tipos huérfanos hoy.
+const huerfanos = senalesParaElAbogado({
+  alerts: [
+    { type: 'expired_cmf', message: 'CMF de mayo, vencido' },
+    { type: 'expired_certificate', message: 'certificado BCI vencido' },
+    { type: 'other', message: 'fallback por institución' },
+  ],
+  contribucionesDeuda: [],
+  yaEnrutados: YA,
+});
+eq('los 3 tipos sin ruta generan señal', huerfanos.length, 3);
+ok('menciona el CMF vencido', huerfanos.some((s) => s.includes('CMF de mayo')));
+ok('menciona el fallback', huerfanos.some((s) => s.includes('fallback por institución')));
+
+// Los que ya se enrutan no se duplican.
+const yaCubiertos = senalesParaElAbogado({
+  alerts: [{ type: 'rut_mismatch', message: 'x' }, { type: 'amount_mismatch', message: 'y' }],
+  contribucionesDeuda: [],
+  yaEnrutados: YA,
+});
+eq('los ya enrutados no se repiten', yaCubiertos.length, 0);
+
+// Contribuciones morosas.
+const contrib = senalesParaElAbogado({
+  alerts: [],
+  contribucionesDeuda: [{ rol: '03603-00225' }, { rol: '03603-00270' }],
+  yaEnrutados: YA,
+});
+eq('las contribuciones generan una señal', contrib.length, 1);
+ok('nombra los roles', contrib[0].includes('03603-00225') && contrib[0].includes('03603-00270'));
+ok('pide el certificado TGR', contrib[0].toUpperCase().includes('TGR'));
+
+// Nada que decir.
+eq('sin señales: array vacío', senalesParaElAbogado({ alerts: [], contribucionesDeuda: [], yaEnrutados: YA }).length, 0);
 
 // --------------------------------------------------------------------------- salida
 console.log(`\n${pass} aserción(es) OK, ${fails.length} fallo(s).`);

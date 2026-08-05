@@ -25,8 +25,9 @@ import { resolveCertInstitutions } from './utils/cert_institution_resolver';
 import { fetchAcreedoresCatalog, topNCandidates } from './utils/acreedor_matcher';
 import { buildReadIssuesAlert } from './utils/read_issues_alert';
 import { runMapeadorAgent } from './agents/mapeador_agent';
-import { CentinelaOutput } from './agents/types';
+import { CentinelaOutput, TributarioOutput } from './agents/types';
 import { esCertificadoDeAcreedor, documentosDeIngresoDescartados } from './utils/doc_scope';
+import { senalesParaElAbogado } from './utils/alert_routing';
 
 /**
  * BUG-08 FIX: Dedicated error class for cases that must not be retried and
@@ -508,6 +509,11 @@ async function processJob(job: any): Promise<void> {
     // Si queda con motivo: el cliente califica pero los documentos del Paso 3 no
     // cumplen → en el flujo completo (step:0) se omite SOLO el Paso 3 y se guardan 1, 2 y 4.
     let skipStep3Reason: string | null = null;
+    // Output del Agente Tributario, en scope de función para que el bloque de señales del
+    // Paso 3 (que corre ANTES del Paso 2 en el flujo completo) pueda leer las contribuciones
+    // morosas. Solo lo llena el pre-chequeo A7 (abajo, step:0) — runTributarioAgent es
+    // idempotente por hash de PDF, así que no gasta una corrida extra.
+    let tributarioOutput: TributarioOutput | null = null;
 
     // Limpieza best-effort del borrador del portal (login + cleanupDraft). Se usa
     // cuando el caso es inválido de raíz (no califica) o cuando el Paso 3 individual falla.
@@ -552,6 +558,7 @@ async function processJob(job: any): Promise<void> {
           if (!ctErr && ctBlob) {
             fs.writeFileSync(ctEarlyPath, Buffer.from(await ctBlob.arrayBuffer()));
             const tribEarly = await runTributarioAgent(supabase, client.id, ctEarlyPath, logger);
+            tributarioOutput = tribEarly;
             fs.existsSync(ctEarlyPath) && fs.unlinkSync(ctEarlyPath);
             const f29EarlyBlocking = f29BlockingMonths(tribEarly);
             if (f29EarlyBlocking.length > 0) {
@@ -777,6 +784,18 @@ async function processJob(job: any): Promise<void> {
           if (amountAlerts.length > 0) {
             informativeSignals.push(`monto divergente: ${amountAlerts.map((a) => a.message).join('; ')}`);
           }
+          // Los tipos de alerta del Mapeador que no tienen ruta propia (expired_cmf,
+          // expired_certificate, other) + las contribuciones morosas del Agente Tributario.
+          // Antes morían en agent_runs, que el panel no lee. `tributarioOutput` solo está
+          // poblado si el pre-chequeo A7 corrió (step:0 con carpeta tributaria) — en un Paso 3
+          // individual no hay contribuciones que reportar acá, degrada a array vacío.
+          informativeSignals.push(
+            ...senalesParaElAbogado({
+              alerts: mapeadorOutput.alerts,
+              contribucionesDeuda: tributarioOutput?.contribuciones_deuda ?? [],
+              yaEnrutados: ['rut_mismatch', 'missing_document', 'amount_mismatch'],
+            })
+          );
           if (informativeSignals.length > 0) {
             // NO bloquean (el Paso 3 se completa igual), pero SÍ tienen que llegarle al abogado:
             // un monto divergente entre el certificado y el CMF es justo la señal que G1 manda
