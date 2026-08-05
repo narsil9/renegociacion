@@ -179,18 +179,26 @@ export function id261FilasAEmitir<T extends { total_credito_clp: number }>(
 }
 
 /**
- * Qué filas de acreditación pide el portal por acreedor.
+ * Qué tipos de acreditación pide el portal por acreedor.
  *
- * El portal ofrece UNA sola fila, "Acredita Monto y Vencimiento", con un solo botón "Subir
- * Documento" — verificado en el screenshot del abogado, y su declaración correcta tiene 6
- * archivos para 6 acreedores (1:1). Antes acá había `isOtros ? [22] : [22, 23]` con un comentario
- * que decía "así lo hace el abogado": era falso, y el worker subía el mismo PDF dos veces.
+ * **22 = acredita el MONTO · 23 = acredita el VENCIMIENTO. El Art. 260 exige los DOS.**
  *
- * Se deja como función (en vez de una constante) porque la firma admite la distinción `isOtros`
- * si el portal vuelve a diferenciar; hoy las dos ramas coinciden.
+ * Medido en el portal el 2026-08-05 (harness, 5 ciclos, cuenta de prueba 21917363-6): subiendo
+ * solo el 22, la fila del Art. 260 queda con la etiqueta "Acredita Monto" y la columna
+ * **"Acredita (Sí/No)" en NO** — o sea la deuda queda declarada SIN acreditar. Con los dos, el
+ * portal muestra "Acredita Monto y Vencimiento" y marca Sí, que es como está la declaración
+ * correcta del abogado (`~/Desktop/docs-declaracion-abogado-mariabarraza/screenchots/paso3.png`).
+ * Las filas del 261 salen en Sí con solo el 22, porque el 261 no exige vencimiento.
+ *
+ * ⚠️ El comentario original de esta línea decía *"así lo hace el abogado"* y el 2026-08-05 se lo
+ * declaró falso leyendo su screenshot: "Acredita Monto y Vencimiento" se interpretó como UNA
+ * entrada, cuando es el RESULTADO de haber subido los dos tipos. El cambio a `[22]` llegó a
+ * commitearse (`0e62466`) con 34 tests unitarios en verde y la decisión idéntica a la del
+ * abogado — lo agarró la corrida contra el portal, no la suite. No volver a "arreglar" esto sin
+ * una captura del portal que muestre la columna Acredita en Sí.
  */
-export function tiposDeAcreditacion(_isOtros: boolean): Array<22 | 23> {
-  return [22];
+export function tiposDeAcreditacion(isOtros: boolean): Array<22 | 23> {
+  return isOtros ? [22] : [22, 23];
 }
 
 export function seleccionarDocsDeLaFila(

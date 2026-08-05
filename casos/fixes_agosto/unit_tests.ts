@@ -81,12 +81,15 @@ eq('undefined no cumple', esPdf(undefined), false);
 eq('.pdf en el medio del nombre no cuenta', esPdf('/tmp/a.pdf.png'), false);
 
 // =========================================================================== T5 tiposDeAcreditacion
-section('T5 — una sola fila de acreditación por acreedor');
+section('T5 — el Art. 260 exige monto Y vencimiento; el 261 solo monto');
 
-eq('Art. 260 pide un solo tipo', tiposDeAcreditacion(false).length, 1);
-eq('y es el 22 (monto y vencimiento)', tiposDeAcreditacion(false)[0], 22);
-eq('"Otros" también pide uno', tiposDeAcreditacion(true).length, 1);
-eq('y también el 22', tiposDeAcreditacion(true)[0], 22);
+// Medido en el portal el 2026-08-05 (harness, 5 ciclos): con solo el 22, la fila del 260 queda
+// con la columna "Acredita (Sí/No)" en NO — declarada sin acreditar. El 261 sale en Sí con el 22.
+eq('Art. 260 pide los dos tipos', tiposDeAcreditacion(false).length, 2);
+eq('el 22 acredita el monto', tiposDeAcreditacion(false)[0], 22);
+eq('el 23 acredita el vencimiento', tiposDeAcreditacion(false)[1], 23);
+eq('"Otros" (261) pide uno solo', tiposDeAcreditacion(true).length, 1);
+eq('y es el 22, porque el 261 no exige vencimiento', tiposDeAcreditacion(true)[0], 22);
 
 // =========================================================================== T7 alert_routing
 section('T7 — ninguna señal del Mapeador ni de contribuciones se queda sin destinatario');
