@@ -34,6 +34,18 @@ import { canonicalInstitutionKey, normalizeRut, findCatalogEntryByRut, AcreedorC
 import { extractCertLineItems, detectDocumentCurrency, normalizeOperationId } from './cert_line_items';
 import { extractTextFromPdfLayout } from './pdf_analyzer';
 
+/**
+ * Acumula señales sobre la lectura del LLM en vez de pisarlas.
+ *
+ * Antes acá había `result.claudeReadIssues = issues`: el bloque de validación-por-evidencia
+ * declaraba su propio array y lo ponía encima del que el loop de completitud había empujado con
+ * spread. En Kerum (job bbf83b2d) eso borró el `identidad_no_confirmada` de TC_BICE.pdf — el log
+ * decía "no se declara $2.070.949" y agent_runs no tenía ninguna señal de identidad.
+ */
+export function mergeReadIssues<T>(previos: T[] | undefined, nuevos: T[]): T[] {
+  return [...(previos ?? []), ...nuevos];
+}
+
 // --- Slots de productos por institución (usados por la promoción de overflow) ---
 interface InstitutionSlots {
   total: number;
@@ -421,8 +433,7 @@ export async function applyDeterministicBackstops(
               : caDoc.bancoSegunRut
                 ? `el emisor detectado leyendo el documento es "${caDoc.bancoSegunRut}", no "${doc.institucion_cmf}"`
                 : `el documento no imprime el RUT de "${doc.institucion_cmf}"`;
-        result.claudeReadIssues = [
-          ...(result.claudeReadIssues ?? []),
+        result.claudeReadIssues = mergeReadIssues(result.claudeReadIssues, [
           {
             document_filename: doc.filename,
             institucion: doc.institucion_cmf ?? '',
@@ -438,7 +449,7 @@ export async function applyDeterministicBackstops(
               `deuda de un banco). Identificá el emisor real del documento y declaralo a mano si ` +
               `corresponde.`,
           },
-        ];
+        ]);
         log(`   ⛔ ${doc.filename}: identidad no confirmada por el papel (${motivo}) → no se declara ${montos}`);
         continue;
       }
@@ -826,7 +837,7 @@ export async function applyDeterministicBackstops(
     }
 
     if (issues.length > 0) {
-      result.claudeReadIssues = issues;
+      result.claudeReadIssues = mergeReadIssues(result.claudeReadIssues, issues);
       log(`🔎 Validación anti-error: ${issues.length} señal(es) sobre la lectura de Claude (${withEvidence}/${emitted.length} acreedores con evidencia):`);
       issues.forEach(i => log(`   - [${i.tipo}] ${i.institucion} ($${i.monto_clp.toLocaleString('es-CL')}) — ${i.detalle}`));
     } else if (emitted.length > 0) {
@@ -839,7 +850,7 @@ export async function applyDeterministicBackstops(
   // conjunto de documentos, y tiene que avisar siempre. Ver `detectarNombresRepetidos`.
   const homonimos = detectarNombresRepetidos(documents);
   if (homonimos.length > 0) {
-    result.claudeReadIssues = [...(result.claudeReadIssues ?? []), ...homonimos];
+    result.claudeReadIssues = mergeReadIssues(result.claudeReadIssues, homonimos);
     homonimos.forEach((i) => log(`⚠️ [${i.tipo}] ${i.detalle}`));
   }
 
@@ -848,7 +859,7 @@ export async function applyDeterministicBackstops(
   // propiedad del conjunto de documentos y tiene que avisar siempre.
   const noResueltas = detectarInstitucionesNoResueltas(documents, catalog);
   if (noResueltas.length > 0) {
-    result.claudeReadIssues = [...(result.claudeReadIssues ?? []), ...noResueltas];
+    result.claudeReadIssues = mergeReadIssues(result.claudeReadIssues, noResueltas);
     noResueltas.forEach((i) => log(`⚠️ [${i.tipo}] ${i.detalle}`));
   }
 
