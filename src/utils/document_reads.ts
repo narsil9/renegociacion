@@ -51,6 +51,16 @@ export interface LlmCallRecord {
 const sha256 = (s: string | Buffer): string =>
   crypto.createHash('sha256').update(s).digest('hex');
 
+/**
+ * Últimos 4 caracteres de la key que paga esta corrida — mismo dato que ya muestra la
+ * consola de Anthropic. Se calcula UNA vez, a nivel de módulo: la key no cambia durante
+ * la vida del proceso. Nunca la key entera ni un prefijo: alcanza para diferenciar contra
+ * la factura, no para reconstruir el secreto.
+ */
+const API_KEY_HINT: string | null = process.env.ANTHROPIC_API_KEY
+  ? process.env.ANTHROPIC_API_KEY.slice(-4)
+  : null;
+
 /** Identidad de CONTENIDO del documento: sha256 de los bytes tal como se bajaron del bucket. */
 export function contentHash(buf: Buffer): string {
   return sha256(buf);
@@ -261,7 +271,13 @@ export async function resolverServicioIdPorRut(
 export async function registrarConsumo(
   supabase: SupabaseClient,
   calls: LlmCallRecord[],
-  ctx: { rut: string | null; automationJobId: string | null; filename?: string; servicioId?: string | null },
+  ctx: {
+    rut: string | null;
+    automationJobId: string | null;
+    filename?: string;
+    servicioId?: string | null;
+    apiKeyHint?: string | null;
+  },
   logger?: { log: (m: string) => void; error: (m: string, e?: unknown) => void }
 ): Promise<void> {
   if (calls.length === 0) return;
@@ -287,6 +303,7 @@ export async function registrarConsumo(
         rut: ctx.rut,
         source: 'worker',
         servicio_id: servicioId,
+        api_key_hint: ctx.apiKeyHint !== undefined ? ctx.apiKeyHint : API_KEY_HINT,
         meta: { automation_job_id: ctx.automationJobId, filename: ctx.filename ?? null },
       };
     });

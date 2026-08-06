@@ -57,6 +57,28 @@ const call = (over: Partial<LlmCallRecord['usage']> = {}): LlmCallRecord => ({
 
 const loggerMudo = { log: () => {}, error: () => {} };
 
+// --------------------------------------------------------------------------- api_key_hint (T11-T14)
+// `API_KEY_HINT` se calcula UNA vez al cargar `document_reads.ts` (a nivel de módulo, no por
+// llamada) — por diseño, para no leer `process.env` en cada insert. Eso significa que el
+// `import` estático de arriba de este archivo ya fijó su propio valor y no se puede cambiar
+// desde acá. Para probar la derivación con distintos valores de env, se fuerza un módulo
+// NUEVO: se pisa `ANTHROPIC_API_KEY`, se borra la entrada de `require.cache` y se vuelve a
+// pedir el módulo — mismo mecanismo de Node, sin mocks ni librerías nuevas.
+function reloadDocumentReads(envValue: string | undefined): typeof import('../../src/utils/document_reads') {
+  const antes = process.env.ANTHROPIC_API_KEY;
+  if (envValue === undefined) delete process.env.ANTHROPIC_API_KEY;
+  else process.env.ANTHROPIC_API_KEY = envValue;
+
+  const modPath = require.resolve('../../src/utils/document_reads');
+  delete require.cache[modPath];
+  const mod = require('../../src/utils/document_reads');
+
+  if (antes === undefined) delete process.env.ANTHROPIC_API_KEY;
+  else process.env.ANTHROPIC_API_KEY = antes;
+
+  return mod;
+}
+
 // --------------------------------------------------------------------------- doble de Supabase (I1)
 // Simula `core.servicio` join `core.cliente` para probar la resolución rut → servicio_id
 // sin tocar producción. `capturedRows` (herramientas_uso) se comparte con `fakeSupabase`
@@ -291,6 +313,54 @@ async function run() {
     }
     ok('el error del loop sigue propagando (no se traga)', lanzo);
     eq('se registraron los 2 documentos previos al que falló', captured.rows?.length, 2);
+  }
+
+  // ========================================================================= T11 api_key_hint derivado
+  section('T11 — api_key_hint: derivado de ANTHROPIC_API_KEY (últimos 4), calculado al cargar el módulo');
+  {
+    const captured: { rows?: any[] } = {};
+    const mod = reloadDocumentReads('sk-ant-api03-abcXYZ9988');
+    const supabase = fakeSupabase('ok', captured);
+    await mod.registrarConsumo(supabase, [call()], { rut: '1-9', automationJobId: 'job-t11' }, loggerMudo);
+    eq('api_key_hint son los últimos 4', captured.rows?.[0]?.api_key_hint, '9988');
+  }
+
+  // ========================================================================= T12 explícito gana
+  section('T12 — un apiKeyHint explícito del llamador gana sobre el derivado del módulo');
+  {
+    const captured: { rows?: any[] } = {};
+    const mod = reloadDocumentReads('sk-ant-api03-abcXYZ9988');
+    const supabase = fakeSupabase('ok', captured);
+    await mod.registrarConsumo(
+      supabase,
+      [call()],
+      { rut: '1-9', automationJobId: 'job-t12', apiKeyHint: 'ZZZZ' },
+      loggerMudo
+    );
+    eq('gana el hint explícito', captured.rows?.[0]?.api_key_hint, 'ZZZZ');
+  }
+
+  // ========================================================================= T13 sin env var
+  section('T13 — sin ANTHROPIC_API_KEY: api_key_hint queda null, la fila se inserta igual');
+  {
+    const captured: { rows?: any[] } = {};
+    const mod = reloadDocumentReads(undefined);
+    const supabase = fakeSupabase('ok', captured);
+    await mod.registrarConsumo(supabase, [call()], { rut: '1-9', automationJobId: 'job-t13' }, loggerMudo);
+    ok('la fila se insertó igual (nada desaparece)', captured.rows?.length === 1);
+    eq('api_key_hint es null', captured.rows?.[0]?.api_key_hint, null);
+  }
+
+  // ========================================================================= T14 nunca más de 4 caracteres
+  section('T14 — api_key_hint nunca tiene más de 4 caracteres, aunque cambie el slice');
+  {
+    const captured: { rows?: any[] } = {};
+    const mod = reloadDocumentReads('sk-ant-api03-unaKeyMuchoMasLarga1234');
+    const supabase = fakeSupabase('ok', captured);
+    await mod.registrarConsumo(supabase, [call()], { rut: '1-9', automationJobId: 'job-t14' }, loggerMudo);
+    const hint = captured.rows?.[0]?.api_key_hint as string;
+    ok('largo <= 4', typeof hint === 'string' && hint.length <= 4, `largo real ${hint?.length}`);
+    eq('exactamente los últimos 4', hint, '1234');
   }
 
   // --------------------------------------------------------------------------- salida
