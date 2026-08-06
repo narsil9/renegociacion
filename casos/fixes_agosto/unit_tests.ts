@@ -14,6 +14,7 @@ import { senalesParaElAbogado } from '../../src/utils/alert_routing';
 import { enrichUnDocConMora } from '../../src/utils/calculadora-mora/mora-runner';
 import type { DocFacts } from '../../src/utils/sentinel_per_doc';
 import { buildStep5Alert } from '../../src/utils/step5_alert';
+import { buildValidationAlert } from '../../src/utils/validation_alert';
 import { buildSentinelResult } from '../../src/utils/sentinel';
 import { applyDeterministicBackstops } from '../../src/utils/sentinel_backstops';
 import { assembleRawFromDocFacts } from '../../src/utils/sentinel_per_doc';
@@ -339,6 +340,33 @@ section('T15 — el total de un certificado global que no se usa para acreditar,
   const raw = assembleRawFromDocFacts([factsSinTotal], { creditors: [] }, [], null, '2026-08-05');
   const issues = (raw.claudeReadIssues ?? []).filter((i: any) => i.tipo === 'total_global_no_usado');
   eq('(b) sin totales_por_moneda → sin señal', issues.length, 0);
+}
+
+// =========================================================================== T16 validation_alert
+section('T16 — los warnings del validador (vencimientos, monto insuficiente) armar alerta');
+
+// (a) sin warnings → null (sin ruido).
+eq('(a) sin warnings → null', buildValidationAlert([]), null);
+
+// (b) un warning de certificado vencido → el texto lo menciona y trae el número de días.
+{
+  const texto = buildValidationAlert(['⚠️  Certificado con +30 días: Banco X vencido hace 45 días — actualizar antes de radicar.']);
+  ok('(b) no es null', texto !== null);
+  ok('(b) menciona "vencido"', !!texto?.includes('vencido'));
+  ok('(b) trae el número de días', !!texto?.includes('45 días'));
+}
+
+// (c) tres warnings → los tres aparecen, ninguno se pierde.
+{
+  const warnings = [
+    '⚠️  CMF con 40 días de antigüedad (máx 30) — actualizar antes de radicar.',
+    '⚠️  Certificado con +30 días: Banco Y vencido hace 60 días.',
+    '⚠️  Monto insuficiente para la sesión: $2.000.000 < $3.000.000 (80 UF).',
+  ];
+  const texto = buildValidationAlert(warnings);
+  for (const w of warnings) {
+    ok(`(c) conserva "${w.slice(0, 20)}…"`, !!texto?.includes(w));
+  }
 }
 
 // =========================================================================== T9 mora-runner precedencia

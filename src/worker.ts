@@ -29,6 +29,8 @@ import { CentinelaOutput, TributarioOutput } from './agents/types';
 import { esCertificadoDeAcreedor, documentosDeIngresoDescartados } from './utils/doc_scope';
 import { senalesParaElAbogado } from './utils/alert_routing';
 import { buildStep5Alert } from './utils/step5_alert';
+import { validateCentinelaOutput } from './agents/validator';
+import { buildValidationAlert } from './utils/validation_alert';
 
 /**
  * BUG-08 FIX: Dedicated error class for cases that must not be retried and
@@ -642,6 +644,26 @@ async function processJob(job: any): Promise<void> {
           throw centinelaErr;
         }
 
+        // El validador del Centinela detecta CMF/certificados vencidos >30d y overrides Art.260
+        // sin fecha de vencimiento (validator.ts) y los deja SOLO en `logValidationResult` (log) +
+        // `needsLawyerReview` en `agent_runs`, tabla que el panel no lee. Se re-corre acá la misma
+        // validación (pura, sin costo) para leer `.warnings` y alertar en `automation_alerts`.
+        {
+          const centinelaValidation = validateCentinelaOutput(centinelaOutput);
+          // Solo los warnings de vencimiento (todos empiezan con '⚠️' en validator.ts): el warning
+          // "acreedor(es) no-CMF detectados" ya tiene su propia ruta (nonCmfDetected, más abajo) —
+          // no duplicar.
+          const vencimientoWarnings = centinelaValidation.warnings.filter((w) => w.startsWith('⚠️'));
+          const centinelaAlertText = buildValidationAlert(vencimientoWarnings);
+          if (centinelaAlertText) {
+            const { error: cvErr } = await supabase.from('automation_alerts').insert({
+              job_id: job.id, client_id: client.id, step: 3, alert_type: 'needs_review', description: centinelaAlertText,
+            });
+            if (cvErr) logger.error('⚠️ No se pudo registrar alerta de validación del Centinela:', cvErr.message);
+            logger.log(`🔔 ${centinelaAlertText}`);
+          }
+        }
+
         // 4. Run Mapeador Agent (API #2) — mapea documentos a acreedores
         logger.log('🗺️ Ejecutando Agente Mapeador (Orquestador Cognitivo) para mapear documentos...');
         await reportProgress(job.id, 'Emparejando cada certificado con su deuda…');
@@ -653,7 +675,14 @@ async function processJob(job: any): Promise<void> {
         // El Paso 3 SOLO se completa si el cliente CALIFICA (atraso 91+ días) Y los DOCUMENTOS
         // pasan la auditoría cognitiva. La regla de 80 UF genera solo una advertencia, no bloquea.
         if (cmfResult.meets90DaysRequirement && !cmfResult.meetsAmountRequirement) {
-          logger.log(`⚠️  ADVERTENCIA: Suma del total del crédito de acreedores con 90+d ($${cmfResult.totalCreditoOf90PlusCreditors.toLocaleString('es-CL')}) no alcanza 80 UF ($${cmfResult.requiredAmountCLP.toLocaleString('es-CL')}). El flujo continúa; revisar documentos adicionales si aplica.`);
+          const montoAlertText = `⚠️  ADVERTENCIA: Suma del total del crédito de acreedores con 90+d ($${cmfResult.totalCreditoOf90PlusCreditors.toLocaleString('es-CL')}) no alcanza 80 UF ($${cmfResult.requiredAmountCLP.toLocaleString('es-CL')}). El flujo continúa; revisar documentos adicionales si aplica.`;
+          logger.log(montoAlertText);
+          // Antes solo se logueaba (nadie lee el log del job): el abogado no se enteraba de que
+          // el caso corrió por debajo del piso de 80 UF hasta abrir el portal.
+          const { error: montoErr } = await supabase.from('automation_alerts').insert({
+            job_id: job.id, client_id: client.id, step: 3, alert_type: 'needs_review', description: montoAlertText,
+          });
+          if (montoErr) logger.error('⚠️ No se pudo registrar alerta de monto insuficiente (80 UF):', montoErr.message);
         }
 
         // Requisito de fondo (Art. 260): al menos 2 productos con mora >= 91 días.
